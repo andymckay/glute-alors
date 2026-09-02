@@ -1,0 +1,16 @@
+@font-face {
+    font-family: Garamond;
+    src: url(/static/fonts/CormorantGaramond-VariableFont_wght.ttf) format("truetype");
+}
+
+h1 {
+    font-family: Garamond, serif;
+    font-size: 2.5rem;
+    font-weight: 500;
+}
+
+h2 {
+    font-family: Garamond, serif;
+    font-size: 2rem;
+    font-weight: 500;
+}

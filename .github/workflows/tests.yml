@@ -1,0 +1,11 @@
+name: Unit Tests
+on: push 
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+      - run: pip install -r requirements.txt
+      - run: manage.py test

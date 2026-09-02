@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="container-lg">
+    <div class="row">
+        <div class="col-lg-7">
+            <p><a class="btn btn-primary" href="{% url 'alors:add_planned_workout' %}">Add a planned workout</a></p>
+            <ul class="nav nav-underline pb-4">
+                <li class="nav-item">
+                    <a class="nav-link" href="?d=&v={{ request.GET.v }}">Today</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="?d={{ next }}&v={{ request.GET.v }}">Next</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="?d={{ previous }}&v={{ request.GET.v}}">Previous</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.GET.v == 'daily' %}active{% endif %}" href="?d={{ request.GET.d }}&v=daily">Daily</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.GET.v == 'weekly' %}active{% endif %}" href="?d={{ request.GET.d }}&v=weekly">Weekly</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.GET.v == 'monthly' %}active{% endif %}" href="?d={{ request.GET.d }}&v=monthly">Monthly</a>
+                </li>
+            </ul>
+            <ul class="list-group">
+                {% for workout in workouts %}
+                    <li class="list-group-item"><a href="{{ workout.get_absolute_url }}"><strong>{{ workout.get_workout_type_display }}</strong></a> {{ workout.workout_date }}</li>
+                {% empty %}
+                    <li class="list-group-item">No planned workouts for this date.</li>
+                {% endfor %}
+            </ul>
+        </div>
+</div>
+{% endblock %}

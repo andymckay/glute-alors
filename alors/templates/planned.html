@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="container-lg">
+    <div class="row">
+        <div class="col-lg-7">
+            <h2 class="mb-1">{{ page_title|default:"Plan a workout" }}</h2>
+            <p class="text-muted mb-4">{{ page_intro|default:"Add a planned workout to your calendar." }}</p>
+
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {% for field in form %}
+                    <div class="mb-3">
+                        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}
+                            <div class="form-text">{{ field.help_text }}</div>
+                        {% endif %}
+                        {% for error in field.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Save workout</button>
+                    <a href="/" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </form>
+
+            {% if workout %}
+                <hr class="my-4">
+                <form method="post" action="{% url 'alors:delete_planned_workout' workout.pk %}"
+                      onsubmit="return confirm('Are you sure you want to delete this planned workout?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger">Delete workout</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

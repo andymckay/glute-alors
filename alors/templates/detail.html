@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="container-lg">
+    <div class="row">
+        <div class="col-lg-7">
+            <h2 class="mb-1">{{ workout.get_workout_type_display }} workout</h2>
+            <p class="text-muted mb-4">{{ workout.workout_date }}</p>
+
+            <dl class="row">
+                <dt class="col-sm-4">Type</dt>
+                <dd class="col-sm-8">{{ workout.get_workout_type_display }}</dd>
+
+                <dt class="col-sm-4">Date</dt>
+                <dd class="col-sm-8">{{ workout.workout_date }}</dd>
+
+                <dt class="col-sm-4">Total distance</dt>
+                <dd class="col-sm-8">{{ workout.total_distance }} km</dd>
+
+                <dt class="col-sm-4">Warm up</dt>
+                <dd class="col-sm-8">{{ workout.warm_up|default:"—" }}</dd>
+
+                <dt class="col-sm-4">Notes</dt>
+                <dd class="col-sm-8">{{ workout.notes|default:"—" }}</dd>
+
+                <dt class="col-sm-4">Planned</dt>
+                <dd class="col-sm-8">{{ workout.created_at }}</dd>
+
+                <dt class="col-sm-4">Last updated</dt>
+                <dd class="col-sm-8">{{ workout.updated_at }}</dd>
+            </dl>
+
+            <div class="d-flex gap-2">
+                <a href="{% url 'alors:edit_planned_workout' workout.pk %}" class="btn btn-primary">Edit workout</a>
+                <a href="{% url 'alors:calendar' %}" class="btn btn-outline-secondary">Back to calendar</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
