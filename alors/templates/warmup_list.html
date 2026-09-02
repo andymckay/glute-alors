@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load markdown_extras %}
+{% block main %}
+<div class="container-lg">
+    <div class="row">
+        <div class="col-lg-7">
+            <p>
+                <a class="btn btn-primary" href="{% url 'alors:warmup_add' %}">Add a warm-up</a>
+            </p>
+            <ul class="list-group">
+                {% for warmup in warmups %}
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <a href="{% url 'alors:warmup_edit' warmup.pk %}"><strong>{{ warmup.title }}</strong></a>
+                                {% if warmup.text %}
+                                    <p class="text-muted mb-0">{{ warmup.text|markdown|truncatewords_html:40 }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </li>
+                {% empty %}
+                    <li class="list-group-item">No warm-ups yet. <a href="{% url 'alors:warmup_add' %}">Add one</a>.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

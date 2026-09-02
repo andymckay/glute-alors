@@ -3,7 +3,9 @@
 <div class="container-lg">
     <div class="row">
         <div class="col-lg-7">
-            <p><a class="btn btn-primary" href="{% url 'alors:add_planned_workout' %}">Add a planned workout</a></p>
+            <p>
+                <a class="btn btn-primary" href="{% url 'alors:add_planned_workout' %}">Add a planned workout</a>
+            </p>
             <ul class="nav nav-underline pb-4">
                 <li class="nav-item">
                     <a class="nav-link" href="?d=&v={{ request.GET.v }}">Today</a>
@@ -18,17 +20,27 @@
                     <a class="nav-link {% if request.GET.v == 'daily' %}active{% endif %}" href="?d={{ request.GET.d }}&v=daily">Daily</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.GET.v == 'weekly' %}active{% endif %}" href="?d={{ request.GET.d }}&v=weekly">Weekly</a>
+                    <a class="nav-link {% if request.GET.v == 'weekly' or not request.GET.v %}active{% endif %}" href="?d={{ request.GET.d }}&v=weekly">Weekly</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.GET.v == 'monthly' %}active{% endif %}" href="?d={{ request.GET.d }}&v=monthly">Monthly</a>
                 </li>
             </ul>
             <ul class="list-group">
-                {% for workout in workouts %}
-                    <li class="list-group-item"><a href="{{ workout.get_absolute_url }}"><strong>{{ workout.get_workout_type_display }}</strong></a> {{ workout.workout_date }}</li>
-                {% empty %}
-                    <li class="list-group-item">No planned workouts for this date.</li>
+                {% for day in days %}
+                    <li class="list-group-item">
+                        <div>{{ day.date|date:"M j" }} </div>
+                        {% for workout in day.workouts %}
+                            <div class="ps-4"><span class="badge text-bg-secondary me-2">Planned</span><a href="{{ workout.get_absolute_url }}"><strong>{{ workout.title|default:workout.get_workout_type_display }}</strong></a> {{ workout.total_distance }}km</div>
+                        {% endfor %}
+                        {% if day.totals %}
+                            <div class="ps-4">
+                                <span class="badge text-bg-secondary">End of week</span><br>
+                                <b>Workouts:</b> {{ day.totals.workout_count }}<br>
+                                <b>Planned:</b> {{ day.totals.workout_distance }}km
+                            </div>
+                        {% endif %}
+                    </li>
                 {% endfor %}
             </ul>
         </div>

@@ -32,6 +32,9 @@
                             <a class="nav-link" href="{% url 'alors:calendar' %}">Calendar</a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" href="{% url 'alors:warmup_list' %}">Warm-ups</a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" href="{% url 'alors:logout' %}">Logout</a>
                         </li>
                         {% else %}
@@ -57,7 +60,8 @@
         </main>
         <footer class="bg-light pt-4">
             <div class="container-lg">
-                <p class="muted">Glute Alors is an <a href="https://github.com/andymckay/glute">open source project</a> made with ❤️ by <a href="https://clearwind.ca">Andy McKay</a>.</p>
+                <p>Subscribe to planned workouts <a class="text-muted" href="{% url 'alors:planned_workout_webcal' %}">in your calendar</a>.</p>
+                <p class="text-muted">Glute Alors is an <a href="https://github.com/andymckay/glute">open source project</a> made with ❤️ by <a href="https://clearwind.ca">Andy McKay</a>.</p>
             </div>
         </footer>
         </div>
