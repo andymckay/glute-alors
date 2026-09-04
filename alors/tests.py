@@ -581,8 +581,8 @@ class WorkoutDetailViewTests(TestCase):
             "10.50 km",
             "0:58:00",
             "10.86 km/h",
-            "7 / 10",
-            "4 / 5",
+            "Hard",
+            "Good",
         ]:
             self.assertContains(response, text)
 
@@ -919,8 +919,19 @@ class WeeklySummarySignalTests(TestCase):
                 "types": {"Run": 1},
                 "workouts": 1,
                 "workout_distance_km": 5.0,
+                "workout_total_time_seconds": 1800,  # 30 minutes
                 "workout_types": {"Walk": 1},
             },
+        )
+
+    def test_workout_total_time_is_summed_across_week(self):
+        self.create_workout_record(date(2026, 9, 2), workout_type="run")
+        self.create_workout_record(date(2026, 9, 4), workout_type="walk")
+        summary = self.summary_for(date(2026, 9, 6))
+        self.assertEqual(summary.summary["workouts"], 2)
+        self.assertEqual(
+            summary.summary["workout_total_time_seconds"],
+            2 * 30 * 60,
         )
 
     def test_updating_workout_record_refreshes_summary(self):

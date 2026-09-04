@@ -2,6 +2,7 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
+import time
 
 emojis = {
     "run": "🏃‍♀",
@@ -268,3 +269,6 @@ class WeeklySummary(models.Model):
 
     def get_date_as_str(self):
         return self.date.strftime("%Y-%m-%d")
+
+    def get_workout_time_as_str(self):
+        return time.strftime('%H:%M:%S', time.gmtime(self.summary.get('workout_total_time_seconds', 0)))

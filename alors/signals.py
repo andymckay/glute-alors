@@ -21,15 +21,24 @@ def _sunday_for(workout_date):
     return workout_date + datetime.timedelta(days=6 - workout_date.weekday())
 
 
-def _aggregate(queryset, type_label):
-    """Return (count, total_distance_km, per_type_counts) for a queryset."""
+def _aggregate(queryset, type_label, seconds_of=None):
+    """Return (count, total_km, total_seconds, per_type_counts).
+
+    ``seconds_of`` is an optional callable returning the number of seconds
+    for each item; when omitted, the time total is zero.
+    """
     items = list(queryset)
     total_km = sum(float(item.total_distance or 0) for item in items)
+    total_seconds = 0
+    if seconds_of is not None:
+        total_seconds = int(
+            sum((seconds_of(item) or 0) for item in items)
+        )
     type_counts = {}
     for item in items:
         label = type_label(item)
         type_counts[label] = type_counts.get(label, 0) + 1
-    return len(items), total_km, type_counts
+    return len(items), total_km, total_seconds, type_counts
 
 
 def refresh_weekly_summary(sunday):
@@ -40,19 +49,27 @@ def refresh_weekly_summary(sunday):
     """
     week_start = sunday - datetime.timedelta(days=6)
 
-    planned_count, planned_km, planned_types = _aggregate(
+    planned_count, planned_km, planned_seconds, planned_types = _aggregate(
         PlannedWorkout.objects.filter(
             workout_date__gte=week_start,
             workout_date__lte=sunday,
         ),
         lambda workout: workout.get_workout_type_display(),
     )
-    workout_count, workout_km, workout_types = _aggregate(
+    (
+        workout_count,
+        workout_km,
+        workout_seconds,
+        workout_types,
+    ) = _aggregate(
         Workout.objects.filter(
             workout_date__gte=week_start,
             workout_date__lte=sunday,
         ),
         lambda workout: workout.get_workout_type_display(),
+        seconds_of=lambda workout: (
+            workout.total_time.total_seconds() if workout.total_time else 0
+        ),
     )
 
     if planned_count == 0 and workout_count == 0:
@@ -66,6 +83,7 @@ def refresh_weekly_summary(sunday):
         "types": planned_types,
         "workouts": workout_count,
         "workout_distance_km": workout_km,
+        "workout_total_time_seconds": workout_seconds,
         "workout_types": workout_types,
     }
     WeeklySummary.objects.update_or_create(
