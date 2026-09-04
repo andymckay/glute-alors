@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load markdown_extras %}
+{% block main %}
+<div class="container-lg">
+    <div class="row">
+        <div class="col-lg-7">
+            <p>
+                <a class="btn btn-primary" href="{% url 'alors:issue_add' %}">Add an issue</a>
+            </p>
+            <ul class="list-group">
+                {% for issue in issues %}
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <a href="{% url 'alors:issue_edit' issue.pk %}"><strong>{{ issue.title }}</strong></a>
+                                {% if issue.text %}
+                                    <p class="text-muted mb-0">{{ issue.text|markdown|truncatewords_html:40 }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </li>
+                {% empty %}
+                    <li class="list-group-item">No issues yet. <a href="{% url 'alors:issue_add' %}">Add one</a>.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -5,6 +5,7 @@ function turns an iterable of planned workouts into a ``VCALENDAR`` of
 all-day ``VEVENT``s that calendar applications (Google Calendar, Apple
 Calendar, Outlook, ...) can import or subscribe to.
 """
+
 from datetime import timedelta
 
 from icalendar import Calendar, Event

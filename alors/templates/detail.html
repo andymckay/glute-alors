@@ -23,9 +23,8 @@
             </dl>
 
             <p>
-                <a class="text-muted link-underline link-underline-opacity-0" data-bs-toggle="collapse" href="#collapseDetails" role="button" aria-expanded="false" aria-controls="collapseExample">
-                    Details 👇
-                </a>
+                <a class="text-muted" data-bs-toggle="collapse" href="#collapseDetails" role="button" aria-expanded="false" aria-controls="collapseExample">
+                    Details</a> 👇
             </p>
 
             <dl class="row collapse" id="collapseDetails">
@@ -40,7 +39,7 @@
             </dl>
 
             <div class="d-flex gap-2">
-                <a href="{% url 'alors:edit_planned_workout' workout.pk %}" class="btn btn-primary">Edit workout</a>
+                <a href="{% url 'alors:edit_planned' workout.pk %}" class="btn btn-primary">Edit workout</a>
                 <a href="{% url 'alors:calendar' %}" class="btn btn-outline-secondary">Back to calendar</a>
             </div>
         </div>

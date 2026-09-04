@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load markdown_extras %}
+{% block main %}
+<div class="container-lg">
+    <div class="row">
+        <div class="col-lg-7">
+            <h2 class="mb-1">{{ workout.get_workout_type_display }} workout</h2>
+            <p class="mb-4">
+                <span class="badge text-bg-light border">{{ workout.get_emoji }} {{ workout.get_workout_type_display }}</span>
+                {{ workout.workout_date }}
+            </p>
+
+            <dl class="row">
+                <dt class="col-sm-4">Type</dt>
+                <dd class="col-sm-8">{{ workout.get_emoji }} {{ workout.get_workout_type_display }}</dd>
+
+                <dt class="col-sm-4">Date</dt>
+                <dd class="col-sm-8">{{ workout.workout_date }}</dd>
+
+                <dt class="col-sm-4">Total time</dt>
+                <dd class="col-sm-8">{{ workout.total_time }}</dd>
+
+                <dt class="col-sm-4">Total distance</dt>
+                <dd class="col-sm-8">
+                    {% if workout.total_distance %}{{ workout.total_distance }} km{% else %}—{% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Moving time</dt>
+                <dd class="col-sm-8">{{ workout.moving_time|default:"—" }}</dd>
+
+                <dt class="col-sm-4">Average speed</dt>
+                <dd class="col-sm-8">
+                    {% if workout.average_speed %}{{ workout.average_speed }} km/h{% else %}—{% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Effort</dt>
+                <dd class="col-sm-8">
+                    {% if workout.effort %}
+                        <span class="badge workout-effort-{{ workout.effort }}">{{ workout.get_effort_as_text }}</span>
+{% else %}—{% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Feeling</dt>
+                <dd class="col-sm-8">
+                    {% if workout.feeling %}                
+                        <span class="badge workout-feeling-{{ workout.feeling }}">{{ workout.get_feeling_as_text }}</span>
+{% else %}—{% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Notes</dt>
+                <dd class="col-sm-8">
+                    {% if workout.notes %}{{ workout.notes|markdown }}{% else %}—{% endif %}
+                </dd>
+            </dl>
+
+            {% with issues=workout.issues.all %}
+            {% if issues %}
+                <ul class="list-group mb-4">
+                    {% for issue in issues %}
+                        <li class="list-group-item">
+                            <a href="{% url 'alors:issue_edit' issue.pk %}"><strong>{{ issue.title }}</strong></a>
+                            {% if issue.text %}
+                                <div class="mt-1">{{ issue.text|markdown }}</div>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            {% endwith %}
+
+            <div class="d-flex gap-2">
+                <a href="{% url 'alors:workout_edit' workout.pk %}" class="btn btn-primary">Edit workout</a>
+                <a href="{% url 'alors:calendar' %}" class="btn btn-outline-secondary">Back to calendar</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

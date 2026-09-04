@@ -1,0 +1,9 @@
+<p>
+{% if planned %}
+    <b>{{ summary.summary.planned_workouts }}</b> workouts planned over
+    <b>{{ summary.summary.planned_distance_km }}km</b><br>
+{% else %}
+    <b>{{ summary.summary.workouts }}</b> workouts done over
+    <b>{{ summary.summary.workout_distance_km }}km</b><br>
+{% endif %}
+</p>

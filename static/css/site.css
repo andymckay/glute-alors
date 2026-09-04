@@ -14,3 +14,100 @@ h2 {
     font-size: 2rem;
     font-weight: 500;
 }
+
+.card-event {
+    border-radius: 4px;
+    box-shadow: 0 6px 10px rgba(0,0,0,.08), 0 0 6px rgba(0,0,0,.05);
+    transition: .3s transform cubic-bezier(.155,1.105,.295,1.12),.3s box-shadow,.3s -webkit-transform cubic-bezier(.155,1.105,.295,1.12);
+}
+
+.card-event:hover{
+    transform: scale(1.05);
+    box-shadow: 0 10px 20px #031a3c, 0 4px 8px rgba(0,0,0,.06);
+}
+
+.badge-add {
+    color: grey !important;
+}
+
+.badge-add:hover {
+    color: #fff !important;
+    background-color: RGBA(var(--bs-secondary-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-effort-10 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-danger-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-effort-9 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-warning-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-effort-8 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-warning-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-effort-7 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-info-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-effort-6 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-info-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-effort-5 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-success-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-effort-4 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-success-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-effort-3 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-secondary-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-effort-2 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-secondary-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-effort-1 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-secondary-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-feeling-5 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-success-rgb),var(--bs-bg-opacity,1)) !important;
+
+}
+
+.workout-feeling-4 {    
+  color: #fff !important;
+  background-color: RGBA(var(--bs-primary-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-feeling-3 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-info-rgb),var(--bs-bg-opacity,1)) !important;
+}
+
+.workout-feeling-2 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-warning-rgb),var(--bs-bg-opacity,1)) !important;
+    
+}
+
+.workout-feeling-1 {
+  color: #fff !important;
+  background-color: RGBA(var(--bs-danger-rgb),var(--bs-bg-opacity,1)) !important;    
+}

@@ -2,10 +2,7 @@
 {% block main %}
 <div class="container-lg">
     <div class="row">
-        <div class="col-lg-7">
-            <p>
-                <a class="btn btn-primary" href="{% url 'alors:add_planned_workout' %}">Add a planned workout</a>
-            </p>
+        <div class="col">
             <ul class="nav nav-underline pb-4">
                 <li class="nav-item">
                     <a class="nav-link" href="?d=&v={{ request.GET.v }}">Today</a>
@@ -13,9 +10,15 @@
                 <li class="nav-item">
                     <a class="nav-link" href="?d={{ next }}&v={{ request.GET.v }}">Next</a>
                 </li>
-                <li class="nav-item pe-4 border-end">
+                <li class="nav-item">
                     <a class="nav-link" href="?d={{ previous }}&v={{ request.GET.v}}">Previous</a>
                 </li>
+            </ul>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            <ul class="nav nav-underline pb-4"
                 <li class="nav-item">
                     <a class="nav-link {% if request.GET.v == 'daily' %}active{% endif %}" href="?d={{ request.GET.d }}&v=daily">Daily</a>
                 </li>
@@ -26,23 +29,65 @@
                     <a class="nav-link {% if request.GET.v == 'monthly' %}active{% endif %}" href="?d={{ request.GET.d }}&v=monthly">Monthly</a>
                 </li>
             </ul>
-            <ul class="list-group">
-                {% for day in days %}
-                    <li class="list-group-item">
-                        <div>{{ day.date|date:"M j" }} </div>
-                        {% for workout in day.workouts %}
-                            <div class="ps-4"><span class="badge text-bg-secondary me-2">Planned</span><a href="{{ workout.get_absolute_url }}"><strong>{{ workout.title|default:workout.get_workout_type_display }}</strong></a> {{ workout.total_distance }}km</div>
-                        {% endfor %}
-                        {% if day.totals %}
-                            <div class="ps-4">
-                                <span class="badge text-bg-secondary">End of week</span><br>
-                                <b>Workouts:</b> {{ day.totals.workout_count }}<br>
-                                <b>Planned:</b> {{ day.totals.workout_distance }}km
-                            </div>
-                        {% endif %}
-                    </li>
-                {% endfor %}
-            </ul>
         </div>
+    </div>
+        <div class="row border">
+            <div class="col-3">
+            </div>
+            <div class="col p-2">
+                <div><b>Planned</b></div>
+            </div>
+            <div class="col p-2">
+                <div><b>Actual</b></div>
+            </div>
+        </div>
+    {% for entry in dates_and_objects %}
+        <div class="row border-start border-end {% if not entry.summaries %}border-bottom{% endif %}">
+            <div class="col-3 p-2">
+                <div>{{ entry.date|date:"D, M j" }}</div>
+            </div>
+            <div class="col p-2">
+                <div>
+                    {% for workout in entry.planned %}
+                        {% include "workout_card.html" %}
+                    {% empty %}
+                        <a class="badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add</a>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="col p-2">
+                <div>
+                    {% for workout in entry.actual %}
+                        {% include "workout_card.html" %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% if entry.summaries %}
+            <div class="row border-start border-end border-bottom">
+                <div class="col-3 p-2">
+                    <span class="badge text-bg-secondary" data-bs-toggle="tooltip" data-bs-title="Summary for the week ending {{ entry.date|date:'D, M j' }}">Summary</span>
+                </div>
+                <div class="col p-2">
+                    <div>
+                        {% for summary in entry.summaries %}
+                            {% with planned=True %}
+                                {% include "summary_card.html" %}
+                            {% endwith %}
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col p-2">
+                    <div>
+                        {% for summary in entry.summaries %}
+                            {% with planned=False %}
+                                {% include "summary_card.html" %}
+                            {% endwith %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    {% endfor%}
 </div>
 {% endblock %}

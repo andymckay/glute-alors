@@ -1,0 +1,33 @@
+<div class="card card-event mb-2">
+    {% if workout.workout_type == "race" %}
+        <div class="card-header bg-warning">
+            <b>Race</b>
+        </div>
+    {% endif %}
+    <a href="{{ workout.get_absolute_url }}" class="link-underline link-underline-opacity-0">
+        <div class="card-body">
+            {{ workout.get_emoji }}
+            <span class="text-muted">{{ workout.workout_type|capfirst }} 
+                {% if workout.title %}&bull; {{ workout.title }}{% endif %}
+                {% if workout.total_time %}&bull; {{ workout.total_time }}{% endif %}
+            </span>
+            <br>
+            <b class="text-muted">{{ workout.total_distance }}km</b>
+            <div>
+                {% if workout.effort %} 
+                    <span data-bs-toggle="tooltip" data-bs-title="Workout effort {{ workout.effort }} out of 10" class="badge workout-effort-{{ workout.effort }}">{{ workout.get_effort_as_text }}</span>
+                {% endif %}
+                {% if workout.feeling %}
+                    <span data-bs-toggle="tooltip" data-bs-title="Workout feeling {{ workout.feeling }} out of 5" class="badge workout-feeling-{{ workout.feeling }}">{{ workout.get_feeling_as_text }}</span>
+                {% endif %}
+            </div>
+            {% if workout.issues.all %}
+                <div>
+                    {% for issue in workout.issues.all %}
+                        <span class="badge text-bg-secondary">{{ issue }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </a>
+</div>
