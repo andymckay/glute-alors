@@ -6,12 +6,24 @@ from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from .forms import (
     CalendarForm,
+    CommentForm,
     IssueForm,
+    LabelForm,
     PlannedWorkoutForm,
+    ProfileForm,
     WarmUpForm,
     WorkoutEditForm,
 )
-from .models import Workout, PlannedWorkout, WarmUp, Issue, WeeklySummary
+from .models import (
+    Notification,
+    Workout,
+    PlannedWorkout,
+    WarmUp,
+    Issue,
+    Label,
+    UserProfile,
+    WeeklySummary,
+)
 from django.utils import timezone
 from .validators import validate_date
 from .ical import render_calendar
@@ -80,11 +92,25 @@ def calendar(request):
         ).order_by("date")
     )
 
-    results = combineDateLists(list_dates, planned=planned_workouts, actual=actual_workouts, summaries=summaries)
+    labels = dateList(
+        Label.objects.filter(
+            start_date__lte=dates["end"],
+            end_date__gte=dates["start"],
+        ).order_by("title")
+    )
+
+    results = combineDateLists(
+        list_dates,
+        planned=planned_workouts,
+        actual=actual_workouts,
+        summaries=summaries,
+        labels=labels,
+    )
     return render(
         request,
         "calendar.html",
         {
+            "today": dates["today"],
             "date": date,
             "next": dates["next"],
             "previous": dates["previous"],
@@ -109,7 +135,7 @@ def add_planned(request):
             return redirect("alors:index")
     else:
         form = PlannedWorkoutForm()
-        form.fields["workout_date"].initial = request.GET.get('date', None)
+        form.fields["workout_date"].initial = request.GET.get("date", None)
 
     return render(request, "planned.html", {"form": form})
 
@@ -120,6 +146,7 @@ def edit_planned(request, pk):
     if request.method == "POST":
         form = PlannedWorkoutForm(request.POST, instance=workout)
         if form.is_valid():
+            workout._notification_actor = request.user
             workout = form.save()
             messages.add_message(
                 request,
@@ -160,13 +187,61 @@ def delete_planned(request, pk):
 @login_required
 def planned_detail(request, pk):
     workout = get_object_or_404(PlannedWorkout, pk=pk)
-    return render(request, "detail.html", {"workout": workout})
+    Notification.objects.mark_read_for(request.user, workout)
+    return render(
+        request,
+        "detail.html",
+        {
+            "workout": workout,
+            "comments": workout.comments.all(),
+            "comment_form": CommentForm(),
+            "comment_action": "alors:add_planned_comment",
+        },
+    )
 
 
 @login_required
 def workout_detail(request, pk):
     workout = get_object_or_404(Workout, pk=pk)
-    return render(request, "workout_detail.html", {"workout": workout})
+    Notification.objects.mark_read_for(request.user, workout)
+    return render(
+        request,
+        "workout_detail.html",
+        {
+            "workout": workout,
+            "comments": workout.comments.all(),
+            "comment_form": CommentForm(),
+            "comment_action": "alors:add_workout_comment",
+        },
+    )
+
+
+@login_required
+def add_planned_comment(request, pk):
+    workout = get_object_or_404(PlannedWorkout, pk=pk)
+    if request.method == "POST":
+        form = CommentForm(request.POST)
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.planned_workout = workout
+            comment.created_by = request.user
+            comment.save()
+            messages.add_message(request, messages.SUCCESS, "💬 Comment added.")
+    return redirect("alors:planned_detail", pk=workout.pk)
+
+
+@login_required
+def add_workout_comment(request, pk):
+    workout = get_object_or_404(Workout, pk=pk)
+    if request.method == "POST":
+        form = CommentForm(request.POST)
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.workout = workout
+            comment.created_by = request.user
+            comment.save()
+            messages.add_message(request, messages.SUCCESS, "💬 Comment added.")
+    return redirect("alors:workout_detail", pk=workout.pk)
 
 
 @login_required
@@ -176,6 +251,9 @@ def workout_edit(request, pk):
     if request.method == "POST":
         form = WorkoutEditForm(request.POST, instance=workout)
         if form.is_valid():
+            workout._notification_actor = request.user
+            if workout.created_by is None:
+                workout.created_by = request.user
             form.save()
             messages.add_message(
                 request,
@@ -195,8 +273,7 @@ def workout_edit(request, pk):
             "page_title": "Edit workout",
             "page_intro": (
                 f"Update the log for your "
-                f"{workout.get_workout_type_display().lower()} workout on "
-                f"{workout.workout_date}."
+                f"{workout.get_workout_type_display().lower()} workout"
             ),
         },
     )
@@ -365,6 +442,135 @@ def issue_delete(request, pk):
             f'🗑️ Deleted issue "{title}".',
         )
     return redirect("alors:issue_list")
+
+
+@login_required
+def label_list(request):
+    labels = Label.objects.all().order_by("start_date", "title")
+    return render(request, "label_list.html", {"labels": labels})
+
+
+@login_required
+def label_add(request):
+    if request.method == "POST":
+        form = LabelForm(request.POST)
+        if form.is_valid():
+            label = form.save(commit=False)
+            label.created_by = request.user
+            label.save()
+            messages.add_message(
+                request,
+                messages.SUCCESS,
+                f'🎉 Added label "{label.title}".',
+            )
+            return redirect("alors:label_list")
+    else:
+        form = LabelForm()
+
+    return render(
+        request,
+        "label_form.html",
+        {
+            "form": form,
+            "page_title": "Add a label",
+            "page_intro": "Create a labelled date range.",
+        },
+    )
+
+
+@login_required
+def label_edit(request, pk):
+    label = get_object_or_404(Label, pk=pk)
+    if request.method == "POST":
+        form = LabelForm(request.POST, instance=label)
+        if form.is_valid():
+            form.save()
+            messages.add_message(
+                request,
+                messages.SUCCESS,
+                f'✏️ Updated label "{label.title}".',
+            )
+            return redirect("alors:label_list")
+    else:
+        form = LabelForm(instance=label)
+
+    return render(
+        request,
+        "label_form.html",
+        {
+            "form": form,
+            "label": label,
+            "page_title": "Edit label",
+            "page_intro": f'Update your "{label.title}" label.',
+        },
+    )
+
+
+@login_required
+def label_delete(request, pk):
+    label = get_object_or_404(Label, pk=pk)
+    if request.method == "POST":
+        title = label.title
+        label.delete()
+        messages.add_message(
+            request,
+            messages.SUCCESS,
+            f'🗑️ Deleted label "{title}".',
+        )
+    return redirect("alors:label_list")
+
+
+@login_required
+def edit_profile(request):
+    """Let the logged-in user edit their own role and email address."""
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    if request.method == "POST":
+        form = ProfileForm(request.POST, instance=profile, user=request.user)
+        if form.is_valid():
+            form.save()
+            messages.add_message(request, messages.SUCCESS, "🙋 Profile updated.")
+            return redirect("alors:profile")
+    else:
+        form = ProfileForm(instance=profile, user=request.user)
+
+    return render(
+        request,
+        "profile_form.html",
+        {
+            "form": form,
+            "page_title": "Your profile",
+            "page_intro": "Choose your role and keep your email address up to date.",
+        },
+    )
+
+
+@login_required
+def notifications(request):
+    """List all notifications for the logged-in user."""
+    items = request.user.notifications.filter(read=False)
+    return render(
+        request,
+        "notifications.html",
+        {
+            "notifications": items,
+            "unread_count": items.count(),
+        },
+    )
+
+
+@login_required
+def mark_all_notifications_read(request):
+    """Mark every notification for the logged-in user as read."""
+    if request.method == "POST":
+        count = request.user.notifications.filter(read=False).update(read=True)
+        messages.add_message(
+            request,
+            messages.SUCCESS,
+            f"✅ Marked {count} notification"
+            + ("s" if count != 1 else "")
+            + " as read.",
+        )
+    return redirect("alors:notifications")
 
 
 def styles(request):

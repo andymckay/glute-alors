@@ -1,9 +1,12 @@
+{% load alors %}
 <p>
 {% if planned %}
-    <b>{{ summary.summary.planned_workouts }}</b> workouts planned over
-    <b>{{ summary.summary.planned_distance_km }}km</b>
+    {% for key, data in summary.summary.planned_workout.items %}
+        {{ key|emoji }} <b>{{ data.workouts }}</b> workout for <b>{{ data.total_distance }} km</b><br>
+    {% endfor %}
 {% else %}
-    <b>{{ summary.summary.workouts }}</b> workouts done over
-    <b>{{ summary.summary.workout_distance_km }}km</b> in <b>{{ summary.get_workout_time_as_str }}</b>
+    {% for key, data in summary.summary.workout.items %}
+        {{ key|emoji }} <b>{{ data.workouts }}</b> workouts for <b>{{ data.total_distance }} km</b> in <b>{{ data.total_time|hms }}</b><br>
+    {% endfor %}
 {% endif %}
 </p>

@@ -1,16 +1,19 @@
 {% extends "base.html" %}
 {% load markdown_extras %}
+{% load alors %}
 {% block main %}
 <div class="container-lg">
     <div class="row">
         <div class="col-lg-7">
-            <h2 class="mb-1">{{ workout.title|default:workout.get_workout_type_display }}</h2>
+            <h2 class="mb-1">{{ workout.workout_type|emoji }} {{ workout.title|default:workout.get_workout_type_display }}</h2>
+            {% if workout.is_race %}<div class="badge text-bg-warning">🏆 Race</div>{% endif %}
             <p class="mb-4">
-                {{ workout.workout_date }} &bull;
-                {{ workout.total_distance }} km
+                {{ workout.workout_date }}
+                {% if workout.total_distance %}&bull; {{ workout.total_distance }} km{% endif %}
             </p>
 
             <dl class="row">
+
                 <dt class="col-sm-4">Warm up</dt>
                 <dd class="col-sm-8">
                     {% if workout.warm_up %}{{ workout.warm_up.text|markdown }}{% else %}—{% endif %}
@@ -22,26 +25,12 @@
                 </dd>
             </dl>
 
-            <p>
-                <a class="text-muted" data-bs-toggle="collapse" href="#collapseDetails" role="button" aria-expanded="false" aria-controls="collapseExample">
-                    Details</a> 👇
-            </p>
-
-            <dl class="row collapse" id="collapseDetails">
-                <dt class="col-sm-4">Created by</dt>
-                <dd class="col-sm-8">{{ workout.created_by|default:"—" }}</dd>
-
-                <dt class="col-sm-4">Created</dt>
-                <dd class="col-sm-8">{{ workout.created_at }}</dd>
-
-                <dt class="col-sm-4">Last updated</dt>
-                <dd class="col-sm-8">{{ workout.updated_at }}</dd>
-            </dl>
-
             <div class="d-flex gap-2">
                 <a href="{% url 'alors:edit_planned' workout.pk %}" class="btn btn-primary">Edit workout</a>
                 <a href="{% url 'alors:calendar' %}" class="btn btn-outline-secondary">Back to calendar</a>
             </div>
+
+            {% include "comments.html" %}
         </div>
     </div>
 </div>

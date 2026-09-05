@@ -2,23 +2,30 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
+from django.core.serializers.json import DjangoJSONEncoder
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 import time
+import json
+from datetime import timedelta
 
-emojis = {
-    "run": "🏃‍♀",
-    "walk": "🚶",
-    "hike": "👢",
-    "race": "🏆"
-}
- 
+
+class WorkoutType(models.TextChoices):
+    RUN = ["run", "Run"]
+    WALK = ["walk", "Walk"]
+    HIKE = ["hike", "Hike"]
+    STRENGTH = ["strength", "Strength"]
+    RECOVERY = ["recovery", "Recovery"]
+
+
 class PlannedWorkout(models.Model):
     """A workout that has been planned ahead of time."""
 
-    class WorkoutType(models.TextChoices):
-        RUN = "run", "Run"
-        WALK = "walk", "Walk"
-        HIKE = "hike", "Hike"
-        RACE = "race", "Race"
+    class Status(models.TextChoices):
+        DONE = "done", "Done"
+        MISSED = "missed", "Missed"
+        OVER = "over", "Over"
+        UNDER = "under", "Under"
 
     title = models.CharField(
         "title",
@@ -37,7 +44,22 @@ class PlannedWorkout(models.Model):
         "total distance (km)",
         max_digits=6,
         decimal_places=2,
+        blank=True,
+        null=True,
         help_text="Total planned distance in kilometers.",
+    )
+    status = models.CharField(
+        "status",
+        max_length=10,
+        choices=Status.choices,
+        blank=True,
+        default="",
+        help_text="Whether the workout was done, missed, over or under.",
+    )
+    is_race = models.BooleanField(
+        "race",
+        default=False,
+        help_text="Whether this planned workout is a race.",
     )
     warm_up = models.ForeignKey(
         "WarmUp",
@@ -48,7 +70,14 @@ class PlannedWorkout(models.Model):
         blank=True,
         help_text="The warm-up routine for this workout.",
     )
-    notes = models.TextField(blank=True, help_text="Markdown can be used in this field.")
+    notes = models.TextField(
+        blank=True, help_text="Markdown can be used in this field."
+    )
+    comment_count = models.PositiveIntegerField(
+        "comment count",
+        default=0,
+        help_text="Number of comments on this workout.",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         verbose_name="created by",
@@ -73,11 +102,9 @@ class PlannedWorkout(models.Model):
     def get_absolute_url(self):
         return reverse("alors:planned_detail", args=[str(self.pk)])
 
-    def get_emoji(self):
-        return emojis.get(self.workout_type, "")
-
     def get_date_as_str(self):
         return self.workout_date.strftime("%Y-%m-%d")
+
 
 class WarmUp(models.Model):
     """A reusable warm-up routine that can be attached to a workout."""
@@ -115,7 +142,7 @@ class WarmUp(models.Model):
 class Workout(models.Model):
     """A workout that has been completed and recorded."""
 
-    workout_date = models.DateField("date of the workout")
+    workout_date = models.DateTimeField("date of the workout")
     total_time = models.DurationField(
         "total time",
         help_text="Total duration, e.g. 00:45:00 (hh:mm:ss).",
@@ -123,7 +150,7 @@ class Workout(models.Model):
     workout_type = models.CharField(
         "type",
         max_length=10,
-        choices=PlannedWorkout.WorkoutType.choices,
+        choices=WorkoutType.choices,
     )
     total_distance = models.DecimalField(
         "total distance (km)",
@@ -139,13 +166,11 @@ class Workout(models.Model):
         null=True,
         help_text="Time spent moving, e.g. 00:44:30 (hh:mm:ss).",
     )
-    average_speed = models.DecimalField(
-        "average speed (km/h)",
-        max_digits=5,
-        decimal_places=2,
+    pace = models.DurationField(
+        "pace",
         blank=True,
         null=True,
-        help_text="Average speed in kilometers per hour.",
+        help_text="Average pace, e.g. 00:05:30 (hh:mm:ss) per kilometer.",
     )
     effort = models.PositiveSmallIntegerField(
         "effort",
@@ -162,12 +187,47 @@ class Workout(models.Model):
         help_text="Rate how you felt from 1 (poor) to 5 (great).",
     )
     notes = models.TextField(blank=True)
+    comment_count = models.PositiveIntegerField(
+        "comment count",
+        default=0,
+        help_text="Number of comments on this workout.",
+    )
+    workout_source = models.CharField(
+        "workout source",
+        max_length=200,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Where this workout came from, e.g. Strava, Garmin, manual.",
+    )
+    source_url = models.URLField(
+        "source url",
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="A URL for the original source of this workout.",
+    )
+    workout_data = models.TextField(
+        "workout data",
+        blank=True,
+        default="",
+        help_text="Additional workout data, stored as JSON text.",
+    )
     issues = models.ManyToManyField(
         "Issue",
         verbose_name="issues",
         related_name="workouts",
         blank=True,
         help_text="Issues related to this workout.",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="created by",
+        related_name="workouts",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="The user who recorded this workout.",
     )
     get_model_name_display = "Workout"
 
@@ -181,9 +241,6 @@ class Workout(models.Model):
 
     def get_absolute_url(self):
         return reverse("alors:workout_detail", args=[str(self.pk)])
-
-    def get_emoji(self):
-        return emojis.get(self.workout_type, "")
 
     def get_date_as_str(self):
         return self.workout_date.strftime("%Y-%m-%d")
@@ -199,17 +256,64 @@ class Workout(models.Model):
             7: "Hard",
             8: "Hard",
             9: "Very Hard",
-            10: "Max Effort"
+            10: "Max Effort",
         }.get(self.effort, "")
 
     def get_feeling_as_text(self):
-        return {
-            5: "Great",
-            4: "Good",
-            3: "Normal",
-            2: "Poor",
-            1: "Terrible"
-        }.get(self.feeling, "")
+        return {5: "Great", 4: "Good", 3: "Normal", 2: "Poor", 1: "Terrible"}.get(
+            self.feeling, ""
+        )
+
+    def get_workout_data_as_json(self):
+        return json.loads(self.workout_data)
+
+
+class Comment(models.Model):
+    """A Markdown comment attached to a planned or completed workout."""
+
+    text = models.TextField(
+        "comment",
+        help_text="Your comment; Markdown is supported.",
+    )
+    planned_workout = models.ForeignKey(
+        "PlannedWorkout",
+        verbose_name="planned workout",
+        related_name="comments",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="The planned workout this comment is about.",
+    )
+    workout = models.ForeignKey(
+        "Workout",
+        verbose_name="workout",
+        related_name="comments",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="The completed workout this comment is about.",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="created by",
+        related_name="comments",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="The user who wrote this comment.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name = "comment"
+        verbose_name_plural = "comments"
+
+    def __str__(self):
+        text = self.text if len(self.text) <= 80 else self.text[:77] + "…"
+        return f"{self.created_by or 'Anonymous'}: {text}"
+
 
 class Issue(models.Model):
     """A reported issue or bug to track."""
@@ -244,7 +348,6 @@ class Issue(models.Model):
         return self.title
 
 
-
 class WeeklySummary(models.Model):
     """A summary of a week, with arbitrary JSON data."""
 
@@ -271,4 +374,227 @@ class WeeklySummary(models.Model):
         return self.date.strftime("%Y-%m-%d")
 
     def get_workout_time_as_str(self):
-        return time.strftime('%H:%M:%S', time.gmtime(self.summary.get('workout_total_time_seconds', 0)))
+        seconds = self._category_totals("workout")[2]
+        return time.strftime("%H:%M:%S", time.gmtime(seconds))
+
+
+class Label(models.Model):
+    """A named, coloured date range used to tag things."""
+
+    class Colour(models.TextChoices):
+        PRIMARY = "primary", "Blue"
+        SECONDARY = "secondary", "Grey"
+        SUCCESS = "success", "Green"
+        DANGER = "danger", "Red"
+        WARNING = "warning", "Yellow"
+        LIGHT = "light", "Light Grey"
+        DARK = "dark", "Black"
+
+    title = models.CharField(
+        "title",
+        max_length=200,
+        help_text="A short name for the label.",
+    )
+    colour = models.CharField(
+        "colour",
+        max_length=20,
+        choices=Colour.choices,
+        default=Colour.PRIMARY,
+        help_text="A Bootstrap badge colour.",
+    )
+    start_date = models.DateField("start date")
+    end_date = models.DateField("end date")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="created by",
+        related_name="labels",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="The user who created this label.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["start_date", "title"]
+        verbose_name = "label"
+        verbose_name_plural = "labels"
+
+    def __str__(self):
+        return self.title
+
+    def get_dates_as_list(self):
+        result = []
+        for k in range(0, 100):
+            date = self.start_date + timedelta(days=k)
+            if date > self.end_date:
+                return result
+            result.append(date.strftime("%Y-%m-%d"))
+        raise IterationError("Start and end date are more than 100 days apart.")
+
+
+class NotificationManager(models.Manager):
+    """Manager with helpers for per-user notification state."""
+
+    def mark_read_for(self, user, target):
+        """Mark a user's notifications about ``target`` as read.
+
+        This covers notifications pointing straight at the planned/completed
+        workout as well as notifications about comments left on it (comments
+        are shown on the workout's detail page).
+        """
+        content_type = ContentType.objects.get_for_model(target)
+        self.filter(
+            recipient=user,
+            read=False,
+            content_type=content_type,
+            object_id=target.pk,
+        ).update(read=True)
+
+        if isinstance(target, PlannedWorkout):
+            comment_ids = Comment.objects.filter(planned_workout=target).values_list(
+                "pk", flat=True
+            )
+        elif isinstance(target, Workout):
+            comment_ids = Comment.objects.filter(workout=target).values_list(
+                "pk", flat=True
+            )
+        else:
+            return
+
+        comment_type = ContentType.objects.get_for_model(Comment)
+        self.filter(
+            recipient=user,
+            read=False,
+            content_type=comment_type,
+            object_id__in=list(comment_ids),
+        ).update(read=True)
+
+
+class Notification(models.Model):
+    """Record that a linked model was added or edited."""
+
+    class Action(models.TextChoices):
+        ADDED = "added", "Added"
+        EDITED = "edited", "Edited"
+
+    # The object the notification is about, e.g. a Comment, PlannedWorkout or
+    # Workout, via a generic foreign key.
+    content_type = models.ForeignKey(
+        ContentType,
+        verbose_name="content type",
+        on_delete=models.CASCADE,
+    )
+    object_id = models.PositiveIntegerField("object id")
+    content_object = GenericForeignKey("content_type", "object_id")
+
+    action = models.CharField(
+        "action",
+        max_length=10,
+        choices=Action.choices,
+        default=Action.ADDED,
+        help_text="What happened to the linked object.",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="actor",
+        related_name="notifications_acted",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="The user who performed the action.",
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="recipient",
+        related_name="notifications",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="The user this notification is for.",
+    )
+    read = models.BooleanField(
+        "read",
+        default=False,
+        help_text="Whether this notification has been read.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    objects = NotificationManager()
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "notification"
+        verbose_name_plural = "notifications"
+
+    def __str__(self):
+        actor = self.actor or "System"
+        return f"{actor} {self.action} {self.content_object}"
+
+    def target(self):
+        """The planned/completed workout this notification points at.
+
+        Notifications about comments are resolved to the workout or plan the
+        comment was left on.
+        """
+        obj = self.content_object
+        if isinstance(obj, Comment):
+            obj = obj.planned_workout or obj.workout
+        return obj
+
+    def get_absolute_url(self):
+        target = self.target()
+        if isinstance(target, PlannedWorkout):
+            return reverse("alors:planned_detail", args=[str(target.pk)])
+        if isinstance(target, Workout):
+            return reverse("alors:workout_detail", args=[str(target.pk)])
+        return ""
+
+    def summary(self):
+        actor = self.actor or "Someone"
+        verb = "added" if self.action == self.Action.ADDED else "edited"
+        if isinstance(self.content_object, Comment):
+            return f"{actor} {verb} a comment"
+        if isinstance(self.content_object, PlannedWorkout):
+            return (
+                f"{actor} {verb} the planned "
+                f"{self.content_object.get_workout_type_display()} workout"
+            )
+        if isinstance(self.content_object, Workout):
+            return (
+                f"{actor} {verb} the "
+                f"{self.content_object.get_workout_type_display()} workout"
+            )
+        return f"{actor} {verb} {self.content_object}"
+
+
+class UserProfile(models.Model):
+    """Extra per-user settings, such as their role."""
+
+    class Role(models.TextChoices):
+        COACH = "coach", "Coach"
+        ATHLETE = "athlete", "Athlete"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        verbose_name="user",
+        related_name="profile",
+        on_delete=models.CASCADE,
+    )
+    role = models.CharField(
+        "role",
+        max_length=10,
+        choices=Role.choices,
+        default=Role.ATHLETE,
+        help_text="Whether this user is a coach or an athlete.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "user profile"
+        verbose_name_plural = "user profiles"
+
+    def __str__(self):
+        return f"{self.user} ({self.get_role_display()})"

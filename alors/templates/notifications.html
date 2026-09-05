@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="container-lg">
+    <h2 class="mb-1">Notifications</h2>
+    <p class="text-muted mb-4">Updates from the workouts, plans and comments you follow.</p>
+
+    {% if notifications %}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <p class="text-muted mb-0">{{ notifications.count }} unread notification{{ notifications.count|pluralize }}.</p>
+            <form method="post" action="{% url 'alors:mark_all_notifications_read' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-primary btn-sm">Mark all as read</button>
+            </form>
+        </div>
+        <ul class="list-group">
+            {% for notification in notifications %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        {% if not notification.read %}
+                            <span class="badge text-bg-primary me-1">New</span>
+                        {% endif %}
+                        {% if notification.get_absolute_url %}
+                            <a href="{{ notification.get_absolute_url }}">{{ notification.summary }}</a>
+                        {% else %}
+                            {{ notification.summary }}
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">{{ notification.created_at }}</small>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="text-muted">No notifications yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

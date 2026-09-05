@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load alors %}
 {% block main %}
 <div class="container-lg">
     <div class="row">
@@ -16,35 +17,24 @@
             </ul>
         </div>
     </div>
-    <div class="row">
-        <div class="col">
-            <ul class="nav nav-underline pb-4"
-                <li class="nav-item">
-                    <a class="nav-link {% if request.GET.v == 'daily' %}active{% endif %}" href="?d={{ request.GET.d }}&v=daily">Daily</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.GET.v == 'weekly' or not request.GET.v %}active{% endif %}" href="?d={{ request.GET.d }}&v=weekly">Weekly</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.GET.v == 'monthly' %}active{% endif %}" href="?d={{ request.GET.d }}&v=monthly">Monthly</a>
-                </li>
-            </ul>
+    <div class="row border">
+        <div class="col-3">
+        </div>
+        <div class="col p-2">
+            <div><b>Planned</b></div>
+        </div>
+        <div class="col p-2">
+            <div><b>Actual</b></div>
         </div>
     </div>
-        <div class="row border">
-            <div class="col-3">
-            </div>
-            <div class="col p-2">
-                <div><b>Planned</b></div>
-            </div>
-            <div class="col p-2">
-                <div><b>Actual</b></div>
-            </div>
-        </div>
     {% for entry in dates_and_objects %}
         <div class="row border-start border-end {% if not entry.summaries %}border-bottom{% endif %}">
             <div class="col-3 p-2">
-                <div>{{ entry.date|date:"D, M j" }}</div>
+                <div>{% if entry.date|date:"Y-m-d" == today %}👉 <b>{{ entry.date|date:"D, M j" }}</b>{% else %}🗓 {{ entry.date|date:"D, M j" }}{% endif %} <br>
+                    {% for label in entry.labels %}
+                        <span class="badge text-bg-{{ label.colour }}">{{ label.title }}</span>
+                    {% endfor %}
+                </div>
             </div>
             <div class="col p-2">
                 <div>

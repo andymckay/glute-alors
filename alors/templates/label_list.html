@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="container-lg">
+    <div class="row">
+        <div class="col-lg-7">
+            <p>
+                <a class="btn btn-primary" href="{% url 'alors:label_add' %}">Add a label</a>
+            </p>
+            <ul class="list-group">
+                {% for label in labels %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <a href="{% url 'alors:label_edit' label.pk %}"><span class="badge text-bg-{{ label.colour }}">{{ label.title }}</span></a>
+                            <span class="text-muted ms-2">{{ label.start_date }} – {{ label.end_date }}</span>
+                        </div>
+                    </li>
+                {% empty %}
+                    <li class="list-group-item">No labels yet. <a href="{% url 'alors:label_add' %}">Add one</a>.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

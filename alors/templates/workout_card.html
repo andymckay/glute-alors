@@ -1,18 +1,27 @@
-<div class="card card-event mb-2">
-    {% if workout.workout_type == "race" %}
+{% load alors %}
+<div class="card card-event mt-4 border-{{ workout.status|status }}">
+    {% if workout.is_race %}
         <div class="card-header bg-warning">
-            <b>Race</b>
+            <b>🏆 Race</b>
         </div>
     {% endif %}
     <a href="{{ workout.get_absolute_url }}" class="link-underline link-underline-opacity-0">
-        <div class="card-body">
-            {{ workout.get_emoji }}
+        <div class="card-body text-muted">
+            {% if workout.status %}
+            <span class="position-absolute top-0 start-0 translate-middle badge rounded-pill bg-{{ workout.status|status }}">
+                {{ workout.status }}
+            </span>
+            {% endif %}
+            {{ workout.workout_type|emoji }}
             <span class="text-muted">{{ workout.workout_type|capfirst }} 
                 {% if workout.title %}&bull; {{ workout.title }}{% endif %}
                 {% if workout.total_time %}&bull; {{ workout.total_time }}{% endif %}
             </span>
             <br>
-            <b class="text-muted">{{ workout.total_distance }}km</b>
+            {% if workout.total_distance %}
+                <b>{{ workout.total_distance }} km</b>
+            {% endif %}
+            {% if workout.pace %} at <b>{{ workout.pace }} min/km</b>{% endif %}
             <div>
                 {% if workout.effort %} 
                     <span data-bs-toggle="tooltip" data-bs-title="Workout effort {{ workout.effort }} out of 10" class="badge workout-effort-{{ workout.effort }}">{{ workout.get_effort_as_text }}</span>
@@ -29,5 +38,10 @@
                 </div>
             {% endif %}
         </div>
+            <div class="text-end p-2">
+                {% if workout.comment_count %}
+                <div class="badge rounded-pill bg-primary" data-bs-toggle="tooltip" data-bs-title="Number of comments">{{ workout.comment_count }}</div>
+            {% endif %}
+    </div>
     </a>
 </div>

@@ -33,13 +33,26 @@
                             <a class="nav-link" href="{% url 'alors:calendar' %}">Calendar</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'alors:warmup_list' %}">Warm-ups</a>
+                            <a class="nav-link" href="{% url 'alors:notifications' %}">Notifications
+                                <span class="badge rounded-pill bg-danger" data-bs-toggle="tooltip" data-bs-title="Number of notifications">
+                                    {{ notification_count }}
+                                </span>
+                            </a>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Settings
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="{% url 'alors:add_planned' %}">Planned Workout</a></li>
+                                <li><a class="dropdown-item" href="{% url 'alors:warmup_list' %}">Warm-ups</a></li>
+                                <li><a class="dropdown-item" href="{% url 'alors:issue_list' %}">Issues</a></li>
+                                <li><a class="dropdown-item" href="{% url 'alors:label_list' %}">Labels</a></li>
+                                <li><a class="dropdown-item" href="{% url 'alors:profile' %}">Your Profile</a></li>
+                            </ul>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'alors:issue_list' %}">Issues</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'alors:logout' %}">Logout</a>
+                            <a class="nav-link" href="{% url 'alors:logout' %}">Logout <b>{{ user }}</b></a>
                         </li>
                         {% else %}
                         <li class="nav-item">
