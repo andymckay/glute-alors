@@ -641,8 +641,8 @@ class WorkoutEditViewTests(TestCase):
         self.assertEqual(self.workout.effort, 7)  # unchanged
 
     def test_edit_attaches_multiple_issues(self):
-        first = Issue.objects.create(title="First", text="One")
-        second = Issue.objects.create(title="Second", text="Two")
+        first = Issue.objects.create(title="First")
+        second = Issue.objects.create(title="Second")
         response = self.client.post(
             self.url,
             {
@@ -660,7 +660,7 @@ class WorkoutEditViewTests(TestCase):
         )
 
     def test_edit_does_not_change_linked_issue_content(self):
-        issue = Issue.objects.create(title="Old title", text="Old **text**.")
+        issue = Issue.objects.create(title="Old title")
         self.workout.issues.add(issue)
         response = self.client.post(
             self.url,
@@ -674,28 +674,23 @@ class WorkoutEditViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         issue.refresh_from_db()
         self.assertEqual(issue.title, "Old title")
-        self.assertEqual(issue.text, "Old **text**.")
         self.assertTrue(self.workout.issues.filter(pk=issue.pk).exists())
 
     def test_detail_shows_linked_issues(self):
-        issue = Issue.objects.create(title="Crash", text="It **broke**.")
+        issue = Issue.objects.create(title="Crash")
         self.workout.issues.add(issue)
         response = self.client.get(
             reverse("alors:workout_detail", args=[self.workout.pk])
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Crash")
-        self.assertContains(response, "<strong>broke</strong>")
 
 
 class IssueViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="creator", password="secret123")
         self.client.force_login(self.user)
-        self.issue = Issue.objects.create(
-            title="App crashes",
-            text="It breaks **badly** on #launch.",
-        )
+        self.issue = Issue.objects.create(title="App crashes")
 
     def test_list_shows_issues(self):
         response = self.client.get(reverse("alors:issue_list"))
@@ -703,14 +698,10 @@ class IssueViewTests(TestCase):
         self.assertContains(response, "App crashes")
         self.assertContains(response, reverse("alors:issue_add"))
 
-    def test_list_renders_issue_text_as_markdown(self):
-        response = self.client.get(reverse("alors:issue_list"))
-        self.assertContains(response, "<strong>badly</strong>")
-
     def test_add_creates_issue_and_redirects(self):
         response = self.client.post(
             reverse("alors:issue_add"),
-            {"title": "New bug", "text": "Something **breaks**."},
+            {"title": "New bug"},
         )
         self.assertRedirects(response, reverse("alors:issue_list"))
         self.assertTrue(Issue.objects.filter(title="New bug").exists())
@@ -724,12 +715,11 @@ class IssueViewTests(TestCase):
         url = reverse("alors:issue_edit", args=[self.issue.pk])
         response = self.client.post(
             url,
-            {"title": "App crashes on login", "text": "Fixed wording."},
+            {"title": "App crashes on login"},
         )
         self.assertRedirects(response, reverse("alors:issue_list"))
         self.issue.refresh_from_db()
         self.assertEqual(self.issue.title, "App crashes on login")
-        self.assertEqual(self.issue.text, "Fixed wording.")
 
     def test_delete_removes_issue(self):
         response = self.client.post(reverse("alors:issue_delete", args=[self.issue.pk]))
@@ -739,7 +729,7 @@ class IssueViewTests(TestCase):
     def test_add_sets_created_by_to_logged_in_user(self):
         response = self.client.post(
             reverse("alors:issue_add"),
-            {"title": "New bug", "text": "Something **breaks**."},
+            {"title": "New bug"},
         )
         self.assertEqual(response.status_code, 302)
         issue = Issue.objects.get(title="New bug")
@@ -748,7 +738,7 @@ class IssueViewTests(TestCase):
     def test_created_by_is_not_an_editable_field(self):
         from .forms import IssueForm
 
-        self.assertEqual(list(IssueForm().fields.keys()), ["title", "text"])
+        self.assertEqual(list(IssueForm().fields.keys()), ["title"])
 
     def test_timestamps_are_set_and_updated(self):
         self.issue.refresh_from_db()
@@ -757,7 +747,7 @@ class IssueViewTests(TestCase):
         created_before = self.issue.created_at
         updated_before = self.issue.updated_at
 
-        self.issue.text = "Edited text."
+        self.issue.title = "Edited title."
         self.issue.save()
         self.issue.refresh_from_db()
         self.assertGreaterEqual(self.issue.updated_at, updated_before)
@@ -1887,21 +1877,21 @@ class PlannedStatusUpdateTests(TestCase):
         values.update(overrides)
         return Workout.objects.create(**values)
 
-    def test_within_10_percent_marks_done(self):
+    def test_within_20_percent_marks_done(self):
         planned = self.create_planned()
         self.create_workout(total_distance=Decimal("10.50"))
         planned.refresh_from_db()
         self.assertEqual(planned.status, "done")
 
-    def test_under_10_percent_marks_under(self):
+    def test_under_20_percent_marks_under(self):
         planned = self.create_planned()
-        self.create_workout(total_distance=Decimal("8.00"))
+        self.create_workout(total_distance=Decimal("7.00"))
         planned.refresh_from_db()
         self.assertEqual(planned.status, "under")
 
-    def test_over_10_percent_marks_over(self):
+    def test_over_20_percent_marks_over(self):
         planned = self.create_planned()
-        self.create_workout(total_distance=Decimal("12.00"))
+        self.create_workout(total_distance=Decimal("13.00"))
         planned.refresh_from_db()
         self.assertEqual(planned.status, "over")
 
@@ -2033,3 +2023,357 @@ class MarkMissCommandTests(TestCase):
         future.refresh_from_db()
         self.assertEqual(today.status, "")
         self.assertEqual(future.status, "")
+
+
+class HeartRateGraphTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="runner", password="secret123"
+        )
+        self.client.force_login(self.user)
+
+    def create_workout(self, workout_data=""):
+        return Workout.objects.create(
+            workout_date=datetime(2026, 9, 4, 8, 30),
+            total_time=timedelta(minutes=45),
+            workout_type=WorkoutType.RUN,
+            workout_data=workout_data,
+        )
+
+    def hr_data(self):
+        return json.dumps(
+            {
+                "record_mesgs": [
+                    {
+                        "timestamp": "2026-09-04T08:00:00+00:00",
+                        "heart_rate": 120,
+                    },
+                    {
+                        "timestamp": "2026-09-04T08:01:00+00:00",
+                        "heart_rate": 150,
+                    },
+                    {
+                        "timestamp": "2026-09-04T08:02:00+00:00",
+                        "heart_rate": 135,
+                    },
+                ]
+            }
+        )
+
+    def test_model_returns_heart_rate_series(self):
+        workout = self.create_workout(self.hr_data())
+        series = workout.get_heart_rate_series()
+        self.assertEqual(len(series), 3)
+        self.assertAlmostEqual(series[0][0], 0.0)
+        self.assertAlmostEqual(series[1][0], 60.0)
+        self.assertEqual([hr for _, hr in series], [120, 150, 135])
+
+    def test_detail_page_renders_heart_rate_graph(self):
+        workout = self.create_workout(self.hr_data())
+        response = self.client.get(
+            reverse("alors:workout_detail", args=[workout.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<svg")
+        self.assertContains(response, "<polyline")
+        self.assertContains(response, "hr-chart")
+        self.assertContains(response, "data-series=")
+        self.assertContains(response, 'data-metric="hr"')
+        self.assertContains(response, "Heart")
+
+    def test_no_heart_rate_data_means_no_graph(self):
+        workout = self.create_workout()
+        response = self.client.get(
+            reverse("alors:workout_detail", args=[workout.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'data-metric="hr"')
+
+    def pace_data(self):
+        return json.dumps(
+            {
+                "record_mesgs": [
+                    {
+                        "timestamp": "2026-09-04T08:00:00+00:00",
+                        "speed": 4.0,
+                    },
+                    {
+                        "timestamp": "2026-09-04T08:01:00+00:00",
+                        "speed": 5.0,
+                    },
+                    {
+                        "timestamp": "2026-09-04T08:02:00+00:00",
+                        "speed": 3.333,
+                    },
+                ]
+            }
+        )
+
+    def test_model_returns_pace_series(self):
+        workout = self.create_workout(self.pace_data())
+        series = workout.get_pace_series()
+        self.assertEqual(len(series), 3)
+        # 1000 m at 4 m/s = 250 s/km, at 5 m/s = 200 s/km.
+        self.assertAlmostEqual(series[0][1], 250.0)
+        self.assertAlmostEqual(series[1][1], 200.0)
+
+    def test_detail_page_renders_pace_graph(self):
+        workout = self.create_workout(self.pace_data())
+        response = self.client.get(
+            reverse("alors:workout_detail", args=[workout.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<polyline")
+        self.assertContains(response, 'data-metric="pace"')
+
+    def test_no_pace_data_means_no_pace_graph(self):
+        workout = self.create_workout(self.hr_data())
+        response = self.client.get(
+            reverse("alors:workout_detail", args=[workout.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'data-metric="pace"')
+
+    def elevation_data(self):
+        return json.dumps(
+            {
+                "record_mesgs": [
+                    {
+                        "timestamp": "2026-09-04T08:00:00+00:00",
+                        "altitude": 100.0,
+                    },
+                    {
+                        "timestamp": "2026-09-04T08:01:00+00:00",
+                        "altitude": 120.0,
+                    },
+                    {
+                        "timestamp": "2026-09-04T08:02:00+00:00",
+                        "altitude": 95.0,
+                    },
+                ]
+            }
+        )
+
+    def test_model_returns_elevation_series(self):
+        workout = self.create_workout(self.elevation_data())
+        series = workout.get_elevation_series()
+        self.assertEqual([alt for _, alt in series], [100.0, 120.0, 95.0])
+
+    def test_detail_page_renders_elevation_graph(self):
+        workout = self.create_workout(self.elevation_data())
+        response = self.client.get(
+            reverse("alors:workout_detail", args=[workout.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<polyline")
+        self.assertContains(response, 'data-metric="elevation"')
+
+    def test_no_elevation_data_means_no_elevation_graph(self):
+        workout = self.create_workout(self.hr_data())
+        response = self.client.get(
+            reverse("alors:workout_detail", args=[workout.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'data-metric="elevation"')
+
+
+class WorkoutSplitsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="runner", password="secret123"
+        )
+        self.client.force_login(self.user)
+
+    def split_data(self):
+        """3 km at a constant 5:00/km, HR ~130/140/150 per km."""
+        records = []
+        base = datetime(2026, 9, 4, 8, 0, tzinfo=timezone.utc)
+        for index in range(31):
+            km = index * 0.1
+            hr = 130 if km <= 1.0 else (140 if km <= 2.0 else 150)
+            records.append(
+                {
+                    "timestamp": (
+                        base + timedelta(seconds=30 * index)
+                    ).isoformat(),
+                    "distance": km * 1000.0,
+                    "heart_rate": hr,
+                }
+            )
+        return json.dumps({"record_mesgs": records})
+
+    def create_workout(self, data=""):
+        return Workout.objects.create(
+            workout_date=datetime(2026, 9, 4, 8, 30),
+            total_time=timedelta(minutes=15),
+            workout_type=WorkoutType.RUN,
+            workout_data=data,
+        )
+
+    def test_model_returns_km_splits(self):
+        workout = self.create_workout(self.split_data())
+        splits = workout.get_splits()
+        self.assertEqual([split["distance"] for split in splits], [1.0, 2.0, 3.0])
+        for split in splits:
+            self.assertAlmostEqual(split["time"], 300.0)
+            self.assertAlmostEqual(split["avg_pace"], 300.0)
+            self.assertAlmostEqual(split["max_pace"], 300.0)
+        self.assertAlmostEqual(splits[0]["avg_hr"], 130.0)
+        self.assertAlmostEqual(splits[1]["avg_hr"], 140.0)
+        self.assertAlmostEqual(splits[2]["max_hr"], 150.0)
+
+    def test_no_distance_records_means_no_splits(self):
+        workout = self.create_workout()
+        self.assertEqual(workout.get_splits(), [])
+
+    def test_detail_page_renders_splits_table(self):
+        workout = self.create_workout(self.split_data())
+        response = self.client.get(
+            reverse("alors:workout_detail", args=[workout.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Splits")
+        self.assertContains(response, "<table")
+        self.assertContains(response, "Avg pace")
+        self.assertContains(response, "Max HR")
+
+    def test_detail_page_hides_splits_without_data(self):
+        workout = self.create_workout()
+        response = self.client.get(
+            reverse("alors:workout_detail", args=[workout.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Splits")
+
+    def pause_data(self):
+        """3 km at 5:00/km with a 60 second stop in the middle of km 1."""
+        records = []
+        base = datetime(2026, 9, 4, 8, 0, tzinfo=timezone.utc)
+        elapsed = 0
+        for index in range(31):
+            km = index * 0.1
+            records.append(
+                {
+                    "timestamp": (base + timedelta(seconds=elapsed)).isoformat(),
+                    "distance": km * 1000.0,
+                    "heart_rate": 130,
+                }
+            )
+            elapsed += 30
+            if km == 0.5:
+                # Stand still for a minute: distance does not advance.
+                for _ in range(2):
+                    records.append(
+                        {
+                            "timestamp": (
+                                base + timedelta(seconds=elapsed)
+                            ).isoformat(),
+                            "distance": 500.0,
+                            "heart_rate": 130,
+                        }
+                    )
+                    elapsed += 30
+        return json.dumps({"record_mesgs": records})
+
+    def test_split_time_excludes_stopped_periods(self):
+        workout = self.create_workout(self.pause_data())
+        splits = workout.get_splits()
+        # The first km still took 300 s of moving time, despite the 60 s pause.
+        self.assertAlmostEqual(splits[0]["time"], 300.0)
+        self.assertAlmostEqual(splits[0]["avg_pace"], 300.0)
+        self.assertGreater(splits[0]["time"], 0)
+
+    def lap_data(self):
+        """3 km at 5:00/km with two device laps: 2 km then 1 km."""
+        records = []
+        base = datetime(2026, 9, 4, 8, 0, tzinfo=timezone.utc)
+        for index in range(31):
+            km = index * 0.1
+            records.append(
+                {
+                    "timestamp": (
+                        base + timedelta(seconds=30 * index)
+                    ).isoformat(),
+                    "distance": km * 1000.0,
+                    "heart_rate": 130,
+                }
+            )
+        return json.dumps(
+            {
+                "record_mesgs": records,
+                "lap_mesgs": [
+                    {"total_distance": 2000.0},
+                    {"total_distance": 1000.0},
+                ],
+            }
+        )
+
+    def test_uses_device_laps_when_present(self):
+        workout = self.create_workout(self.lap_data())
+        splits = workout.get_splits()
+        self.assertEqual([split["distance"] for split in splits], [2.0, 3.0])
+        self.assertAlmostEqual(splits[0]["time"], 600.0)
+        self.assertAlmostEqual(splits[1]["time"], 300.0)
+
+
+class RouteMapTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="runner", password="secret123"
+        )
+        self.client.force_login(self.user)
+
+    def create_workout(self, data=""):
+        return Workout.objects.create(
+            workout_date=datetime(2026, 9, 4, 8, 30),
+            total_time=timedelta(minutes=45),
+            workout_type=WorkoutType.RUN,
+            workout_data=data,
+        )
+
+    def route_data(self):
+        return json.dumps(
+            {
+                "record_mesgs": [
+                    {
+                        "timestamp": "2026-09-04T08:00:00+00:00",
+                        "position_lat": 49.2827,
+                        "position_long": -123.1207,
+                    },
+                    {
+                        "timestamp": "2026-09-04T08:01:00+00:00",
+                        "position_lat": 49.2837,
+                        "position_long": -123.1187,
+                    },
+                    {
+                        "timestamp": "2026-09-04T08:02:00+00:00",
+                        "position_lat": 49.2847,
+                        "position_long": -123.1167,
+                    },
+                ]
+            }
+        )
+
+    def test_model_returns_route_points(self):
+        workout = self.create_workout(self.route_data())
+        route = workout.get_route_points()
+        self.assertEqual(len(route), 3)
+        self.assertAlmostEqual(route[0][0], 49.2827)
+        self.assertAlmostEqual(route[0][1], -123.1207)
+
+    def test_detail_page_renders_map_with_route(self):
+        workout = self.create_workout(self.route_data())
+        response = self.client.get(
+            reverse("alors:workout_detail", args=[workout.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="workout-map"')
+        self.assertContains(response, "tile.openstreetmap.org")
+
+    def test_no_gps_data_means_no_map(self):
+        workout = self.create_workout()
+        response = self.client.get(
+            reverse("alors:workout_detail", args=[workout.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'id="workout-map"')

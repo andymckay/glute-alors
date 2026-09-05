@@ -3,11 +3,33 @@
 {% load alors %}
 {% block main %}
 <div class="container-lg">
+    <p><a href="/calendar" class="text-muted link-underline link-underline-opacity-0">👈 Back to the calendar</a></p>
+    <div class="row">
+        <div class="col">
+            <ul class="nav nav-underline pb-4">
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'alors:workout_edit' workout.pk %}">Feedback
+                        {% if not workout.effort %}
+            <span class="badge rounded-pill bg-danger" data-bs-toggle="tooltip" data-bs-title="Feedback needs to be added">!</span>
+            {% endif %}
+
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#analysis">Analysis</a>
+                </li>
+                    <li class="nav-item">
+                    <a class="nav-link" href="#comments">Comments</a>
+                </li>
+            </ul>
+        </div>
+    </div>
     <div class="row">
         <div class="col-lg-7">
-            <h2 class="mb-1">{{ workout.workout_type|emoji }}{{ workout.workout_type|capfirst }}</h2>
+            <h2 class="mb-1">Actual: {{ workout.workout_type|emoji }}{{ workout.workout_type|capfirst }}</h2>
             <p class="mb-4">
-                {{ workout.workout_date }}
+                {{ workout.workout_date }}<br>
+                <span class="text-muted">Recorded on: {{ workout.get_workout_data_as_json.device_info_mesgs.0.product_name }}</span>
             </p>
 
             <dl class="row">
@@ -45,28 +67,108 @@
                 <dd class="col-sm-8">
                     {% if workout.notes %}{{ workout.notes|markdown }}{% else %}—{% endif %}
                 </dd>
+                <dt class="col-sm-4">Issues</dt>
+                <dd class="col-sm-8">
+                    <div>
+                    {% for issue in workout.issues.all %}
+                        <span class="badge text-bg-secondary">{{ issue }}</span>
+                    {% empty %}
+                        -
+                    {% endfor %}
+                </div>
+                </dd>
             </dl>
 
-            {% with issues=workout.issues.all %}
-            {% if issues %}
-                <ul class="list-group mb-4">
-                    {% for issue in issues %}
-                        <li class="list-group-item">
-                            <a href="{% url 'alors:issue_edit' issue.pk %}"><strong>{{ issue.title }}</strong></a>
-                            {% if issue.text %}
-                                <div class="mt-1">{{ issue.text|markdown }}</div>
-                            {% endif %}
-                        </li>
-                    {% endfor %}
-                </ul>
+            <h3 id="analysis" class="border-bottom">Analysis</h3>
+            {% with graph=workout|heart_rate_svg %}
+            {% if graph %}
+                <div class="mt-2">
+                    <h4 id="heart">Heart</h4>
+                    {{ graph }}
+                </div>
             {% endif %}
             {% endwith %}
 
-            <div class="d-flex gap-2">
-                <a href="{% url 'alors:workout_edit' workout.pk %}" class="btn btn-primary">Update workout</a>
-                <a href="{% url 'alors:calendar' %}" class="btn btn-outline-secondary">Back to calendar</a>
-            </div>
+            {% with graph=workout|pace_svg %}
+            {% if graph %}
+                <div class="mt-2">
+                    <h4 id="pace">Pace</h4>
+                    {{ graph }}
+                </div>
+            {% endif %}
+            {% endwith %}
 
+            {% with graph=workout|elevation_svg %}
+            {% if graph %}
+                <div class="mt-2">
+                    <h4 id="elevation">Elevation</h4>
+                    {{ graph }}
+                </div>
+            {% endif %}
+            {% endwith %}
+
+            {% if route_points and route_points != "[]" %}
+                <div class="mt-2">
+                    <h4 id="map">Map</h4>
+                    <div id="workout-map" style="height: 320px; border-radius: .375rem;"></div>
+                </div>
+                <script>
+                    (function () {
+                        const route = {{ route_points|safe }};
+                        if (!route || route.length < 2) {
+                            document.getElementById("workout-map").style.display = "none";
+                            return;
+                        }
+                        const map = L.map("workout-map", { scrollWheelZoom: false });
+                        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                            maxZoom: 19,
+                            attribution:
+                                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        }).addTo(map);
+                        const polyline = L.polyline(route, {
+                            color: "#dc3545",
+                            weight: 3,
+                        }).addTo(map);
+                        map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+                    })();
+                </script>
+            {% endif %}
+
+            {% with splits=workout.get_splits %}
+            {% if splits %}
+                <div class="mt-2">
+                    <h4 id="splits">Splits</h4>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Distance</th>
+                                    <th scope="col">Time</th>
+                                    <th scope="col">Avg pace</th>
+                                    <th scope="col">Max pace</th>
+                                    <th scope="col">Avg HR</th>
+                                    <th scope="col">Max HR</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for split in splits %}
+                                <tr>
+                                    <td>{{ split.distance }} km</td>
+                                    <td>{{ split.time|hms }}</td>
+                                    <td>{% if split.avg_pace %}{{ split.avg_pace|hms }} km{% else %}—{% endif %}</td>
+                                    <td>{% if split.max_pace %}{{ split.max_pace|hms }} km{% else %}—{% endif %}</td>
+                                    <td>{% if split.avg_hr %}{{ split.avg_hr|floatformat:0 }}{% else %}—{% endif %}</td>
+                                    <td>{% if split.max_hr %}{{ split.max_hr|floatformat:0 }}{% else %}—{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endif %}
+            {% endwith %}
+
+            <h3 id="comments" class="border-bottom">Comments</h3>
             {% include "comments.html" %}
         </div>
     </div>

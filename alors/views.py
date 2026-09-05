@@ -202,6 +202,8 @@ def planned_detail(request, pk):
 
 @login_required
 def workout_detail(request, pk):
+    import json
+
     workout = get_object_or_404(Workout, pk=pk)
     Notification.objects.mark_read_for(request.user, workout)
     return render(
@@ -209,6 +211,7 @@ def workout_detail(request, pk):
         "workout_detail.html",
         {
             "workout": workout,
+            "route_points": json.dumps(workout.get_route_points()),
             "comments": workout.comments.all(),
             "comment_form": CommentForm(),
             "comment_action": "alors:add_workout_comment",

@@ -148,7 +148,7 @@ class WorkoutEditForm(forms.ModelForm):
 class IssueForm(forms.ModelForm):
     class Meta:
         model = Issue
-        fields = ["title", "text"]
+        fields = ["title"]
         widgets = {
             "title": forms.TextInput(
                 attrs={
@@ -156,12 +156,7 @@ class IssueForm(forms.ModelForm):
                     "placeholder": "e.g. Sore knees",
                 }
             ),
-            "text": forms.Textarea(attrs={"rows": 6, "class": "form-control"}),
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["text"].help_text = "Markdown is supported."
 
 
 class LabelForm(forms.ModelForm):

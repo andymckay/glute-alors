@@ -282,7 +282,7 @@ def _sync_planned_status_from_workout(sender, instance, created, **kwargs):
     )
 
     planned_distance = planned.total_distance
-    margin = planned_distance * Decimal("0.10")
+    margin = planned_distance * Decimal("0.20")
     if abs(actual_total - planned_distance) <= margin:
         status = PlannedWorkout.Status.DONE
     elif actual_total < planned_distance:

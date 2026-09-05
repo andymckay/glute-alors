@@ -3,9 +3,10 @@
 {% load alors %}
 {% block main %}
 <div class="container-lg">
+    <p><a href="/calendar" class="text-muted link-underline link-underline-opacity-0">👈 Back to the calendar</a></p>
     <div class="row">
         <div class="col-lg-7">
-            <h2 class="mb-1">{{ workout.workout_type|emoji }} {{ workout.title|default:workout.get_workout_type_display }}</h2>
+            <h2 class="mb-1">Planned: {{ workout.workout_type|emoji }} {{ workout.title|default:workout.get_workout_type_display }}</h2>
             {% if workout.is_race %}<div class="badge text-bg-warning">🏆 Race</div>{% endif %}
             <p class="mb-4">
                 {{ workout.workout_date }}
@@ -27,7 +28,6 @@
 
             <div class="d-flex gap-2">
                 <a href="{% url 'alors:edit_planned' workout.pk %}" class="btn btn-primary">Edit workout</a>
-                <a href="{% url 'alors:calendar' %}" class="btn btn-outline-secondary">Back to calendar</a>
             </div>
 
             {% include "comments.html" %}

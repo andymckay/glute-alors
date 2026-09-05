@@ -1,5 +1,5 @@
 {% load alors %}
-<div class="card card-event mt-4 border-{{ workout.status|status }}">
+<div class="card card-event mt-2 border-{{ workout.status|status }}">
     {% if workout.is_race %}
         <div class="card-header bg-warning">
             <b>🏆 Race</b>
@@ -9,7 +9,7 @@
         <div class="card-body text-muted">
             {% if workout.status %}
             <span class="position-absolute top-0 start-0 translate-middle badge rounded-pill bg-{{ workout.status|status }}">
-                {{ workout.status }}
+                {{ workout.status|capfirst }}
             </span>
             {% endif %}
             {{ workout.workout_type|emoji }}

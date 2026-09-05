@@ -62,7 +62,7 @@ class WorkoutAdmin(admin.ModelAdmin):
 class IssueAdmin(admin.ModelAdmin):
     list_display = ("title", "created_by", "created_at", "updated_at")
     list_filter = ("created_by",)
-    search_fields = ("title", "text")
+    search_fields = ("title",)
 
 
 @admin.register(Comment)
