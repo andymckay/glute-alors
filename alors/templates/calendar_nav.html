@@ -1,0 +1,15 @@
+    <div class="row">
+        <div class="col">
+            <ul class="nav nav-underline pb-4">
+                <li class="nav-item">
+                    <a class="nav-link" href="?d=&v={{ request.GET.v }}">Today</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="?d={{ next }}&v={{ request.GET.v }}">Next</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="?d={{ previous }}&v={{ request.GET.v}}">Previous</a>
+                </li>
+            </ul>
+        </div>
+    </div>

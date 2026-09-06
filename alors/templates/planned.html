@@ -2,7 +2,7 @@
 {% block main %}
 <div class="container-lg">
     <div class="row">
-        <div class="col-lg-7">
+        <div class="col-lg-6">
             <h2 class="mb-1">{{ page_title|default:"Plan a workout" }}</h2>
             <p class="text-muted mb-4">{{ page_intro|default:"Add a planned workout to your calendar." }}</p>
 
@@ -35,6 +35,45 @@
                 </form>
             {% endif %}
         </div>
+        <div class="col-lg-3">
+            <div class="card">
+                <div class="card-header">Summary</div>
+                <div class="card-body">
+                    <div id="weekly-summary">
+                        {% with planned=True %}
+                            {% include "summary_card.html" %}
+                        {% endwith %}
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+<script>
+    (function () {
+        const dateInput = document.getElementById("id_workout_date");
+        const container = document.getElementById("weekly-summary");
+        if (!dateInput || !container) {
+            return;
+        }
+        const placeholder =
+            '<p class="text-muted">No weekly summary for this date yet.</p>';
+        const update = () => {
+            const value = dateInput.value;
+            if (!value) {
+                container.innerHTML = placeholder;
+                return;
+            }
+            fetch(
+                "{% url 'alors:planned_weekly_summary' %}?date=" +
+                    encodeURIComponent(value)
+            )
+                .then((response) => response.text())
+                .then((html) => {
+                    container.innerHTML = html;
+                });
+        };
+        dateInput.addEventListener("change", update);
+    })();
+</script>
 {% endblock %}

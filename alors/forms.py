@@ -24,10 +24,10 @@ class CalendarForm(forms.Form):
         date = date if date else timezone.now().date()
         dates = {
             "today": timezone.now().date(),
-            "start": date - timedelta(days=1),
-            "end": date + timedelta(days=8),
-            "previous": date - timedelta(days=7),
-            "next": date + timedelta(days=9),
+            "start": date - timedelta(days=2),
+            "end": date + timedelta(days=4),
+            "previous": date - timedelta(days=6),
+            "next": date + timedelta(days=6),
         }
         self.cleaned_data["start_end_dates"] = {
             k: v.strftime("%Y-%m-%d") for k, v in dates.items()
@@ -217,9 +217,10 @@ class ProfileForm(forms.ModelForm):
 
     class Meta:
         model = UserProfile
-        fields = ["role"]
+        fields = ["role", "avatar"]
         widgets = {
             "role": forms.Select(attrs={"class": "form-select"}),
+            "avatar": forms.ClearableFileInput(attrs={"class": "form-control"}),
         }
 
     def __init__(self, *args, **kwargs):

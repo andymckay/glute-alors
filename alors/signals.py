@@ -12,6 +12,7 @@ from .models import (
     Comment,
     Notification,
     PlannedWorkout,
+    Status,
     WeeklySummary,
     Workout,
     WorkoutType,
@@ -284,11 +285,11 @@ def _sync_planned_status_from_workout(sender, instance, created, **kwargs):
     planned_distance = planned.total_distance
     margin = planned_distance * Decimal("0.20")
     if abs(actual_total - planned_distance) <= margin:
-        status = PlannedWorkout.Status.DONE
+        status = Status.DONE
     elif actual_total < planned_distance:
-        status = PlannedWorkout.Status.UNDER
+        status = Status.UNDER
     else:
-        status = PlannedWorkout.Status.OVER
+        status = Status.OVER
 
     if planned.status != status:
         PlannedWorkout.objects.filter(pk=planned.pk).update(status=status)

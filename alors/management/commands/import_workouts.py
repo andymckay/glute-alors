@@ -65,6 +65,11 @@ class Command(BaseCommand):
             default=None,
             help="Set the created_by of each imported workout to this user.",
         )
+        parser.add_argument(
+            "--delete",
+            action="store_true",
+            help="Delete each .fit file after it has been successfully imported.",
+        )
 
     def handle(self, *args, **options):
         directory = Path(options["directory"])
@@ -100,6 +105,9 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(f"Imported {workout} from '{source_name}'.")
             )
+            if options["delete"]:
+                fit_path.unlink()
+                self.stdout.write(self.style.SUCCESS(f"Deleted {source_name}."))
 
         self.stdout.write(
             self.style.SUCCESS(f"Done: {imported} imported, {skipped} already present.")

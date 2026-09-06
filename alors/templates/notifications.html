@@ -12,23 +12,32 @@
                 <button type="submit" class="btn btn-outline-primary btn-sm">Mark all as read</button>
             </form>
         </div>
-        <ul class="list-group">
+        
             {% for notification in notifications %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        {% if not notification.read %}
-                            <span class="badge text-bg-primary me-1">New</span>
-                        {% endif %}
-                        {% if notification.get_absolute_url %}
-                            <a href="{{ notification.get_absolute_url }}">{{ notification.summary }}</a>
-                        {% else %}
-                            {{ notification.summary }}
+            {% with summary=notification.summary %}
+            <div class="row mt-4">
+                    <div class="col-2">
+                        <span class="badge text-bg-primary me-1">New</span><br>
+                        <small class="text-muted">{{ notification.created_at }}</small>
+                        <b>{{ summary.actor }}</b> added a <b>{{ summary.object_name }}</b>
+                        <br>
+                        <a href="{{ notification.get_absolute_url }}{% if summary.is_comment %}#comments{% endif %}">View more</a>
+                    </div>
+                    <div class="col">
+                        {% with workout=notification.target %}
+                            {% include "workout_card.html" %}
+                        {% endwith %}
+                    </div>
+                    <div class="col">
+                        {% if summary.is_comment %}
+                            {% with comment=notification.content_object %}
+                                {% include "comment.html" %}
+                            {% endwith %}
                         {% endif %}
                     </div>
-                    <small class="text-muted">{{ notification.created_at }}</small>
-                </li>
+            </div>
+            {% endwith %}
             {% endfor %}
-        </ul>
     {% else %}
         <p class="text-muted">No notifications yet.</p>
     {% endif %}

@@ -17,6 +17,11 @@ urlpatterns = [
     path("calendar/", views.calendar, name="calendar"),
     path("planned/add/", views.add_planned, name="add_planned"),
     path(
+        "planned/week-summary/",
+        views.planned_weekly_summary,
+        name="planned_weekly_summary",
+    ),
+    path(
         "planned/<int:pk>/",
         views.planned_detail,
         name="planned_detail",

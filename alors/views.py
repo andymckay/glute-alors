@@ -25,10 +25,14 @@ from .models import (
     WeeklySummary,
 )
 from django.utils import timezone
+from django.utils.dateparse import parse_date
+from datetime import timedelta
+
 from .validators import validate_date
 from .ical import render_calendar
 from itertools import chain
 from .utils import dateList, combineDateLists
+import json
 
 
 def index(request):
@@ -119,8 +123,23 @@ def calendar(request):
     )
 
 
+def _week_summary(date_value):
+    """Return the stored WeeklySummary for the week containing ``date_value``."""
+    if isinstance(date_value, str):
+        date_value = parse_date(date_value)
+    if date_value is None:
+        return None
+    sunday = date_value + timedelta(days=6 - date_value.weekday())
+    return WeeklySummary.objects.filter(date=sunday).first()
+
+
 @login_required
 def add_planned(request):
+    summary = _week_summary(
+        request.GET.get("date")
+        if request.method == "GET"
+        else request.POST.get("workout_date")
+    )
     if request.method == "POST":
         form = PlannedWorkoutForm(request.POST)
         if form.is_valid():
@@ -134,10 +153,21 @@ def add_planned(request):
             )
             return redirect("alors:index")
     else:
+        date = request.GET.get("date", None)
         form = PlannedWorkoutForm()
-        form.fields["workout_date"].initial = request.GET.get("date", None)
+        form.fields["workout_date"].initial = date
 
-    return render(request, "planned.html", {"form": form})
+    return render(request, "planned.html", {"form": form, "summary": summary})
+
+
+@login_required
+def planned_weekly_summary(request):
+    """Render the weekly-summary snippet for a ``?date=YYYY-MM-DD`` query."""
+    return render(
+        request,
+        "summary_card.html",
+        {"summary": _week_summary(request.GET.get("date")), "planned": True},
+    )
 
 
 @login_required
@@ -154,8 +184,10 @@ def edit_planned(request, pk):
                 f"✏️ Updated {workout.get_workout_type_display().lower()} workout for {workout.workout_date}.",
             )
             return redirect("alors:index")
+        summary = _week_summary(form.data.get("workout_date"))
     else:
         form = PlannedWorkoutForm(instance=workout)
+        summary = _week_summary(workout.workout_date)
 
     return render(
         request,
@@ -165,6 +197,7 @@ def edit_planned(request, pk):
             "workout": workout,
             "page_title": "Edit workout",
             "page_intro": f"Update your planned {workout.get_workout_type_display().lower()} workout for {workout.workout_date}.",
+            "summary": summary,
         },
     )
 
@@ -202,16 +235,21 @@ def planned_detail(request, pk):
 
 @login_required
 def workout_detail(request, pk):
-    import json
-
     workout = get_object_or_404(Workout, pk=pk)
     Notification.objects.mark_read_for(request.user, workout)
+    fit = workout.get_workout_data()
     return render(
         request,
         "workout_detail.html",
         {
             "workout": workout,
-            "route_points": json.dumps(workout.get_route_points()),
+            "route_points": json.dumps(fit.get_route_points()),
+            "power_series": fit.get_power_series(),
+            "elevation_series": fit.get_elevation_series(),
+            "pace_series": fit.get_pace_series(),
+            "heart_rate_series": fit.get_heart_rate_series(),
+            "elevation_gain": fit.elevation_gain(),
+            "elevation_loss": fit.elevation_loss(),
             "comments": workout.comments.all(),
             "comment_form": CommentForm(),
             "comment_action": "alors:add_workout_comment",
@@ -528,7 +566,9 @@ def edit_profile(request):
     """Let the logged-in user edit their own role and email address."""
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     if request.method == "POST":
-        form = ProfileForm(request.POST, instance=profile, user=request.user)
+        form = ProfileForm(
+            request.POST, request.FILES, instance=profile, user=request.user
+        )
         if form.is_valid():
             form.save()
             messages.add_message(request, messages.SUCCESS, "🙋 Profile updated.")

@@ -24,63 +24,34 @@
             </ul>
         </div>
     </div>
-    <div class="row">
-        <div class="col-lg-7">
-            <h2 class="mb-1">Actual: {{ workout.workout_type|emoji }}{{ workout.workout_type|capfirst }}</h2>
+    <div class="row mb-4">
+        <div class="col-lg mb-2">
+            <h3 class="border-bottom">Actual: {{ workout.workout_type|emoji }}{{ workout.workout_type|capfirst }}</h3>
             <p class="mb-4">
-                {{ workout.workout_date }}<br>
-                <span class="text-muted">Recorded on: {{ workout.get_workout_data_as_json.device_info_mesgs.0.product_name }}</span>
+                {% with object=workout %}{% include "created.html" %}{% endwith %}<br>
+                <span class="text-muted">Recorded on: {{ workout.get_workout_data_as_json.device_info_mesgs.0.product_name }}</span><br>
+                <b>Workout:</b> {{ workout.workout_date }}<br>
             </p>
 
-            <dl class="row">
-                <dt class="col-sm-4">Total time</dt>
-                <dd class="col-sm-8">{{ workout.total_time }}</dd>
-
-                <dt class="col-sm-4">Total distance</dt>
-                <dd class="col-sm-8">
-                    {% if workout.total_distance %}{{ workout.total_distance }} km{% else %}—{% endif %}
-                </dd>
-
-                <dt class="col-sm-4">Moving time</dt>
-                <dd class="col-sm-8">{{ workout.moving_time|default:"—" }}</dd>
-
-                <dt class="col-sm-4">Pace</dt>
-                <dd class="col-sm-8">
-                    {% if workout.pace %}{{ workout.pace }} min/km{% else %}—{% endif %}
-                </dd>
-
-                <dt class="col-sm-4">Effort</dt>
-                <dd class="col-sm-8">
-                    {% if workout.effort %}
-                        <span class="badge workout-effort-{{ workout.effort }}">{{ workout.get_effort_as_text }}</span>
-{% else %}—{% endif %}
-                </dd>
-
-                <dt class="col-sm-4">Feeling</dt>
-                <dd class="col-sm-8">
-                    {% if workout.feeling %}                
-                        <span class="badge workout-feeling-{{ workout.feeling }}">{{ workout.get_feeling_as_text }}</span>
-{% else %}—{% endif %}
-                </dd>
-
-                <dt class="col-sm-4">Notes</dt>
-                <dd class="col-sm-8">
-                    {% if workout.notes %}{{ workout.notes|markdown }}{% else %}—{% endif %}
-                </dd>
-                <dt class="col-sm-4">Issues</dt>
-                <dd class="col-sm-8">
-                    <div>
-                    {% for issue in workout.issues.all %}
-                        <span class="badge text-bg-secondary">{{ issue }}</span>
-                    {% empty %}
-                        -
-                    {% endfor %}
-                </div>
-                </dd>
-            </dl>
-
-            <h3 id="analysis" class="border-bottom">Analysis</h3>
-            {% with graph=workout|heart_rate_svg %}
+            {% include "workout_card.html" %}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-lg-6 mb-2">
+            <h3 id="notes" class="border-bottom">Workout notes</h3>
+            {% if workout.notes %}{{ workout.notes|markdown }}{% else %}None yet 😞{% endif %}
+        </div>
+        <div class="col-lg-6 mb-2">
+            <h3 id="comments" class="border-bottom">Comments</h3>
+            {% include "comments.html" %}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-12">
+            <h3 id="analysis" class="border-bottom mt-2">Analysis</h3>
+        </div>
+        <div class="col-lg-6 mb-2">
+            {% with graph=heart_rate_series|heart_rate_svg:workout %}
             {% if graph %}
                 <div class="mt-2">
                     <h4 id="heart">Heart</h4>
@@ -89,7 +60,16 @@
             {% endif %}
             {% endwith %}
 
-            {% with graph=workout|pace_svg %}
+            {% with graph=power_series|power_svg:workout %}
+            {% if graph %}
+                <div class="mt-2">
+                    <h4 id="power">Power</h4>
+                    {{ graph }}
+                </div>
+            {% endif %}
+            {% endwith %}
+
+            {% with graph=pace_series|pace_svg:workout %}
             {% if graph %}
                 <div class="mt-2">
                     <h4 id="pace">Pace</h4>
@@ -98,18 +78,19 @@
             {% endif %}
             {% endwith %}
 
-            {% with graph=workout|elevation_svg %}
+            {% with graph=elevation_series|elevation_svg:workout %}
             {% if graph %}
                 <div class="mt-2">
                     <h4 id="elevation">Elevation</h4>
+                    <p>Overall change a <b>{{ elevation_gain }} m</b> gain 📈 and <b>{{ elevation_loss }} m</b> loss 📉</b></p>
                     {{ graph }}
                 </div>
             {% endif %}
             {% endwith %}
-
+        </div>
+        <div class="col-lg-6 mb-2">
             {% if route_points and route_points != "[]" %}
                 <div class="mt-2">
-                    <h4 id="map">Map</h4>
                     <div id="workout-map" style="height: 320px; border-radius: .375rem;"></div>
                 </div>
                 <script>
@@ -134,15 +115,15 @@
                 </script>
             {% endif %}
 
-            {% with splits=workout.get_splits %}
+            {% with splits=workout.get_workout_data.get_splits %}
             {% if splits %}
                 <div class="mt-2">
-                    <h4 id="splits">Splits</h4>
                     <div class="table-responsive">
                         <table class="table table-sm table-striped align-middle">
                             <thead>
                                 <tr>
-                                    <th scope="col">Distance</th>
+                                    <th scope="col">Split</th>
+                                    <th scope="col">Total</th>
                                     <th scope="col">Time</th>
                                     <th scope="col">Avg pace</th>
                                     <th scope="col">Max pace</th>
@@ -153,10 +134,11 @@
                             <tbody>
                                 {% for split in splits %}
                                 <tr>
-                                    <td>{{ split.distance }} km</td>
+                                    <td>{{ split.split_distance }}</td>
+                                    <td>{{ split.distance }}</td>
                                     <td>{{ split.time|hms }}</td>
-                                    <td>{% if split.avg_pace %}{{ split.avg_pace|hms }} km{% else %}—{% endif %}</td>
-                                    <td>{% if split.max_pace %}{{ split.max_pace|hms }} km{% else %}—{% endif %}</td>
+                                    <td>{% if split.avg_pace %}{{ split.avg_pace|hms }}{% else %}—{% endif %}</td>
+                                    <td>{% if split.max_pace %}{{ split.max_pace|hms }}{% else %}—{% endif %}</td>
                                     <td>{% if split.avg_hr %}{{ split.avg_hr|floatformat:0 }}{% else %}—{% endif %}</td>
                                     <td>{% if split.max_hr %}{{ split.max_hr|floatformat:0 }}{% else %}—{% endif %}</td>
                                 </tr>
@@ -167,9 +149,6 @@
                 </div>
             {% endif %}
             {% endwith %}
-
-            <h3 id="comments" class="border-bottom">Comments</h3>
-            {% include "comments.html" %}
         </div>
     </div>
 </div>

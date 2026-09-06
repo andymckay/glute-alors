@@ -2,11 +2,21 @@
 <p>
 {% if planned %}
     {% for key, data in summary.summary.planned_workout.items %}
-        {{ key|emoji }} <b>{{ data.workouts }}</b> workout for <b>{{ data.total_distance }} km</b><br>
+        {% if data.total_distance %}
+            {{ key|emoji }} {{ key|capfirst }} <b>{{ data.workouts }}</b> workout{{ data.workouts|pluralize }} for <b>{{ data.total_distance }} km</b><br>
+        {% else %}
+            {{ key|emoji }} {{ key|capfirst }} <b>{{ data.workouts }}</b> workout{{ data.workouts|pluralize }}<br>
+        {% endif %}
+    {% empty %}
+        No plan yet.
     {% endfor %}
 {% else %}
     {% for key, data in summary.summary.workout.items %}
-        {{ key|emoji }} <b>{{ data.workouts }}</b> workouts for <b>{{ data.total_distance }} km</b> in <b>{{ data.total_time|hms }}</b><br>
+        {% if data.total_distance %}
+            {{ key|emoji }} {{ key|capfirst }} <b>{{ data.workouts }}</b> workout{{ data.workouts|pluralize }} for <b>{{ data.total_distance }} km</b> in <b>{{ data.total_time|hms }}</b><br>
+        {% else %}
+            {{ key|emoji }} {{ key|capfirst }} <b>{{ data.workouts }}</b> workout{{ data.workouts|pluralize }}<br>
+        {% endif %}
     {% endfor %}
 {% endif %}
 </p>

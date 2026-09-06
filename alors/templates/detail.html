@@ -6,10 +6,10 @@
     <p><a href="/calendar" class="text-muted link-underline link-underline-opacity-0">👈 Back to the calendar</a></p>
     <div class="row">
         <div class="col-lg-7">
-            <h2 class="mb-1">Planned: {{ workout.workout_type|emoji }} {{ workout.title|default:workout.get_workout_type_display }}</h2>
-            {% if workout.is_race %}<div class="badge text-bg-warning">🏆 Race</div>{% endif %}
-            <p class="mb-4">
-                {{ workout.workout_date }}
+            <h2 class="mb-1">Planned: {{ workout.workout_type|emoji }} {{ workout.title|default:workout.get_workout_type_display }} {% if workout.is_race %}<div class="badge text-bg-warning">🏆</div>{% endif %}</h2>
+            <p>
+                {% with object=workout %}{% include "created.html" %}{% endwith %}<br>
+                <b>Workout date:</b> {{ workout.workout_date }}<br>
                 {% if workout.total_distance %}&bull; {{ workout.total_distance }} km{% endif %}
             </p>
 

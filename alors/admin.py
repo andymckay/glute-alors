@@ -60,8 +60,14 @@ class WorkoutAdmin(admin.ModelAdmin):
 
 @admin.register(Issue)
 class IssueAdmin(admin.ModelAdmin):
-    list_display = ("title", "created_by", "created_at", "updated_at")
-    list_filter = ("created_by",)
+    list_display = (
+        "title",
+        "colour",
+        "created_by",
+        "created_at",
+        "updated_at",
+    )
+    list_filter = ("colour", "created_by")
     search_fields = ("title",)
 
 

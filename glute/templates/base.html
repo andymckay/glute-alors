@@ -13,6 +13,7 @@
     <script src="{% static 'js/leaflet.js' %}"></script>
     <script src="{% static 'js/d3.js' %}"></script>
     <script src="{% static 'js/site.js' %}"></script>
+    <link rel="icon" href="/static/img/logo.png" />
     {% block head %}{% endblock %}
 </head>
 
@@ -54,7 +55,10 @@
                                 <li><a class="dropdown-item" href="{% url 'alors:profile' %}">Your Profile</a></li>
                             </ul>
                         </li>
-                        <li class="nav-item">
+                        <li class="nav-item d-flex align-items-center">
+                            {% if user_profile.avatar %}
+                            <img src="{{ user_profile.avatar.url }}" alt="{{ user }}" class="rounded-circle me-1" width="24" height="24">
+                            {% endif %}
                             <a class="nav-link" href="{% url 'alors:logout' %}">Logout <b>{{ user }}</b></a>
                         </li>
                         {% else %}

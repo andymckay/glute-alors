@@ -3,7 +3,7 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from alors.models import PlannedWorkout
+from alors.models import PlannedWorkout, Status
 
 
 class Command(BaseCommand):
@@ -17,7 +17,8 @@ class Command(BaseCommand):
         missed = (
             PlannedWorkout.objects.filter(workout_date__lt=today, status="")
             .exclude(workout_type="recovery")
-            .update(status=PlannedWorkout.Status.MISSED)
+            .exclude(workout_type="other")
+            .update(status=Status.MISSED)
         )
         self.stdout.write(
             self.style.SUCCESS(f"Marked {missed} planned workout(s) as missed.")

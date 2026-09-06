@@ -1,15 +1,7 @@
 {% load markdown_extras %}
 <div class="my-4">
 {% for comment in comments %}
-    <div class="card mb-2">
-        <div class="card-body py-2">
-            <div class="d-flex justify-content-between align-items-baseline">
-                <strong>{{ comment.created_by|default:"Anonymous" }}</strong>
-                <small class="text-muted">{{ comment.created_at }}</small>
-            </div>
-            <div class="mt-1">{{ comment.text|markdown }}</div>
-        </div>
-    </div>
+    {% include "comment.html" %}
 {% endfor %} 
 </div>
 
