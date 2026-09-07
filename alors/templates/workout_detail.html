@@ -110,6 +110,25 @@
                             color: "#dc3545",
                             weight: 3,
                         }).addTo(map);
+
+                        const endpointMarker = (latlng, label, color, name) =>
+                            L.marker(latlng, {
+                                icon: L.divIcon({
+                                    className: "",
+                                    html: `<div style="background:${color};color:#fff;border:2px solid #fff;border-radius:50%;width:22px;height:22px;line-height:18px;text-align:center;font-size:12px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.4);">${label}</div>`,
+                                    iconSize: [22, 22],
+                                    iconAnchor: [11, 11],
+                                }),
+                            }).addTo(map).bindPopup(name);
+
+                        endpointMarker(route[0], "S", "#198754", "Start");
+                        endpointMarker(
+                            route[route.length - 1],
+                            "F",
+                            "#dc3545",
+                            "Finish"
+                        );
+
                         map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
                     })();
                 </script>

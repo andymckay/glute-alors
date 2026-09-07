@@ -120,12 +120,14 @@ class Command(BaseCommand):
             f"{API_BASE}/athlete/{ATHLETE_ID}/activities"
             f"?oldest={oldest}&limit={limit}"
         )
+
         status, body = self._get(url, token)
         if status != 200:
             raise CommandError(
                 f"Intervals.icu returned HTTP {status} while listing "
                 f"activities ({url})."
             )
+
         try:
             activities = json.loads(body.decode("utf-8"))
         except (ValueError, UnicodeDecodeError) as error:
