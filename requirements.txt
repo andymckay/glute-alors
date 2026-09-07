@@ -2,6 +2,7 @@ asgiref==3.12.1
 django==6.1
 dotenv==0.9.9
 garmin-fit-sdk==21.214.0
+gunicorn==26.2.0
 icalendar==7.3.0
 markdown==3.10.3
 pillow==12.3.0
@@ -11,3 +12,4 @@ python-dotenv==1.2.3
 six==1.17.0
 sqlparse==0.6.0
 tzdata==2026.3
+uwsgi==2.0.31

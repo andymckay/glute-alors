@@ -13,19 +13,15 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-z#vdq369mheu9lxu%ylfcbfvba!!=5jm@^!uekvjy_yof2n752"
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+STATIC_DIR = os.getenv("DJANGO_STATIC_DIR", BASE_DIR)
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-z#vdq369mheu9lxu%ylfcbfvba!!=5jm@^!uekvjy_yof2n752")
+# Set DJANGO_DEBUG to any string to enable, set to empty to turn off.
+DEBUG = not not os.getenv("DJANGO_DEBUG", True)
 
 ALLOWED_HOSTS = []
 
@@ -105,15 +101,10 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LOGIN_URL = "/"
 
-# Internationalization
-# https://docs.djangoproject.com/en/4.1/topics/i18n/
 
 LANGUAGE_CODE = "en-us"
-
 TIME_ZONE = "UTC"
-
 USE_I18N = True
-
 USE_TZ = True
 
 
@@ -121,7 +112,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
 STATIC_URL = "static/"
-
+STATIC_ROOT = os.getenv("DJANGO_STATIC_ROOT", None)
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
@@ -135,8 +126,8 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-load_dotenv()
 INTERVALS_TOKEN = os.getenv("INTERVALS_TOKEN", None)
 if not INTERVALS_TOKEN:
     print("Warning: no intervals.icu API Key found.")
 
+if DEBUG: print("Debug enabled")
