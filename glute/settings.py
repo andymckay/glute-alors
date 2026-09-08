@@ -23,7 +23,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-z#vdq369mheu9lxu%yl
 # Set DJANGO_DEBUG to any string to enable, set to empty to turn off.
 DEBUG = not not os.getenv("DJANGO_DEBUG", True)
 
-ALLOWED_HOSTS = ["127.0.0.1"]
+ALLOWED_HOSTS = ["127.0.0.1", "glute1.vps.webdock.cloud"]
 
 
 # Application definition
