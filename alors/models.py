@@ -19,7 +19,7 @@ class WorkoutType(models.TextChoices):
     HIKE = ["hike", "Hike"]
     STRENGTH = ["strength", "Strength"]
     RECOVERY = ["recovery", "Recovery"]
-    OTHER = ["other", "OTHER"]
+    OTHER = ["other", "Other"]
 
 
 class Colour(models.TextChoices):
