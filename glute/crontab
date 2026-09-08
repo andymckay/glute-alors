@@ -1,0 +1,32 @@
+# Crontab for the glute project.
+#
+# Install on the deployment server with:
+#   crontab glute/crontab
+#   mkdir -p logs        # (create the log dir referenced below)
+#
+# Everything below assumes the project lives at /home/admin/glute-alors and is
+# run by the same user as glute/supervisorctl.conf. If you are running this on
+# the local dev machine instead, change GLUTE_DIR to /Users/a/c/glute and the
+# INTERVALS_TOKEN file to match your setup.
+#
+# All scheduled times are in UTC (CRON_TZ below).
+
+CRON_TZ=UTC
+MAILTO=""
+
+GLUTE_DIR=/home/admin/glute-alors
+PYTHON=$GLUTE_DIR/.venv/bin/python3
+LOG_DIR=/tmp
+
+# Import new activities from intervals.icu every 30 minutes.
+# The API token is read from ~/.intervals (set INTERVALS_TOKEN otherwise).
+*/30 * * * * cd $GLUTE_DIR && INTERVALS_TOKEN="$(cat "$HOME/.intervals" 2>/dev/null)" $PYTHON manage.py import_from_intervals >> $LOG_DIR/import_from_intervals.log 2>&1
+
+# Import downloaded .fit files as workouts every 10 minutes.
+*/10 * * * * cd $GLUTE_DIR && $PYTHON manage.py import_workouts $GLUTE_DIR/data >> $LOG_DIR/import_workouts.log 2>&1
+
+# Mark past planned workouts without a status as missed at 02:00 UTC daily.
+0 2 * * * cd $GLUTE_DIR && $PYTHON manage.py mark_miss >> $LOG_DIR/mark_miss.log 2>&1
+
+# Clean up old notifications at 03:00 UTC daily.
+0 3 * * * cd $GLUTE_DIR && $PYTHON manage.py clean_notifications >> $LOG_DIR/clean_notifications.log 2>&1
