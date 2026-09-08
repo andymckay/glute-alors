@@ -2,13 +2,13 @@
         <div class="col">
             <ul class="nav nav-underline pb-4">
                 <li class="nav-item">
-                    <a class="nav-link" href="?d=&v={{ request.GET.v }}">Today</a>
+                    <a class="nav-link" href="?d=">Today</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="?d={{ next }}&v={{ request.GET.v }}">Next</a>
+                    <a class="nav-link" href="?d={% if next %}{{ next }}{% endif %}">Next</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="?d={{ previous }}&v={{ request.GET.v}}">Previous</a>
+                    <a class="nav-link" href="?d={% if next %}{{ previous }}{% endif %}">Previous</a>
                 </li>
             </ul>
         </div>
