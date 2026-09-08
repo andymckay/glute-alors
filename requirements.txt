@@ -15,5 +15,4 @@ python-dotenv==1.2.3
 six==1.17.0
 sqlparse==0.6.0
 tzdata==2026.3
-uwsgi==2.0.31
 whitenoise==6.12.0
