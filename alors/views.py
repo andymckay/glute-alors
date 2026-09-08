@@ -84,9 +84,14 @@ def calendar(request):
         ).order_by("workout_date")
     )
 
+    # Hack, need to solve this properly, but this ensures that we check up to the last minute
+    # of the last day.
+    end = dates["end"]
+    end = end + " 23:59:59"
     actual_workouts = dateList(
         Workout.objects.filter(
-            workout_date__gte=dates["start"], workout_date__lte=dates["end"]
+            workout_date__gte=dates["start"],
+            workout_date__lte=end
         ).order_by("workout_date")
     )
 
