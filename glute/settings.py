@@ -25,7 +25,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-z#vdq369mheu9lxu%yl
 DEBUG = not not os.getenv("DJANGO_DEBUG", True)
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "glute1.vps.webdock.cloud"]
-CSRF_TRUSTED_ORIGINS = ALLOWED_HOSTS
+CSRF_TRUSTED_ORIGINS = ["https://glute1.vps.webdock.cloud"]
 
 # Application definition
 
