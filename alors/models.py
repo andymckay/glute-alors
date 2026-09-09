@@ -608,6 +608,12 @@ class UserProfile(models.Model):
         default=Role.ATHLETE,
         help_text="Whether this user is a coach or an athlete.",
     )
+    timezone = models.CharField(
+        "timezone",
+        max_length=63,
+        default=settings.TIME_ZONE,
+        help_text="Your local timezone, used to show dates and times.",
+    )
     avatar = models.FileField(
         "profile image",
         upload_to="avatars/",

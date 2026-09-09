@@ -30,6 +30,18 @@ class UserProfileModelTests(TestCase):
         profile = UserProfile.objects.create(user=self.user)
         self.assertEqual(self.user.profile, profile)
 
+    def test_default_timezone_is_settings_time_zone(self):
+        from django.conf import settings
+
+        profile = UserProfile.objects.create(user=self.user)
+        self.assertEqual(profile.timezone, settings.TIME_ZONE)
+
+    def test_can_set_timezone(self):
+        profile = UserProfile.objects.create(
+            user=self.user, timezone="Europe/London"
+        )
+        self.assertEqual(profile.timezone, "Europe/London")
+
 
 class ProfileViewTests(TestCase):
     def setUp(self):
@@ -40,29 +52,35 @@ class ProfileViewTests(TestCase):
         )
         self.client.force_login(self.user)
 
-    def test_get_creates_profile_and_shows_email_and_role(self):
+    def test_get_creates_profile_and_shows_email_role_and_timezone(self):
         response = self.client.get(reverse("alors:profile"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Email address")
         self.assertContains(response, "runner@example.com")
         self.assertContains(response, "Role")
+        self.assertContains(response, "Timezone")
         self.assertTrue(UserProfile.objects.filter(user=self.user).exists())
 
-    def test_post_updates_role_and_email(self):
+    def test_post_updates_role_timezone_and_email(self):
         response = self.client.post(
             reverse("alors:profile"),
-            {"role": "coach", "email": "coach@example.com"},
+            {
+                "role": "coach",
+                "timezone": "Europe/London",
+                "email": "coach@example.com",
+            },
         )
         self.assertRedirects(response, reverse("alors:profile"))
         profile = self.user.profile
         self.assertEqual(profile.role, "coach")
+        self.assertEqual(profile.timezone, "Europe/London")
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, "coach@example.com")
 
     def test_invalid_email_is_rejected(self):
         response = self.client.post(
             reverse("alors:profile"),
-            {"role": "athlete", "email": "not-an-email"},
+            {"role": "athlete", "timezone": "UTC", "email": "not-an-email"},
         )
         self.assertEqual(response.status_code, 200)
         self.user.refresh_from_db()
@@ -83,6 +101,7 @@ class ProfileViewTests(TestCase):
                     reverse("alors:profile"),
                     {
                         "role": "athlete",
+                        "timezone": "America/New_York",
                         "email": "runner@example.com",
                         "avatar": avatar,
                     },
@@ -100,3 +119,59 @@ class ProfileViewTests(TestCase):
                 response = self.client.get(reverse("alors:calendar"))
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, profile.avatar.url)
+
+    def test_profile_page_lists_all_pytz_timezones(self):
+        import pytz
+
+        response = self.client.get(reverse("alors:profile"))
+        self.assertEqual(response.status_code, 200)
+        for tz in ("Europe/London", "America/New_York", "Asia/Tokyo"):
+            self.assertContains(response, f'value="{tz}"')
+        self.assertGreater(
+            len(pytz.all_timezones), 500
+        )  # sanity: the field really is populated from pytz
+
+
+class UserTimezoneMiddlewareTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="tzuser", password="secret123")
+        self.client.force_login(self.user)
+
+    def test_activates_logged_in_users_timezone(self):
+        from django.http import HttpResponse
+        from django.test import RequestFactory
+        from django.utils import timezone
+
+        from ..middleware import UserTimezoneMiddleware
+
+        UserProfile.objects.create(user=self.user, timezone="Europe/London")
+
+        captured = {}
+
+        def get_response(request):
+            captured["tz"] = timezone.get_current_timezone_name()
+            return HttpResponse()
+
+        request = RequestFactory().get("/")
+        request.user = self.user
+        UserTimezoneMiddleware(get_response)(request)
+        self.assertEqual(captured["tz"], "Europe/London")
+
+    def test_falls_back_to_default_timezone_without_profile(self):
+        from django.conf import settings
+        from django.http import HttpResponse
+        from django.test import RequestFactory
+        from django.utils import timezone
+
+        from ..middleware import UserTimezoneMiddleware
+
+        captured = {}
+
+        def get_response(request):
+            captured["tz"] = timezone.get_current_timezone_name()
+            return HttpResponse()
+
+        request = RequestFactory().get("/")
+        request.user = self.user  # no profile yet
+        UserTimezoneMiddleware(get_response)(request)
+        self.assertEqual(captured["tz"], settings.TIME_ZONE)

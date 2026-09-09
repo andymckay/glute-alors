@@ -13,6 +13,13 @@ window.addEventListener("load", (event) => {
             navigator.clipboard.writeText(element.target.getAttribute("data-copy"))
         });
     });
+
+    const userTimezone = document.getElementById("timezone");
+    if (userTimezone) {
+        if (userTimezone.innerText !== Intl.DateTimeFormat().resolvedOptions().timeZone) {
+            document.getElementById("timezone-alert").classList.remove("d-none");
+        }
+    }
 });
 
 function initHeartRateCharts() {

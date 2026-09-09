@@ -10,8 +10,8 @@ from .models import (
     Workout,
 )
 from datetime import timedelta
-
-
+from django.utils import timezone
+import pytz
 class CalendarForm(forms.Form):
     d = forms.DateField(
         widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
@@ -23,7 +23,7 @@ class CalendarForm(forms.Form):
         date = self.cleaned_data.get("d")
         date = date if date else timezone.now().date()
         dates = {
-            "today": timezone.now().date(),
+            "today": timezone.localdate(),
             "start": date - timedelta(days=2),
             "end": date + timedelta(days=4),
             "previous": date - timedelta(days=6),
@@ -148,7 +148,7 @@ class WorkoutEditForm(forms.ModelForm):
 class IssueForm(forms.ModelForm):
     class Meta:
         model = Issue
-        fields = ["title"]
+        fields = ["title", "colour"]
         widgets = {
             "title": forms.TextInput(
                 attrs={
@@ -156,6 +156,7 @@ class IssueForm(forms.ModelForm):
                     "placeholder": "e.g. Sore knees",
                 }
             ),
+            "colour": forms.Select(attrs={"class": "form-select"}),
         }
 
 
@@ -207,17 +208,23 @@ class CommentForm(forms.ModelForm):
 
 
 class ProfileForm(forms.ModelForm):
-    """Edit a user's role (on their profile) and email address (on the user)."""
+    """Edit a user's role, timezone and email address (email lives on the user)."""
 
     email = forms.EmailField(
         label="Email address",
         required=False,
         widget=forms.EmailInput(attrs={"class": "form-control"}),
     )
+    timezone = forms.ChoiceField(
+        label="Timezone",
+        choices=[(tz, tz) for tz in pytz.all_timezones],
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Your local timezone, used to show dates and times.",
+    )
 
     class Meta:
         model = UserProfile
-        fields = ["role", "avatar"]
+        fields = ["role", "timezone", "avatar"]
         widgets = {
             "role": forms.Select(attrs={"class": "form-select"}),
             "avatar": forms.ClearableFileInput(attrs={"class": "form-control"}),

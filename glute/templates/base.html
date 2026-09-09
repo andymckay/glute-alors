@@ -46,6 +46,9 @@
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 Settings
+                                <span id="timezone-alert" class="d-none badge rounded-pill bg-danger" data-bs-toggle="tooltip" data-bs-title="Your timezone differs from your profile timezone, you can change this in your profile.">
+                                    !
+                                </span>
                             </a>
                             <ul class="dropdown-menu">
                                 <li><a class="dropdown-item" href="{% url 'alors:add_planned' %}">Planned Workout</a></li>
@@ -84,6 +87,7 @@
         </main>
         <footer class="bg-light pt-4">
             <div class="container-lg">
+                {% if not user.is_anonymous %}<p class="text-muted">Your timezone: <span id="timezone">{{ user.profile.timezone }}</span></p>{% endif %}
                 <p class="text-muted">Subscribe to planned workouts <a class="text-muted" href="{% url 'alors:planned_webcal' %}">in your calendar</a>.</p>
                 <p class="text-muted">Glute Alors is an <a href="https://github.com/andymckay/glute-alors">open source project</a> made with ❤️ by <a href="https://clearwind.ca">Andy McKay</a>.</p>
             </div>

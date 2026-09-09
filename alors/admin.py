@@ -103,8 +103,14 @@ class NotificationAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "role", "created_at", "updated_at")
-    list_filter = ("role",)
+    list_display = (
+        "user",
+        "role",
+        "timezone",
+        "created_at",
+        "updated_at",
+    )
+    list_filter = ("role", "timezone")
     search_fields = ("user__username", "user__email")
 
 

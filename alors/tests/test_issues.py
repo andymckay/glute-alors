@@ -34,11 +34,12 @@ class IssueViewTests(TestCase):
         url = reverse("alors:issue_edit", args=[self.issue.pk])
         response = self.client.post(
             url,
-            {"title": "App crashes on login"},
+            {"title": "App crashes on login", "colour": "danger"},
         )
         self.assertRedirects(response, reverse("alors:issue_list"))
         self.issue.refresh_from_db()
         self.assertEqual(self.issue.title, "App crashes on login")
+        self.assertEqual(self.issue.colour, "danger")
 
     def test_delete_removes_issue(self):
         response = self.client.post(reverse("alors:issue_delete", args=[self.issue.pk]))
@@ -57,7 +58,10 @@ class IssueViewTests(TestCase):
     def test_created_by_is_not_an_editable_field(self):
         from ..forms import IssueForm
 
-        self.assertEqual(list(IssueForm().fields.keys()), ["title"])
+        fields = IssueForm().fields
+        self.assertNotIn("created_by", fields)
+        self.assertIn("title", fields)
+        self.assertIn("colour", fields)
 
     def test_issue_colour_defaults_to_primary(self):
         issue = Issue.objects.create(title="Bare")

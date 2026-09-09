@@ -587,7 +587,7 @@ def edit_profile(request):
         {
             "form": form,
             "page_title": "Your profile",
-            "page_intro": "Choose your role and keep your email address up to date.",
+            "page_intro": "Choose your role and timezone, and keep your email address up to date.",
         },
     )
 

@@ -9,9 +9,12 @@ markdown==3.10.3
 mysqlclient==2.2.8
 pillow==12.3.0
 pip==26.2.1
+psycopg2-binary==2.9.12
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.3
+pytz==2026.3.post1
 six==1.17.0
 sqlparse==0.6.0
 tzdata==2026.3
+uwsgi==2.0.31
 whitenoise==6.12.0
