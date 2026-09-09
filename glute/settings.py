@@ -38,7 +38,7 @@ INSTALLED_APPS = [
     "alors",
 ]
 
-if DEBUG:
+if not DEBUG:
     INSTALLED_APPS.append("django.contrib.staticfiles")
 
 MIDDLEWARE = [

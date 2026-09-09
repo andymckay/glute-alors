@@ -157,7 +157,12 @@ for _model in (PlannedWorkout, Workout):
 
 
 def _notify_on_save(sender, instance, created, **kwargs):
-    """Notify every user except the actor when a linked model is added/edited."""
+    """Notify every user except the actor when a linked model is added/edited.
+
+    A user only ever has one unread notification per object: if they already
+    have an unread notification about ``instance``, no further notification is
+    added for them until they read the existing one.
+    """
     actor = getattr(instance, "_notification_actor", None)
     if actor is None:
         actor = getattr(instance, "created_by", None)
@@ -169,6 +174,17 @@ def _notify_on_save(sender, instance, created, **kwargs):
         if actor
         else User.objects.all()
     )
+
+    # Drop any recipient that already has an unread notification about this
+    # object, so people are not spammed with duplicates for the same thing.
+    content_type = ContentType.objects.get_for_model(instance)
+    already_notified = Notification.objects.filter(
+        read=False,
+        content_type=content_type,
+        object_id=instance.pk,
+        recipient__in=recipients,
+    ).values_list("recipient_id", flat=True)
+    recipients = recipients.exclude(pk__in=already_notified)
 
     Notification.objects.bulk_create(
         [

@@ -53,12 +53,31 @@ class NotificationTests(TestCase):
 
     def test_editing_planned_workout_notifies_others(self):
         planned = self.create_planned()
+        # The coach has an unread notification about the plan; once it has
+        # been read, a later edit produces a fresh notification again.
+        self.notifications_for(self.coach).update(read=True)
         planned.title = "Long run v2"
         planned.save()
         notification = self.latest_for(self.coach)
         self.assertEqual(notification.action, "edited")
         self.assertEqual(notification.content_object, planned)
         self.assertEqual(self.notifications_for(self.athlete).count(), 0)
+
+    def test_editing_object_with_unread_notification_adds_no_duplicate(self):
+        planned = self.create_planned()
+        # The add notification is still unread, so the edit is suppressed.
+        planned.title = "Long run v2"
+        planned.save()
+        self.assertEqual(self.notifications_for(self.coach).count(), 1)
+        self.assertEqual(
+            Notification.objects.filter(
+                recipient=self.coach, read=False
+            ).count(),
+            1,
+        )
+        notification = self.latest_for(self.coach)
+        self.assertEqual(notification.action, "added")
+        self.assertEqual(notification.content_object, planned)
 
     def test_adding_workout_notifies_others(self):
         workout = self.create_workout()
@@ -70,6 +89,9 @@ class NotificationTests(TestCase):
 
     def test_editing_workout_notifies_others(self):
         workout = self.create_workout()
+        # The coach's original add notification must be read first so the
+        # edit generates a new one.
+        self.notifications_for(self.coach).update(read=True)
         workout.notes = "Tough one."
         workout.save()
         notification = self.latest_for(self.coach)
@@ -110,12 +132,30 @@ class NotificationTests(TestCase):
             text="Nice session.",
             created_by=self.coach,
         )
+        # The athlete has an unread notification about the comment; once it
+        # is read, editing the comment produces a fresh notification.
+        self.notifications_for(self.athlete).update(read=True)
         comment.text = "Updated comment."
         comment.save()
         notification = self.latest_for(self.athlete)
         self.assertEqual(notification.action, "edited")
         self.assertEqual(notification.content_object, comment)
         self.assertEqual(notification.actor, self.coach)
+
+    def test_editing_comment_while_unread_adds_no_duplicate(self):
+        planned = self.create_planned()
+        comment = Comment.objects.create(
+            planned_workout=planned,
+            text="Nice session.",
+            created_by=self.coach,
+        )
+        comment.text = "Updated comment."
+        comment.save()
+        # The athlete still has only the original, unread notification.
+        self.assertEqual(self.notifications_for(self.athlete).count(), 1)
+        notification = self.latest_for(self.athlete)
+        self.assertEqual(notification.action, "added")
+        self.assertEqual(notification.content_object, comment)
 
     def test_notification_has_read_status_and_timestamps(self):
         self.create_planned()
@@ -138,6 +178,9 @@ class NotificationTests(TestCase):
     def test_workout_edit_view_claims_owner_and_notifies_others(self):
         self.client.force_login(self.athlete)
         workout = self.create_workout(created_by=None)
+        # Without an owner the creation notified everyone; have the coach read
+        # it so the edit triggers a fresh notification for them.
+        self.notifications_for(self.coach).update(read=True)
         response = self.client.post(
             reverse("alors:workout_edit", args=[workout.pk]),
             {"notes": "Updated via the form."},
@@ -151,6 +194,27 @@ class NotificationTests(TestCase):
         self.assertEqual(notification.action, "edited")
         self.assertEqual(notification.content_object, workout)
         self.assertEqual(notification.actor, self.athlete)
+
+    def test_dedupe_is_checked_per_recipient(self):
+        workout = self.create_workout(created_by=None)
+        # With no owner set, everyone is notified on creation.
+        self.assertEqual(
+            Notification.objects.filter(
+                recipient__in=[self.athlete, self.coach], read=False
+            ).count(),
+            2,
+        )
+        # Only the coach has read their notification.
+        self.notifications_for(self.coach).update(read=True)
+        workout._notification_actor = self.athlete
+        workout.notes = "Updated."
+        workout.save()
+        # The athlete is the actor (so excluded) and keeps their unread one;
+        # the coach read theirs, so they get a fresh notification.
+        self.assertEqual(self.notifications_for(self.athlete).count(), 1)
+        coach_unread = self.notifications_for(self.coach).filter(read=False)
+        self.assertEqual(coach_unread.count(), 1)
+        self.assertEqual(coach_unread.first().action, "edited")
 
 
 class NotificationPageTests(TestCase):
