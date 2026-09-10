@@ -104,6 +104,11 @@ dt {
   background-color: RGBA(var(--bs-info-rgb),var(--bs-bg-opacity,1)) !important;
 }
 
+[data-bs-theme=dark] .workout-effort-6, [data-bs-theme=dark] .workout-effort-7, [data-bs-theme=dark] .workout-effort-8, [data-bs-theme=dark] .workout-effort-9 {
+  color: #06101a !important;
+}
+
+
 .workout-effort-6 {
   color: #fff !important;
   background-color: RGBA(var(--bs-info-rgb),var(--bs-bg-opacity,1)) !important;
@@ -156,7 +161,31 @@ dt {
     
 }
 
+[data-bs-theme=dark] .workout-feeling-2, [data-bs-theme=dark] .workout-feeling-3 {
+  color: #06101a !important;
+}
+
 .workout-feeling-1 {
   color: #fff !important;
   background-color: RGBA(var(--bs-danger-rgb),var(--bs-bg-opacity,1)) !important;    
+}
+
+[data-bs-theme=dark] .bg-tertiary {
+  background-color: #06101a !important;
+}
+
+[data-bs-theme=dark] .card {
+  background-color: #06101a !important;
+}
+
+[data-bs-theme=dark] .bg-warning {
+  color: #06101a !important;
+}
+
+[data-bs-theme=light] .card {
+  background-color: whitesmoke !important;
+}
+
+[data-bs-theme=light] .bg-tertiary {
+  background-color: whitesmoke !important;
 }

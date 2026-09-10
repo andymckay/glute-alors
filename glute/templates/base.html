@@ -19,12 +19,12 @@
     {% block head %}{% endblock %}
 </head>
 
-<body class="bg-light">
-    <header class="bg-light">
+<body class="bg-tertiary">
+    <header class="bg-tertiary">
         <div class="container-lg pt-4">
             <h1><img src="{% static 'img/logo.png' %}" style="height: 2em; width: 2em;" />glute alors</h1>
         </div>
-        <nav class="navbar navbar-expand-lg bg-light border-bottom">
+        <nav class="navbar navbar-expand-lg border-bottom">
             <div class="container-lg">
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
@@ -57,7 +57,8 @@
                                 <li><a class="dropdown-item" href="{% url 'alors:warmup_list' %}">Warm-ups</a></li>
                                 <li><a class="dropdown-item" href="{% url 'alors:issue_list' %}">Issues</a></li>
                                 <li><a class="dropdown-item" href="{% url 'alors:label_list' %}">Labels</a></li>
-                                <li><a class="dropdown-item" href="{% url 'alors:profile' %}">Your Profile</a></li>
+                                <li><a class="dropdown-item" href="{% url 'alors:profile' %}">Profile</a></li>
+                                <li><a class="dropdown-item theme-switch" href="#">Theme</a></li>
                             </ul>
                         </li>
                         <li class="nav-item d-flex align-items-center">
@@ -87,9 +88,9 @@
             {% block main %}{% endblock %}
 
         </main>
-        <footer class="bg-light pt-4">
+        <footer class="bg-tertiary pt-4">
             <div class="container-lg">
-                {% if not user.is_anonymous %}<p class="text-muted">Your timezone: <span id="timezone">{{ user.profile.timezone }}</span></p>{% endif %}
+                {% if not user.is_anonymous %}<p class="text-muted">Your timezone: <b id="timezone">{{ user.profile.timezone }}</b></p>{% endif %}
                 <p class="text-muted">Subscribe to planned workouts <a class="text-muted" href="{% url 'alors:planned_webcal' %}">in your calendar</a>.</p>
                 <p class="text-muted">Glute Alors is an <a href="https://github.com/andymckay/glute-alors">open source project</a> made with ❤️ by <a href="https://clearwind.ca">Andy McKay</a>.</p>
             </div>
