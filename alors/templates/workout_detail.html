@@ -29,7 +29,7 @@
             <h3 class="border-bottom">Actual: {{ workout.workout_type|emoji }}{{ workout.workout_type|capfirst }}</h3>
             <p class="mb-4">
                 {% with object=workout %}{% include "created.html" %}{% endwith %}<br>
-                <span class="text-muted">Recorded on: {{ workout.get_workout_data_as_json.device_info_mesgs.0.product_name }}</span><br>
+                <span class="text-muted">Recorded on: {{ recorded_on }}</span><br>
                 <b>Workout:</b> {{ workout.workout_date }}<br>
             </p>
 

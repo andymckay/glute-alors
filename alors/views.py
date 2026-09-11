@@ -256,6 +256,7 @@ def workout_detail(request, pk):
             "elevation_gain": fit.elevation_gain(),
             "elevation_loss": fit.elevation_loss(),
             "comments": workout.comments.all(),
+            "recorded_on": fit.get_recorded_on(),
             "comment_form": CommentForm(),
             "comment_action": "alors:add_workout_comment",
         },

@@ -31,6 +31,9 @@ class Parser:
     def get_splits(self):
         raise NotImplementedError
 
+    def get_recorded_on(self):
+        raise NotImplementedError
+
 
 class NullParser(Parser):
     """
@@ -64,6 +67,9 @@ class NullParser(Parser):
     def get_splits(self):
         return []
 
+    def get_recorded_on(self):
+        return ""
+
 
 class Fit(Parser):
     """
@@ -79,6 +85,7 @@ class Fit(Parser):
 
         self.records = data.get("record_mesgs") or []
         self.laps = data.get("lap_mesgs") or []
+        self.device = data.get("device_info_mesgs") or []
 
     def _record_series(self, extract, max_points=300):
         """Build ``(seconds, value)`` samples from the FIT records.
@@ -251,6 +258,12 @@ class Fit(Parser):
             step = len(points) / float(max_points)
             points = [points[int(i * step)] for i in range(max_points)]
         return points
+
+    def get_recorded_on(self):
+        try:
+            return self.device[0].get("product_name")
+        except (ValueError, IndexError):
+            return "Unknown"
 
     def get_splits(self):
         """Return per-kilometre (and lap) splits from the FIT records.

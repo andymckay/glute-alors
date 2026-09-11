@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -274,6 +275,71 @@ class WeeklySummarySignalTests(TestCase):
         self.assertEqual(summary["planned_workout"]["run"]["total_distance"], 10.0)
         self.assertEqual(summary["workout"]["run"]["workouts"], 1)
         self.assertEqual(summary["workout"]["run"]["total_distance"], 5.0)
+
+
+class RecreateWeeklySummariesCommandTests(TestCase):
+    def create_planned(self, workout_date, distance="10.00", workout_type="run"):
+        return PlannedWorkout.objects.create(
+            workout_type=workout_type,
+            workout_date=workout_date,
+            total_distance=distance,
+        )
+
+    def test_recreates_a_deleted_summary(self):
+        self.create_planned(date(2026, 9, 2))
+        WeeklySummary.objects.filter(date=date(2026, 9, 6)).delete()
+
+        call_command("recreate_weekly_summaries")
+
+        summary = WeeklySummary.objects.get(date=date(2026, 9, 6))
+        self.assertEqual(summary.summary["planned_workout"]["run"]["workouts"], 1)
+
+    def test_overwrites_stale_summary_data(self):
+        self.create_planned(date(2026, 9, 2))
+        WeeklySummary.objects.filter(date=date(2026, 9, 6)).update(
+            summary={"planned_workout": {"run": {"workouts": 99}}}
+        )
+
+        call_command("recreate_weekly_summaries")
+
+        summary = WeeklySummary.objects.get(date=date(2026, 9, 6))
+        self.assertEqual(summary.summary["planned_workout"]["run"]["workouts"], 1)
+
+    def test_drops_summaries_for_weeks_with_no_workouts(self):
+        self.create_planned(date(2026, 9, 2))  # week ending 09-06
+        self.create_planned(date(2026, 9, 16))  # week ending 09-20
+        # An orphan summary in an empty week inside the rebuilt range.
+        WeeklySummary.objects.create(date=date(2026, 9, 13), summary={"junk": True})
+
+        call_command("recreate_weekly_summaries")
+
+        self.assertFalse(WeeklySummary.objects.filter(date=date(2026, 9, 13)).exists())
+        self.assertTrue(WeeklySummary.objects.filter(date=date(2026, 9, 6)).exists())
+        self.assertTrue(WeeklySummary.objects.filter(date=date(2026, 9, 20)).exists())
+
+    def test_start_and_end_limit_the_rebuilt_range(self):
+        self.create_planned(date(2026, 9, 2))  # week ending 09-06
+        self.create_planned(date(2026, 9, 16))  # week ending 09-20
+        WeeklySummary.objects.filter(date=date(2026, 9, 6)).update(summary={"stale": True})
+
+        call_command(
+            "recreate_weekly_summaries", "--start", "2026-09-16", "--end", "2026-09-16"
+        )
+
+        # The 09-06 week is outside the range and keeps its stale data.
+        untouched = WeeklySummary.objects.get(date=date(2026, 9, 6))
+        self.assertEqual(untouched.summary, {"stale": True})
+        rebuilt = WeeklySummary.objects.get(date=date(2026, 9, 20))
+        self.assertEqual(rebuilt.summary["planned_workout"]["run"]["workouts"], 1)
+
+    def test_no_data_is_a_no_op(self):
+        call_command("recreate_weekly_summaries")
+        self.assertEqual(WeeklySummary.objects.count(), 0)
+
+    def test_invalid_start_date_raises_command_error(self):
+        self.create_planned(date(2026, 9, 2))
+        with self.assertRaises(CommandError):
+            call_command("recreate_weekly_summaries", "--start", "not-a-date")
 
 
 class PlannedStatusUpdateTests(TestCase):
