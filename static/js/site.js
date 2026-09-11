@@ -34,13 +34,7 @@ window.addEventListener("load", (event) => {
         el.addEventListener("click", switchTheme);
     }
 
-    let theme = localStorage.getItem("theme");
-    if (!theme) {
-        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    if (theme) {
-        document.getElementsByTagName("html")[0].setAttribute("data-bs-theme", theme);
-    }
+    initTheme();
 });
 
 function initHeartRateCharts() {
@@ -227,4 +221,15 @@ function initHeartRateCharts() {
     });
 }
 
+function initTheme() {
+    let theme = localStorage.getItem("theme");
+    if (!theme) {
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    if (theme) {
+        document.getElementsByTagName("html")[0].setAttribute("data-bs-theme", theme);
+    }
+}
+
+window.addEventListener("DOMContentLoaded", initTheme);
 window.addEventListener("load", initHeartRateCharts);
