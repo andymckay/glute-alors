@@ -189,6 +189,18 @@ class Workout(models.Model):
         null=True,
         help_text="Average pace, e.g. 00:05:30 (hh:mm:ss) per kilometer.",
     )
+    elevation_gain = models.FloatField(
+        "elevation gain (m)",
+        blank=True,
+        null=True,
+        help_text="Total elevation gained in meters.",
+    )
+    elevation_loss = models.FloatField(
+        "elevation loss (m)",
+        blank=True,
+        null=True,
+        help_text="Total elevation lost in meters.",
+    )
     effort = models.PositiveSmallIntegerField(
         "effort",
         blank=True,

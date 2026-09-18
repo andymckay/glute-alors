@@ -12,6 +12,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
+from ..management.commands import import_workouts
 from ..management.commands.import_from_intervals import (
     Command as ImportFromIntervalsCommand,
 )
@@ -288,6 +289,26 @@ class ImportWorkoutsCommandTests(TestCase):
     def test_extract_pace_returns_none_when_missing(self):
         command = ImportWorkoutsCommand()
         self.assertIsNone(command._extract_pace({}))
+
+    def test_import_fit_file_populates_elevation_gain_and_loss(self):
+        command = ImportWorkoutsCommand()
+        messages = {
+            "session_mesgs": [{"sport": "running"}],
+            "record_mesgs": [
+                {"timestamp": datetime(2026, 9, 4, 8, 0), "altitude": 100},
+                {"timestamp": datetime(2026, 9, 4, 8, 5), "altitude": 150},
+                {"timestamp": datetime(2026, 9, 4, 8, 10), "altitude": 120},
+            ],
+        }
+
+        with mock.patch.object(
+            import_workouts, "Decoder"
+        ) as decoder, mock.patch.object(import_workouts, "Stream"):
+            decoder.return_value.read.return_value = (messages, None)
+            workout = command._import_fit_file(Path("/tmp/does-not-exist.fit"))
+
+        self.assertEqual(workout.elevation_gain, 50.0)
+        self.assertEqual(workout.elevation_loss, 30.0)
 
 
 @override_settings(INTERVALS_TOKEN="test-intervals-token")

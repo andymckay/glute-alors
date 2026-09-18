@@ -23,6 +23,10 @@
                 <b>{{ workout.total_distance }} km</b>
             {% endif %}
             {% if workout.pace %} at <b>{{ workout.pace }} min/km</b>{% endif %}
+            <br>
+            {% if workout.elevation_gain %}📈 <b>{{ workout.elevation_gain }} m</b>{% endif %}
+            {% if workout.elevation_gain and workout.elevation_loss %} and {% endif %}
+            {% if workout.elevation_gain %}📉 <b>{{ workout.elevation_loss }} m</b>{% endif %}
             </div>
             <div class="mb-2">
                 {% if workout.effort %} 

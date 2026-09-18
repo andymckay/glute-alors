@@ -12,6 +12,7 @@ from django.utils import timezone
 from garmin_fit_sdk import Decoder, Stream
 
 from alors.models import WorkoutType, Workout
+from parsers.fit import Fit
 
 KM_DECIMAL_PLACES = Decimal("0.01")
 User = get_user_model()
@@ -127,6 +128,7 @@ class Command(BaseCommand):
         if not messages:
             raise CommandError(f"No messages found in the FIT file {fit_path}.")
 
+        fit = Fit(messages)
         return Workout.objects.create(
             workout_date=self._extract_datetime(messages),
             total_time=self._extract_total_time(messages),
@@ -134,6 +136,8 @@ class Command(BaseCommand):
             total_distance=self._extract_distance(messages),
             moving_time=self._extract_moving_time(messages),
             pace=self._extract_pace(messages),
+            elevation_gain=fit.elevation_gain(),
+            elevation_loss=fit.elevation_loss(),
             workout_source=fit_path.name,
             workout_data=json.dumps(messages, cls=DjangoJSONEncoder),
             created_by=owner,

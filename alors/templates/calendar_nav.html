@@ -2,13 +2,20 @@
         <div class="col">
             <ul class="nav nav-underline pb-4">
                 <li class="nav-item">
-                    <a class="nav-link" href="?d=">Today</a>
+                    <a class="nav-link" href="?d=&r={{ request.GET.r }}#today">Today</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="?d={% if next %}{{ next }}{% endif %}">Next</a>
+                    <a class="nav-link" href="?d={{ next }}&r={{ request.GET.r }}">Next</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="?d={% if next %}{{ previous }}{% endif %}">Previous</a>
+                    <a class="nav-link" href="?d={{ previous }}&r={{ request.GET.r }}">Previous</a>
+                </li>
+                <li class="nav-item">
+                    {% if request.GET.r == 'm' %}
+                        <a class="nav-link" href="?r=w">Week</a>
+                    {% else %}
+                        <a class="nav-link" href="?r=m">Month</a>
+                    {% endif %}
                 </li>
             </ul>
         </div>

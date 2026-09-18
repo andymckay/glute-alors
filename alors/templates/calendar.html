@@ -16,7 +16,7 @@
     {% for entry in dates_and_objects %}
         <div class="row border-start border-end {% if not entry.summaries %}border-bottom{% endif %}">
             <div class="col-3 p-2">
-                <div>{% if entry.date|date:"Y-m-d" == today %}👉 <b>{{ entry.date|date:"D, M j" }}</b>{% else %}🗓 {{ entry.date|date:"D, M j" }}{% endif %} <br>
+                <div>{% if entry.date|date:"Y-m-d" == today %}<a id="today">👉</a> <b>{{ entry.date|date:"D, M j" }}</b>{% else %}🗓 {{ entry.date|date:"D, M j" }}{% endif %} <br>
                     {% for label in entry.labels %}
                         <span class="badge text-bg-{{ label.colour }}">{{ label.title }}</span>
                     {% endfor %}
@@ -40,11 +40,11 @@
             </div>
         </div>
         {% if entry.summaries %}
-            <div class="row border-start border-end border-bottom">
-                <div class="col-3 p-2">
-                    <span class="badge text-bg-secondary" data-bs-toggle="tooltip" data-bs-title="Summary for the week ending {{ entry.date|date:'D, M j' }}">Summary</span>
+            <div class="row border-start border-end border-bottom border-top">
+                <div class="col-3 p-2 bg-tertiary">
+                    <b data-bs-toggle="tooltip">Weekly Summary</b>
                 </div>
-                <div class="col p-2">
+                <div class="col p-2 bg-tertiary">
                     <div>
                         {% for summary in entry.summaries %}
                             {% with planned=True %}
@@ -53,7 +53,7 @@
                         {% endfor %}
                     </div>
                 </div>
-                <div class="col p-2">
+                <div class="col p-2 bg-tertiary">
                     <div>
                         {% for summary in entry.summaries %}
                             {% with planned=False %}
