@@ -1,4 +1,4 @@
-window.addEventListener("load", (event) => {
+function initSite() {
     // Load tooltips
     const tooltipTriggerList = document.querySelectorAll(
         '[data-bs-toggle="tooltip"]'
@@ -7,13 +7,7 @@ window.addEventListener("load", (event) => {
         (tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl)
     );
 
-    // Load copy to clipboard
-    document.querySelectorAll(".copy").forEach((element) => {
-        element.addEventListener("click", (element) => {
-            navigator.clipboard.writeText(element.target.getAttribute("data-copy"))
-        });
-    });
-
+    // Do a timezone check
     const userTimezone = document.getElementById("timezone");
     if (userTimezone) {
         if (userTimezone.innerText !== Intl.DateTimeFormat().resolvedOptions().timeZone) {
@@ -21,6 +15,7 @@ window.addEventListener("load", (event) => {
         }
     }
 
+    // Hook up switch theme
     function switchTheme(event) {
         let html = document.getElementsByTagName("html")[0];
         let theme = html.getAttribute("data-bs-theme") === "dark" ? "light" : "dark";
@@ -29,13 +24,11 @@ window.addEventListener("load", (event) => {
         event.preventDefault();
     }
 
-
     for (let el of document.getElementsByClassName("theme-switch")) {
         el.addEventListener("click", switchTheme);
     }
 
-    initTheme();
-});
+};
 
 function initHeartRateCharts() {
     const NS = "http://www.w3.org/2000/svg";
@@ -232,4 +225,5 @@ function initTheme() {
 }
 
 window.addEventListener("DOMContentLoaded", initTheme);
+window.addEventListener("load", initHeartRateCharts);
 window.addEventListener("load", initHeartRateCharts);

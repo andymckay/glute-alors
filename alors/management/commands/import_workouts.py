@@ -140,18 +140,21 @@ class Command(BaseCommand):
         )
 
     def _extract_datetime(self, messages):
-        """Workout datetime from the file_id/record timestamps, else now."""
-        file_id = _messages_for(messages, "file_id_mesgs")
-        if file_id:
-            created = _to_datetime(file_id.get("time_created"))
-            if created is not None:
-                return created
+        """Workout datetime from the first activity/record timestamp, else now."""
+        activities = messages.get("activity_mesgs") or []
+        if isinstance(activities, dict):
+            activities = [activities]
+        for activity in activities:
+            timestamp = _to_datetime(activity.get("timestamp"))
+            if timestamp is not None:
+                return timestamp
 
         records = messages.get("record_mesgs") or []
         for record in records:
             timestamp = _to_datetime(record.get("timestamp"))
             if timestamp is not None:
                 return timestamp
+
         return timezone.now()
 
     def _extract_total_time(self, messages):

@@ -42,6 +42,7 @@ class WarmUpAdmin(admin.ModelAdmin):
 
 @admin.register(Workout)
 class WorkoutAdmin(admin.ModelAdmin):
+    exclude = ("workout_data",)
     list_display = (
         "workout_date",
         "workout_type",

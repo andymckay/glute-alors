@@ -174,9 +174,25 @@ class ImportWorkoutsCommandTests(TestCase):
         workout = Workout.objects.get(workout_source="a.fit")
         self.assertIsNone(workout.created_by)
 
-    def test_extract_datetime_from_file_id(self):
+    def test_extract_datetime_from_activity(self):
         command = ImportWorkoutsCommand()
-        messages = {"file_id_mesgs": [{"time_created": datetime(2026, 9, 3, 12, 0)}]}
+        messages = {
+            "file_id_mesgs": [{"time_created": datetime(2026, 9, 3, 18, 0)}],
+            "activity_mesgs": [{"timestamp": datetime(2026, 9, 3, 12, 0)}],
+        }
+        self.assertEqual(
+            command._extract_datetime(messages),
+            datetime(2026, 9, 3, 12, 0),
+        )
+
+    def test_extract_datetime_uses_first_activity_with_timestamp(self):
+        command = ImportWorkoutsCommand()
+        messages = {
+            "activity_mesgs": [
+                {"type": "manual"},
+                {"timestamp": datetime(2026, 9, 3, 12, 0)},
+            ]
+        }
         self.assertEqual(
             command._extract_datetime(messages),
             datetime(2026, 9, 3, 12, 0),
