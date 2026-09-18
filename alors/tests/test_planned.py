@@ -240,10 +240,6 @@ class WeeklySummarySignalTests(TestCase):
         self.assertEqual(summary.summary["workout"]["run"]["total_distance"], 5.0)
         self.assertEqual(summary.summary["workout"]["run"]["total_time"], 1800)
 
-    def test_non_run_workout_does_not_update_weekly_summary(self):
-        self.create_workout_record(date(2026, 9, 2), workout_type="walk")
-        self.assertFalse(WeeklySummary.objects.filter(date=date(2026, 9, 6)).exists())
-
     def test_updating_workout_record_refreshes_summary(self):
         record = self.create_workout_record(date(2026, 9, 2), distance="10.00")
         record.total_distance = "15.00"

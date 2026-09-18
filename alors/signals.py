@@ -109,16 +109,8 @@ def _remember_original_date(sender, instance, **kwargs):
         instance._original_workout_date = original
 
 
-def _should_sync_workout(instance):
-    """Only completed ``run`` workouts contribute to the weekly summary."""
-    return getattr(instance, "workout_type", None) == WorkoutType.RUN
-
-
 def _sync_weekly_summary(sender, instance, **kwargs):
     """Create or update weekly summaries for the workout's week(s)."""
-    if sender is Workout and not _should_sync_workout(instance):
-        return
-
     sundays = {_sunday_for(instance.workout_date)}
     original = getattr(instance, "_original_workout_date", None)
     if original is not None:
@@ -130,9 +122,6 @@ def _sync_weekly_summary(sender, instance, **kwargs):
 
 def _sync_weekly_summary_on_delete(sender, instance, **kwargs):
     """Refresh the weekly summary after a workout is deleted."""
-    if sender is Workout and not _should_sync_workout(instance):
-        return
-
     workout_date = getattr(instance, "workout_date", None)
     if workout_date is not None:
         refresh_weekly_summary(_sunday_for(workout_date))
