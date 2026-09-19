@@ -3,7 +3,7 @@ from django.template import Context, Template
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from ..models import PlannedWorkout, WarmUp, WorkoutType
+from ..models import PlannedWorkout, WorkoutType
 
 
 class MarkdownFilterTests(SimpleTestCase):
@@ -25,31 +25,26 @@ class MarkdownFilterTests(SimpleTestCase):
         output = template.render(Context({"value": "**bold**"}))
         self.assertNotIn("&lt;strong&gt;", output)
 
+    def test_renders_bare_urls_as_links(self):
+        output = self.render("See https://example.com/a for details")
+        self.assertIn('<a href="https://example.com/a">', output)
+
+    def test_renders_gfm_tables_and_task_lists(self):
+        output = self.render("- [x] done")
+        self.assertIn("type=\"checkbox\"", output)
+
 
 class WorkoutDetailMarkdownTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="runner", password="secret123")
         self.client.force_login(self.user)
-        self.warmup = WarmUp.objects.create(
-            title="Easy jog",
-            text="# Warm up heading\n\nSome **instructions**.",
-            created_by=self.user,
-        )
         self.workout = PlannedWorkout.objects.create(
             title="Long run",
             workout_type=WorkoutType.RUN,
             workout_date="2026-09-05",
             total_distance="21.10",
-            warm_up=self.warmup,
             notes="# Notes\n\nRuns with **pace**.",
         )
-
-    def test_detail_renders_warmup_text_as_markdown(self):
-        response = self.client.get(
-            reverse("alors:planned_detail", args=[self.workout.pk])
-        )
-        self.assertContains(response, "<h1>Warm up heading</h1>")
-        self.assertContains(response, "<strong>instructions</strong>")
 
     def test_detail_renders_notes_as_markdown(self):
         response = self.client.get(

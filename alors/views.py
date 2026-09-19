@@ -3,7 +3,8 @@ from django.contrib import auth
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.http import require_POST
 from .forms import (
     CalendarForm,
     CommentForm,
@@ -11,14 +12,14 @@ from .forms import (
     LabelForm,
     PlannedWorkoutForm,
     ProfileForm,
-    WarmUpForm,
+    SavedWorkoutForm,
     WorkoutEditForm,
 )
 from .models import (
     Notification,
     Workout,
     PlannedWorkout,
-    WarmUp,
+    SavedWorkout,
     Issue,
     Label,
     UserProfile,
@@ -130,8 +131,7 @@ def calendar(request):
 
 def _week_summary(date_value):
     """Return the stored WeeklySummary for the week containing ``date_value``."""
-    if isinstance(date_value, str):
-        date_value = parse_date(date_value)
+
     if date_value is None:
         return None
     sunday = date_value + timedelta(days=6 - date_value.weekday())
@@ -140,10 +140,11 @@ def _week_summary(date_value):
 
 @login_required
 def add_planned(request):
-    summary = _week_summary(
-        request.GET.get("date")
-        if request.method == "GET"
-        else request.POST.get("workout_date")
+    date = request.GET.get("date") if request.method == "GET" else request.POST.get("workout_date")
+    date_value = parse_date(date) if isinstance(date, str) else None
+    this_week_summary = _week_summary(date_value)
+    last_week_summary = (
+        _week_summary(date_value - timedelta(days=7)) if date_value else None
     )
     if request.method == "POST":
         form = PlannedWorkoutForm(request.POST)
@@ -162,7 +163,7 @@ def add_planned(request):
         form = PlannedWorkoutForm()
         form.fields["workout_date"].initial = date
 
-    return render(request, "planned.html", {"form": form, "summary": summary})
+    return render(request, "planned.html", {"form": form, "this_week_summary": this_week_summary, "last_week_summary": last_week_summary})
 
 
 @login_required
@@ -171,7 +172,10 @@ def planned_weekly_summary(request):
     return render(
         request,
         "summary_card.html",
-        {"summary": _week_summary(request.GET.get("date")), "planned": True},
+        {
+            "summary": _week_summary(parse_date(request.GET.get("date"))),
+            "planned": True,
+        },
     )
 
 
@@ -220,6 +224,22 @@ def delete_planned(request, pk):
             f"🗑️ Deleted {label} workout for {workout_date}.",
         )
     return redirect("alors:index")
+
+
+@login_required
+@require_POST
+def move_planned_workout(request, pk):
+    """Move a planned workout to another date (calendar drag and drop).
+
+    Saving refreshes the weekly summary of both the old and the new week.
+    """
+    workout = get_object_or_404(PlannedWorkout, pk=pk)
+    new_date = parse_date(request.POST.get("date", ""))
+    if new_date is None:
+        return JsonResponse({"error": "A valid date is required."}, status=400)
+    workout.workout_date = new_date
+    workout.save()
+    return JsonResponse({"id": workout.pk, "date": new_date.isoformat()})
 
 
 @login_required
@@ -340,79 +360,79 @@ def planned_webcal(request):
 
 
 @login_required
-def warmup_list(request):
-    warmups = WarmUp.objects.all().order_by("title")
-    return render(request, "warmup_list.html", {"warmups": warmups})
+def saved_workout_list(request):
+    saved_workouts = SavedWorkout.objects.all().order_by("title")
+    return render(request, "saved_workout_list.html", {"saved_workouts": saved_workouts})
 
 
 @login_required
-def warmup_add(request):
+def saved_workout_add(request):
     if request.method == "POST":
-        form = WarmUpForm(request.POST)
+        form = SavedWorkoutForm(request.POST)
         if form.is_valid():
-            warmup = form.save(commit=False)
-            warmup.created_by = request.user
-            warmup.save()
+            saved_workout = form.save(commit=False)
+            saved_workout.created_by = request.user
+            saved_workout.save()
             messages.add_message(
                 request,
                 messages.SUCCESS,
-                f'🎉 Added warm-up "{warmup.title}".',
+                f'🎉 Added saved workout "{saved_workout.title}".',
             )
-            return redirect("alors:warmup_list")
+            return redirect("alors:saved_workout_list")
     else:
-        form = WarmUpForm()
+        form = SavedWorkoutForm()
 
     return render(
         request,
-        "warmup_form.html",
+        "saved_workout_form.html",
         {
             "form": form,
-            "page_title": "Add a warm-up",
-            "page_intro": "Write a warm-up routine you can reuse.",
+            "page_title": "Add a saved workout",
+            "page_intro": "Write a workout you can reuse.",
         },
     )
 
 
 @login_required
-def warmup_edit(request, pk):
-    warmup = get_object_or_404(WarmUp, pk=pk)
+def saved_workout_edit(request, pk):
+    saved_workout = get_object_or_404(SavedWorkout, pk=pk)
     if request.method == "POST":
-        form = WarmUpForm(request.POST, instance=warmup)
+        form = SavedWorkoutForm(request.POST, instance=saved_workout)
         if form.is_valid():
             form.save()
             messages.add_message(
                 request,
                 messages.SUCCESS,
-                f'✏️ Updated warm-up "{warmup.title}".',
+                f'✏️ Updated saved workout "{saved_workout.title}".',
             )
-            return redirect("alors:warmup_list")
+            return redirect("alors:saved_workout_list")
     else:
-        form = WarmUpForm(instance=warmup)
+        form = SavedWorkoutForm(instance=saved_workout)
 
     return render(
         request,
-        "warmup_form.html",
+        "saved_workout_form.html",
         {
             "form": form,
-            "warmup": warmup,
-            "page_title": "Edit warm-up",
-            "page_intro": f'Update your "{warmup.title}" warm-up.',
+            "saved_workout": saved_workout,
+            "page_title": "Edit saved workout",
+            "page_intro": f'Update your "{saved_workout.title}" workout.',
         },
     )
 
 
 @login_required
-def warmup_delete(request, pk):
-    warmup = get_object_or_404(WarmUp, pk=pk)
+def saved_workout_delete(request, pk):
+    saved_workout = get_object_or_404(SavedWorkout, pk=pk)
     if request.method == "POST":
-        title = warmup.title
-        warmup.delete()
+        title = saved_workout.title
+        saved_workout.delete()
         messages.add_message(
             request,
             messages.SUCCESS,
-            f'🗑️ Deleted warm-up "{title}".',
+            f'🗑️ Deleted saved workout "{title}".',
         )
-    return redirect("alors:warmup_list")
+    return redirect("alors:saved_workout_list")
 
 
 @login_required

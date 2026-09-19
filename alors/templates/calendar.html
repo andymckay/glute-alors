@@ -2,6 +2,7 @@
 {% load alors %}
 {% block main %}
 <div class="container-lg">
+    <div class="d-none">{% csrf_token %}</div>
     {% include "calendar_nav.html" %}
     <div class="row border">
         <div class="col-3">
@@ -23,11 +24,13 @@
                 </div>
             </div>
             <div class="col p-2">
-                <div>
+                <div class="js-planned-drop" data-date="{{ entry.date|date:'Y-m-d' }}" data-add-url="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">
                     {% for workout in entry.planned %}
-                        {% include "workout_card.html" %}
+                        <div class="js-planned-card" draggable="true" data-planned-id="{{ workout.pk }}" data-move-url="{% url 'alors:move_planned_workout' workout.pk %}">
+                            {% include "workout_card.html" %}
+                        </div>
                     {% empty %}
-                        <a class="badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add</a>
+                        <a class="js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add</a>
                     {% endfor %}
                 </div>
             </div>
@@ -35,6 +38,7 @@
                 <div>
                     {% for workout in entry.actual %}
                         {% include "workout_card.html" %}
+                        {% if entry.actual|length > 1 and not forloop.last %}<div class="mb-2"></div>{% endif %}
                     {% endfor %}
                 </div>
             </div>

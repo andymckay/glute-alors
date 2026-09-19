@@ -1,5 +1,5 @@
 {% load alors %}
-<div class="card card-event mt-2 border-{{ workout.status|status }}">
+<div class="card card-event border-{{ workout.status|status }}">
     {% if workout.is_race %}
         <div class="card-header bg-warning">
             <b>🏆 Race</b>
@@ -13,28 +13,37 @@
             </span>
             {% endif %}
             <div class="mb-2">
-            {{ workout.workout_type|emoji }}
-            <span class="text-muted">{{ workout.workout_type|capfirst }} 
-                {% if workout.title %}&bull; {{ workout.title }}{% endif %}
-                {% if workout.total_time %} in <b data-bs-toggle="tooltip" data-bs-title="This is total time, the moving time was {{ workout.moving_time }}.">{{ workout.total_time }}</b>{% endif %}
-            </span>
-            <br>
-            {% if workout.total_distance %}
-                <b>{{ workout.total_distance }} km</b>
-            {% endif %}
-            {% if workout.pace %} at <b>{{ workout.pace }} min/km</b>{% endif %}
-            <br>
-            {% if workout.elevation_gain %}📈 <b>{{ workout.elevation_gain }} m</b>{% endif %}
-            {% if workout.elevation_gain and workout.elevation_loss %} and {% endif %}
-            {% if workout.elevation_gain %}📉 <b>{{ workout.elevation_loss }} m</b>{% endif %}
+                {{ workout.workout_type|emoji }}
+                <span class="text-muted">{{ workout.workout_type|capfirst }} 
+                    {% if workout.title %}&bull; {{ workout.title }}{% endif %}
+                    {% if workout.moving_time %}
+                        {% if workout.workout_type == "run" %}
+                            <b>{{ workout.moving_time }}</b> moving &bull; <b>{{ workout.total_time }} </b>total
+                        {% else %}
+                            <b>{{ workout.total_time }}</b>
+                        {% endif %}
+                    {% endif %}
+                </span>
+                <br>
+                {% if workout.total_distance %}
+                    <b>{{ workout.total_distance }} km</b>
+                {% endif %}
+                {% if workout.pace %} at <b>{{ workout.pace }} min/km</b>{% endif %}
+                <br>
+                {% if workout.elevation_gain %}📈 <b>{{ workout.elevation_gain }} m</b>{% endif %}
+                {% if workout.elevation_gain and workout.elevation_loss %} and {% endif %}
+                {% if workout.elevation_gain %}📉 <b>{{ workout.elevation_loss }} m</b>{% endif %}
             </div>
-            <div class="mb-2">
-                {% if workout.effort %} 
-                    <span data-bs-toggle="tooltip" data-bs-title="Workout effort {{ workout.effort }} out of 10" class="badge badge-workout workout-effort-{{ workout.effort }}"><span class="number">{{ workout.effort }}</span> {{ workout.get_effort_as_text }}</span>
-                {% endif %}
-                {% if workout.feeling %}
-                    <span data-bs-toggle="tooltip" data-bs-title="Workout feeling {{ workout.feeling }} out of 5" class="badge badge-workout workout-feeling-{{ workout.feeling }}"><span class="number">{{ workout.feeling }}</span> {{ workout.get_feeling_as_text }}</span>
-                {% endif %}
+            {% if workout.effort or workout.feeling %}
+                <div>
+                    {% if workout.effort %} 
+                        <span data-bs-toggle="tooltip" data-bs-title="Workout effort {{ workout.effort }} out of 10" class="badge badge-workout workout-effort-{{ workout.effort }}"><span class="number">{{ workout.effort }}</span> {{ workout.get_effort_as_text }}</span>
+                    {% endif %}
+                    {% if workout.feeling %}
+                        <span data-bs-toggle="tooltip" data-bs-title="Workout feeling {{ workout.feeling }} out of 5" class="badge badge-workout workout-feeling-{{ workout.feeling }}"><span class="number">{{ workout.feeling }}</span> {{ workout.get_feeling_as_text }}</span>
+                    {% endif %}
+                </div>
+            {% endif %}
             {% if workout.issues.all %}
                 <div>
                     {% for issue in workout.issues.all %}
@@ -42,12 +51,13 @@
                     {% endfor %}
                 </div>
             {% endif %}
-            </div>
-        </div>
-            <div class="text-end p-2">
-                {% if workout.comment_count %}
-                <div class="badge rounded-pill bg-primary">{{ workout.comment_count }} comment{{ workout.comment_count|pluralize }}</div>
+            {% if workout.comment_count %}
+                <div>
+                    {% if workout.comment_count %}
+                        <div class="badge bg-primary">{{ workout.comment_count }} comment{{ workout.comment_count|pluralize }}</div>
+                    {% endif %}
+                </div>
             {% endif %}
-    </div>
+        </div>
     </a>
 </div>

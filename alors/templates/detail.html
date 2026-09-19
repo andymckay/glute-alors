@@ -12,12 +12,6 @@
             </p>
 
             <dl class="row">
-
-                <dt class="col-sm-4">Warm up</dt>
-                <dd class="col-sm-8">
-                    {% if workout.warm_up %}{{ workout.warm_up.text|markdown }}{% else %}—{% endif %}
-                </dd>
-
                 <dt class="col-sm-4">Notes</dt>
                 <dd class="col-sm-8">
                     {% if workout.notes %}{{ workout.notes|markdown }}{% else %}—{% endif %}

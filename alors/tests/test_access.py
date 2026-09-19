@@ -71,25 +71,29 @@ class LoggedOutViewTests(TestCase):
         self.assert_login_required("post", url)
         self.assertTrue(PlannedWorkout.objects.filter(pk=self.workout.pk).exists())
 
+    def test_move_planned_workout_requires_login(self):
+        url = reverse("alors:move_planned_workout", args=[self.workout.pk])
+        self.assert_login_required("post", url)
+
     def test_planned_workout_webcal_is_publicly_available(self):
         # The ICS feed is intentionally public so calendar apps can subscribe.
         response = self.client.get(reverse("alors:planned_webcal"))
         self.assertEqual(response.status_code, 200)
 
-    def test_warmup_list_requires_login(self):
-        url = reverse("alors:warmup_list")
+    def test_saved_workout_list_requires_login(self):
+        url = reverse("alors:saved_workout_list")
         self.assert_login_required("get", url)
 
-    def test_warmup_add_requires_login(self):
-        url = reverse("alors:warmup_add")
+    def test_saved_workout_add_requires_login(self):
+        url = reverse("alors:saved_workout_add")
         self.assert_login_required("get", url)
 
-    def test_warmup_edit_requires_login(self):
-        url = reverse("alors:warmup_edit", args=[1])
+    def test_saved_workout_edit_requires_login(self):
+        url = reverse("alors:saved_workout_edit", args=[1])
         self.assert_login_required("get", url)
 
-    def test_warmup_delete_requires_login(self):
-        url = reverse("alors:warmup_delete", args=[1])
+    def test_saved_workout_delete_requires_login(self):
+        url = reverse("alors:saved_workout_delete", args=[1])
         self.assert_login_required("post", url)
 
     def test_workout_detail_requires_login(self):

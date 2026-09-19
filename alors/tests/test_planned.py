@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from ..models import (
     PlannedWorkout,
-    WarmUp,
+    SavedWorkout,
     WeeklySummary,
     Workout,
     WorkoutType,
@@ -20,11 +20,6 @@ class AddPlannedWorkoutTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="creator", password="secret123")
         self.client.force_login(self.user)
-        self.warmup = WarmUp.objects.create(
-            title="Easy jog",
-            text="Jog slowly.",
-            created_by=self.user,
-        )
 
     def add_workout(self):
         return self.client.post(
@@ -43,7 +38,35 @@ class AddPlannedWorkoutTests(TestCase):
         workout = PlannedWorkout.objects.get()
         self.assertEqual(workout.created_by, self.user)
 
-    def test_add_can_link_a_warmup_instance(self):
+    def test_saved_workout_picker_lists_every_saved_workout(self):
+        SavedWorkout.objects.create(
+            title="Tempo session",
+            text="Warm up\n20 min tempo\nCool down",
+            created_by=self.user,
+        )
+        response = self.client.get(reverse("alors:add_planned"), {"date": "2026-09-05"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="id_saved_workout"')
+        self.assertContains(response, "Tempo session")
+        # The option carries the text so the page can fill in the notes field.
+        self.assertContains(
+            response,
+            'data-text="Warm up\n20 min tempo\nCool down"',
+            html=False,
+        )
+
+    def test_saved_workout_picker_sits_above_notes_and_is_optional(self):
+        from ..forms import PlannedWorkoutForm
+
+        form = PlannedWorkoutForm()
+        names = list(form.fields)
+        self.assertEqual(names[names.index("saved_workout") + 1], "notes")
+        self.assertFalse(form.fields["saved_workout"].required)
+
+    def test_picking_a_saved_workout_still_saves_the_workout(self):
+        saved_workout = SavedWorkout.objects.create(
+            title="Tempo session", text="20 min tempo"
+        )
         response = self.client.post(
             reverse("alors:add_planned"),
             {
@@ -51,19 +74,11 @@ class AddPlannedWorkoutTests(TestCase):
                 "workout_type": WorkoutType.RUN,
                 "workout_date": "2026-09-05",
                 "total_distance": "21.10",
-                "warm_up": self.warmup.pk,
+                "saved_workout": saved_workout.pk,
             },
         )
         self.assertEqual(response.status_code, 302)
-        workout = PlannedWorkout.objects.get()
-        self.assertEqual(workout.warm_up, self.warmup)
-
-    def test_warm_up_field_is_optional_with_empty_label(self):
-        from ..forms import PlannedWorkoutForm
-
-        field = PlannedWorkoutForm().fields["warm_up"]
-        self.assertFalse(field.required)
-        self.assertEqual(field.empty_label, "No warm-up")
+        self.assertEqual(PlannedWorkout.objects.get().title, "Long run")
 
     def test_distance_field_is_optional_in_form(self):
         from ..forms import PlannedWorkoutForm
@@ -101,14 +116,22 @@ class AddPlannedWorkoutTests(TestCase):
         self.add_workout()
         response = self.client.get(reverse("alors:add_planned"), {"date": "2026-09-05"})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Summary")
+        # "<b>Last</b> week summary" / "<b>This</b> week summary" cards.
+        self.assertContains(response, "week summary")
         self.assertContains(response, "workout for")
         self.assertContains(response, "21.1 km")
 
     def test_add_page_shows_placeholder_when_week_has_no_summary(self):
         response = self.client.get(reverse("alors:add_planned"), {"date": "2026-09-05"})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "No weekly summary for this date yet.")
+        self.assertContains(response, "week summary")
+        self.assertContains(response, "No plan yet.")
+
+    def test_add_page_without_a_date_renders_empty_summaries(self):
+        response = self.client.get(reverse("alors:add_planned"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "week summary")
+        self.assertContains(response, "No plan yet.")
 
     def test_weekly_summary_snippet_returns_summary_for_date(self):
         self.add_workout()
@@ -125,6 +148,57 @@ class AddPlannedWorkoutTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "No plan yet.")
+
+
+class MovePlannedWorkoutTests(TestCase):
+    """The calendar drag-and-drop endpoint that moves a workout's date."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="mover", password="secret123")
+        self.client.force_login(self.user)
+        self.workout = PlannedWorkout.objects.create(
+            title="Long run",
+            workout_type=WorkoutType.RUN,
+            workout_date="2026-09-05",
+            total_distance="10.00",
+        )
+
+    def move(self, date_value):
+        return self.client.post(
+            reverse("alors:move_planned_workout", args=[self.workout.pk]),
+            {"date": date_value},
+        )
+
+    def test_move_changes_the_date(self):
+        response = self.move("2026-09-08")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(), {"id": self.workout.pk, "date": "2026-09-08"}
+        )
+        self.workout.refresh_from_db()
+        self.assertEqual(self.workout.workout_date, date(2026, 9, 8))
+
+    def test_move_refreshes_the_old_and_the_new_week_summaries(self):
+        # 2026-09-05 belongs to the week ending Sunday 09-06; 09-15 to 09-20.
+        self.move("2026-09-15")
+        # Nothing is left in the old week, so its summary row is dropped.
+        self.assertFalse(
+            WeeklySummary.objects.filter(date=date(2026, 9, 6)).exists()
+        )
+        new_week = WeeklySummary.objects.get(date=date(2026, 9, 20))
+        self.assertEqual(
+            new_week.summary["planned_workout"]["run"]["workouts"], 1
+        )
+
+    def test_move_rejects_an_invalid_date(self):
+        response = self.move("not-a-date")
+        self.assertEqual(response.status_code, 400)
+        self.workout.refresh_from_db()
+        self.assertEqual(self.workout.workout_date, date(2026, 9, 5))
+
+    def test_move_rejects_a_get_request(self):
+        url = reverse("alors:move_planned_workout", args=[self.workout.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
 
 
 class WeeklySummaryModelTests(TestCase):

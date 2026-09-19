@@ -224,6 +224,110 @@ function initTheme() {
     }
 }
 
+function sundayKey(value) {
+    // The week key of a YYYY-MM-DD string, as the Sunday of its Monday-based week.
+    const date = new Date(value + "T12:00:00");
+    date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function syncAddBadge(cell) {
+    // A day shows an "Add" badge exactly when it has no planned workout card.
+    const badge = cell.querySelector(".js-add-badge");
+    const hasCards = cell.querySelector(".js-planned-card");
+    if (hasCards && badge) {
+        badge.remove();
+    } else if (!hasCards && !badge) {
+        const link = document.createElement("a");
+        link.href = cell.dataset.addUrl;
+        link.className =
+            "js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0";
+        link.textContent = "Add";
+        cell.appendChild(link);
+    }
+}
+
+function movePlannedWorkout(card, cell) {
+    const from = card.closest(".js-planned-drop");
+    const token = document.querySelector("[name=csrfmiddlewaretoken]");
+    if (!from || from === cell || !token) {
+        return;
+    }
+
+    fetch(card.dataset.moveUrl, {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": token.value,
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({ date: cell.dataset.date }),
+    })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error(`Could not move the workout (${response.status}).`);
+            }
+            if (sundayKey(from.dataset.date) === sundayKey(cell.dataset.date)) {
+                // Same week: move the card, the weekly summary is unchanged.
+                cell.appendChild(card);
+                syncAddBadge(from);
+                syncAddBadge(cell);
+            } else {
+                // A move between weeks changes the weekly summaries, so re-render.
+                window.location.reload();
+            }
+        })
+        .catch((error) => {
+            window.alert(error.message);
+            window.location.reload();
+        });
+}
+
+function initCalendarDragAndDrop() {
+    const cards = document.querySelectorAll(".js-planned-card");
+    const cells = document.querySelectorAll(".js-planned-drop");
+    if (!cards.length || !cells.length) {
+        return;
+    }
+
+    let dragged = null;
+
+    cards.forEach((card) => {
+        // Drag the whole card, not the link inside it.
+        card.querySelectorAll("a").forEach((link) => {
+            link.draggable = false;
+        });
+        card.addEventListener("dragstart", (event) => {
+            dragged = card;
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", card.dataset.plannedId);
+            card.classList.add("dragging");
+        });
+        card.addEventListener("dragend", () => {
+            dragged = null;
+            card.classList.remove("dragging");
+        });
+    });
+
+    cells.forEach((cell) => {
+        cell.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            cell.classList.add("drag-over");
+        });
+        cell.addEventListener("dragleave", () => cell.classList.remove("drag-over"));
+        cell.addEventListener("drop", (event) => {
+            event.preventDefault();
+            cell.classList.remove("drag-over");
+            if (dragged) {
+                movePlannedWorkout(dragged, cell);
+            }
+        });
+    });
+}
+
 window.addEventListener("DOMContentLoaded", initTheme);
+window.addEventListener("DOMContentLoaded", initCalendarDragAndDrop);
 window.addEventListener("load", initHeartRateCharts);
-window.addEventListener("load", initHeartRateCharts);
+window.addEventListener("load", initSite);

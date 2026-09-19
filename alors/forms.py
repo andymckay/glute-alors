@@ -5,8 +5,8 @@ from .models import (
     Issue,
     Label,
     PlannedWorkout,
+    SavedWorkout,
     UserProfile,
-    WarmUp,
     Workout,
 )
 from datetime import timedelta
@@ -58,7 +58,38 @@ class CalendarForm(forms.Form):
         return valid
 
 
+class SavedWorkoutSelect(forms.Select):
+    """Select whose options carry each saved workout's text in ``data-text``.
+
+    The planned-workout page reads it to fill the notes field client-side, so
+    the texts are passed in from :class:`PlannedWorkoutForm`.
+    """
+
+    def __init__(self, texts=None, **kwargs):
+        super().__init__(**kwargs)
+        self.texts = texts or {}
+
+    def create_option(
+        self, name, value, label, selected, index, subindex=None, attrs=None
+    ):
+        option = super().create_option(
+            name, value, label, selected, index, subindex=subindex, attrs=attrs
+        )
+        text = self.texts.get(str(value))
+        if text:
+            option["attrs"]["data-text"] = text
+        return option
+
+
 class PlannedWorkoutForm(forms.ModelForm):
+    saved_workout = forms.ModelChoiceField(
+        queryset=SavedWorkout.objects.all(),
+        required=False,
+        label="Copy over saved workout",
+        widget=SavedWorkoutSelect(attrs={"class": "form-select"}),
+        help_text="Pick a saved workout to copy its text into the notes. Click Settings 👉 Saved workouts to add some in.",
+    )
+
     class Meta:
         model = PlannedWorkout
         fields = [
@@ -67,7 +98,6 @@ class PlannedWorkoutForm(forms.ModelForm):
             "is_race",
             "workout_date",
             "total_distance",
-            "warm_up",
             "notes",
         ]
         widgets = {
@@ -85,18 +115,24 @@ class PlannedWorkoutForm(forms.ModelForm):
             "total_distance": forms.NumberInput(
                 attrs={"step": "0.01", "min": "0", "class": "form-control"}
             ),
-            "warm_up": forms.Select(attrs={"class": "form-select"}),
-            "notes": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+            "notes": forms.Textarea(attrs={"rows": 10, "class": "form-control"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["warm_up"].empty_label = "No warm-up"
+        # Show the picker directly above the notes it fills in, and give its
+        # options the saved workout's text for the client-side autofill.
+        self.fields["saved_workout"].widget.texts = {
+            str(pk): text for pk, text in SavedWorkout.objects.values_list("pk", "text")
+        }
+        names = [name for name in self.fields if name != "saved_workout"]
+        names.insert(names.index("notes"), "saved_workout")
+        self.order_fields(names)
 
 
-class WarmUpForm(forms.ModelForm):
+class SavedWorkoutForm(forms.ModelForm):
     class Meta:
-        model = WarmUp
+        model = SavedWorkout
         fields = ["title", "text"]
         widgets = {
             "title": forms.TextInput(

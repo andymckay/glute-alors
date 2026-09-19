@@ -189,3 +189,22 @@ dt {
 [data-bs-theme=light] .bg-tertiary {
   background-color: whitesmoke !important;
 }
+
+/* Calendar drag and drop of planned workouts */
+.js-planned-card {
+  cursor: grab;
+}
+
+.js-planned-card.dragging {
+  opacity: 0.4;
+}
+
+.js-planned-drop {
+  min-height: 2.5rem;
+  border-radius: 0.25rem;
+}
+
+.js-planned-drop.drag-over {
+  outline: 2px dashed var(--bs-primary);
+  outline-offset: -2px;
+}

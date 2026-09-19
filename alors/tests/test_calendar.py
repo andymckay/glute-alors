@@ -6,7 +6,7 @@ from django.urls import reverse
 from icalendar import Calendar
 
 from ..ical import render_calendar
-from ..models import PlannedWorkout, WarmUp, WorkoutType
+from ..models import PlannedWorkout, WorkoutType
 
 
 class IcalGeneratorTests(SimpleTestCase):
@@ -26,16 +26,10 @@ class WebCalFeedTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="runner", password="secret123")
         self.client.force_login(self.user)
-        self.warmup = WarmUp.objects.create(
-            title="Easy jog",
-            text="Easy 2 km jog",
-            created_by=self.user,
-        )
         self.workout = PlannedWorkout.objects.create(
             workout_type=WorkoutType.RUN,
             workout_date="2026-09-02",
             total_distance="10.50",
-            warm_up=self.warmup,
             notes="Keep it steady",
         )
 
@@ -72,7 +66,6 @@ class WebCalFeedTests(TestCase):
         self.assertEqual(event.get("summary"), "Run workout")
         self.assertEqual(event.get("dtstart").dt, date(2026, 9, 2))
         self.assertIn("10.50 km planned", event.get("description"))
-        self.assertIn("Easy 2 km jog", event.get("description"))
         self.assertIn("Keep it steady", event.get("description"))
 
     def test_feed_orders_workouts_by_date(self):

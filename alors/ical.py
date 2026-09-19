@@ -16,8 +16,6 @@ PRODID = "-//Glute Alors//Planned Workouts//EN"
 def _description(workout):
     """Build the human-readable DESCRIPTION text for a workout."""
     parts = [f"{workout.total_distance} km planned"]
-    if workout.warm_up:
-        parts.append(f"Warm up: {workout.warm_up.text}")
     if workout.notes:
         parts.append(workout.notes)
     return "\n".join(parts)

@@ -6,8 +6,8 @@ from .models import (
     Label,
     Notification,
     PlannedWorkout,
+    SavedWorkout,
     UserProfile,
-    WarmUp,
     WeeklySummary,
     Workout,
 )
@@ -22,7 +22,6 @@ class PlannedWorkoutAdmin(admin.ModelAdmin):
         "workout_date",
         "total_distance",
         "status",
-        "warm_up",
         "comment_count",
         "created_by",
         "created_at",
@@ -33,8 +32,8 @@ class PlannedWorkoutAdmin(admin.ModelAdmin):
     date_hierarchy = "workout_date"
 
 
-@admin.register(WarmUp)
-class WarmUpAdmin(admin.ModelAdmin):
+@admin.register(SavedWorkout)
+class SavedWorkoutAdmin(admin.ModelAdmin):
     list_display = ("title", "created_by", "created_at", "updated_at")
     list_filter = ("created_by",)
     search_fields = ("title", "text")

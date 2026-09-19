@@ -35,13 +35,37 @@
                 </form>
             {% endif %}
         </div>
-        <div class="col-lg-3">
+        <div class="col-lg-4">
             <div class="card">
-                <div class="card-header">Summary</div>
+                <div class="card-header"><b>Last</b> week summary</div>
                 <div class="card-body">
-                    <div id="weekly-summary">
-                        {% with planned=True %}
-                            {% include "summary_card.html" %}
+                    <div>
+                        {% with summary=last_week_summary %}
+                            {% with planned=True %}
+                                <p>Planned so far:</p>
+                                {% include "summary_card.html" %}
+                            {% endwith %}
+                            {% with planned=False %}
+                                <p>Actual so far:</p>
+                                {% include "summary_card.html" %}
+                            {% endwith %}
+                        {% endwith %}
+                    </div>
+                </div>
+            </div>
+            <div class="card mt-4">
+                <div class="card-header"><b>This</b> week summary</div>
+                <div class="card-body">
+                    <div>
+                        {% with summary=this_week_summary %}
+                            {% with planned=True %}
+                                <p>Planned so far:</p>
+                                {% include "summary_card.html" %}
+                            {% endwith %}
+                            {% with planned=False %}
+                                <p>Actual so far:</p>
+                                {% include "summary_card.html" %}
+                            {% endwith %}
                         {% endwith %}
                     </div>
                 </div>
@@ -51,29 +75,18 @@
 </div>
 <script>
     (function () {
-        const dateInput = document.getElementById("id_workout_date");
-        const container = document.getElementById("weekly-summary");
-        if (!dateInput || !container) {
+        const picker = document.getElementById("id_saved_workout");
+        const notes = document.getElementById("id_notes");
+        if (!picker || !notes) {
             return;
         }
-        const placeholder =
-            '<p class="text-muted">No weekly summary for this date yet.</p>';
-        const update = () => {
-            const value = dateInput.value;
-            if (!value) {
-                container.innerHTML = placeholder;
-                return;
+        picker.addEventListener("change", () => {
+            const option = picker.selectedOptions[0];
+            const text = option ? option.dataset.text : "";
+            if (text) {
+                notes.value = text;
             }
-            fetch(
-                "{% url 'alors:planned_weekly_summary' %}?date=" +
-                    encodeURIComponent(value)
-            )
-                .then((response) => response.text())
-                .then((html) => {
-                    container.innerHTML = html;
-                });
-        };
-        dateInput.addEventListener("change", update);
+        });
     })();
 </script>
 {% endblock %}

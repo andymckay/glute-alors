@@ -78,15 +78,6 @@ class PlannedWorkout(models.Model):
         default=False,
         help_text="Whether this planned workout is a race.",
     )
-    warm_up = models.ForeignKey(
-        "WarmUp",
-        verbose_name="warm up",
-        related_name="workouts",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        help_text="The warm-up routine for this workout.",
-    )
     notes = models.TextField(
         blank=True, help_text="Markdown can be used in this field."
     )
@@ -123,34 +114,34 @@ class PlannedWorkout(models.Model):
         return self.workout_date.strftime("%Y-%m-%d")
 
 
-class WarmUp(models.Model):
-    """A reusable warm-up routine that can be attached to a workout."""
+class SavedWorkout(models.Model):
+    """A reusable workout that can be saved and reused."""
 
     title = models.CharField(
         "title",
         max_length=200,
-        help_text="A short name for the warm-up, e.g. 'Easy jog'.",
+        help_text="A short name for the saved workout, e.g. 'Easy jog'.",
     )
     text = models.TextField(
-        "warm-up text",
-        help_text="The warm-up routine or instructions.",
+        "text",
+        help_text="The workout or instructions.",
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         verbose_name="created by",
-        related_name="warmups",
+        related_name="saved_workouts",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text="The user who created this warm-up.",
+        help_text="The user who created this saved workout.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["title"]
-        verbose_name = "warm-up"
-        verbose_name_plural = "warm-ups"
+        verbose_name = "saved workout"
+        verbose_name_plural = "saved workouts"
 
     def __str__(self):
         return self.title
