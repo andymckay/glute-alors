@@ -20,16 +20,23 @@ def emoji(value):
 
 
 @register.filter
-def hms(seconds):
-    string = time.strftime("%H:%M:%S", time.gmtime(seconds))
-    # Strip leading 0 and : if needed.
-    if string.startswith("0"):
-        return string[1:]
-    if string.startswith("0:"):
-        return string[2:]
-    if string.startswith("00:"):
-        return string[3:]
-    return string
+def hms(data):
+    try:
+        string = time.strftime("%H:%M:%S", time.gmtime(data))
+    except TypeError:
+        string = str(data)
+
+    values = string.split(":")
+    result = []
+    drop = True
+    for value in values:
+        if value in ["00", "0"] and drop:
+            continue
+        else:
+            result.append(value)
+            drop = False
+    return ":".join(result)
+
 
 
 @register.filter

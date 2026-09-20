@@ -18,7 +18,7 @@
                     {% if workout.title %}&bull; {{ workout.title }}{% endif %}
                     {% if workout.moving_time %}
                         {% if workout.workout_type == "run" %}
-                            <b>{{ workout.moving_time }}</b> moving &bull; <b>{{ workout.total_time }} </b>total
+                            <b>{{ workout.moving_time|hms }}</b> moving &bull; <b>{{ workout.total_time|hms }} </b>total
                         {% else %}
                             <b>{{ workout.total_time }}</b>
                         {% endif %}
@@ -28,7 +28,7 @@
                 {% if workout.total_distance %}
                     <b>{{ workout.total_distance }} km</b>
                 {% endif %}
-                {% if workout.pace %} at <b>{{ workout.pace }} min/km</b>{% endif %}
+                {% if workout.pace %} at <b>{{ workout.pace|hms }} min/km</b>{% endif %}
                 <br>
                 {% if workout.elevation_gain %}📈 <b>{{ workout.elevation_gain }} m</b>{% endif %}
                 {% if workout.elevation_gain and workout.elevation_loss %} and {% endif %}
