@@ -70,9 +70,7 @@ class NotificationTests(TestCase):
         planned.save()
         self.assertEqual(self.notifications_for(self.coach).count(), 1)
         self.assertEqual(
-            Notification.objects.filter(
-                recipient=self.coach, read=False
-            ).count(),
+            Notification.objects.filter(recipient=self.coach, read=False).count(),
             1,
         )
         notification = self.latest_for(self.coach)

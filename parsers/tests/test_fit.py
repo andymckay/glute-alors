@@ -379,7 +379,9 @@ class FitMetadataTests(unittest.TestCase):
         self.assertEqual(fit.get_pace(), timedelta(seconds=333))
 
     def test_get_pace_from_distance_and_time(self):
-        fit = Fit({"session_mesgs": [{"total_distance": 10000, "total_timer_time": 3600}]})
+        fit = Fit(
+            {"session_mesgs": [{"total_distance": 10000, "total_timer_time": 3600}]}
+        )
         # 10 km in 3600 s -> 360 s per km
         self.assertEqual(fit.get_pace(), timedelta(seconds=360))
 
@@ -406,22 +408,16 @@ class FitNegativeSplitTests(unittest.TestCase):
 
     def test_speeding_up_is_a_negative_split(self):
         # 4 km: the first 2 km take 12 minutes, the last 2 km take 10.
-        fit = self.make_fit(
-            [(0, 0), (6, 1000), (12, 2000), (17, 3000), (22, 4000)]
-        )
+        fit = self.make_fit([(0, 0), (6, 1000), (12, 2000), (17, 3000), (22, 4000)])
         self.assertTrue(fit.negative_split())
 
     def test_slowing_down_is_not_a_negative_split(self):
         # 4 km: the first 2 km take 10 minutes, the last 2 km take 11.
-        fit = self.make_fit(
-            [(0, 0), (5, 1000), (10, 2000), (15, 3000), (21, 4000)]
-        )
+        fit = self.make_fit([(0, 0), (5, 1000), (10, 2000), (15, 3000), (21, 4000)])
         self.assertFalse(fit.negative_split())
 
     def test_an_even_split_is_not_a_negative_split(self):
-        fit = self.make_fit(
-            [(0, 0), (5, 1000), (10, 2000), (15, 3000), (20, 4000)]
-        )
+        fit = self.make_fit([(0, 0), (5, 1000), (10, 2000), (15, 3000), (20, 4000)])
         self.assertFalse(fit.negative_split())
 
     def test_interpolates_the_time_at_the_halfway_distance(self):

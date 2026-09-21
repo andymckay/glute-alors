@@ -14,20 +14,42 @@ import dj_database_url
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+
 load_dotenv()
+from django.utils.csp import CSP
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 STATIC_DIR = os.getenv("DJANGO_STATIC_DIR", BASE_DIR)
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-z#vdq369mheu9lxu%ylfcbfvba!!=5jm@^!uekvjy_yof2n752")
+SECRET_KEY = os.getenv(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-z#vdq369mheu9lxu%ylfcbfvba!!=5jm@^!uekvjy_yof2n752",
+)
 # Set DJANGO_DEBUG to any string to enable, set to empty to turn off.
 DEBUG = not not os.getenv("DJANGO_DEBUG", True)
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "glute1.vps.webdock.cloud", "glute.clearwind.ca"]
-CSRF_TRUSTED_ORIGINS = ["https://glute1.vps.webdock.cloud", "https://glute.clearwind.ca"]
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "glute1.vps.webdock.cloud",
+    "glute.clearwind.ca",
+]
+CSRF_TRUSTED_ORIGINS = [
+    "https://glute1.vps.webdock.cloud",
+    "https://glute.clearwind.ca",
+]
 
 # Application definition
+SECURE_HSTS_SECONDS = 3600
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_HTTPONLY = True
+
+SECURE_CSP = {
+    "default-src": [CSP.SELF],
+    "img-src": ["data:", CSP.SELF],
+    "frame-src": [CSP.NONE],
+}
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -74,7 +96,9 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "glute.wsgi.application"
-DATABASES = {"default": dj_database_url.config(conn_max_age=600, conn_health_checks=True)}
+DATABASES = {
+    "default": dj_database_url.config(conn_max_age=600, conn_health_checks=True)
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -116,23 +140,23 @@ if not INTERVALS_TOKEN:
     print("Warning: no intervals.icu API Key found.")
 
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
         },
-        'file': {
-            'level': 'ERROR',
-            'class': 'logging.FileHandler',
-            'filename': 'error.log',
+        "file": {
+            "level": "ERROR",
+            "class": "logging.FileHandler",
+            "filename": "error.log",
         },
     },
-    'loggers': {
-        'django': {
-            'handlers': ['console', 'file'],
-            'level': 'ERROR',
-            'propagate': True,
+    "loggers": {
+        "django": {
+            "handlers": ["console", "file"],
+            "level": "ERROR",
+            "propagate": True,
         },
     },
 }

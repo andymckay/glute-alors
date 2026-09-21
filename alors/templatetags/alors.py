@@ -38,7 +38,6 @@ def hms(data):
     return ":".join(result)
 
 
-
 @register.filter
 def status(value):
     return {

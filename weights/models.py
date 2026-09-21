@@ -77,18 +77,10 @@ class Exercise(models.Model):
         blank=True,
         null=True,
     )
-    primary_muscles = models.JSONField(
-        "primary muscles", default=list, blank=True
-    )
-    secondary_muscles = models.JSONField(
-        "secondary muscles", default=list, blank=True
-    )
-    instructions = models.JSONField(
-        "instructions", default=list, blank=True
-    )
-    category = models.CharField(
-        "category", max_length=30, choices=Category.choices
-    )
+    primary_muscles = models.JSONField("primary muscles", default=list, blank=True)
+    secondary_muscles = models.JSONField("secondary muscles", default=list, blank=True)
+    instructions = models.JSONField("instructions", default=list, blank=True)
+    category = models.CharField("category", max_length=30, choices=Category.choices)
 
     class Meta:
         ordering = ["name"]

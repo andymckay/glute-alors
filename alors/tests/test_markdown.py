@@ -31,7 +31,7 @@ class MarkdownFilterTests(SimpleTestCase):
 
     def test_renders_gfm_tables_and_task_lists(self):
         output = self.render("- [x] done")
-        self.assertIn("type=\"checkbox\"", output)
+        self.assertIn('type="checkbox"', output)
 
 
 class WorkoutDetailMarkdownTests(TestCase):

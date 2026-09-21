@@ -85,9 +85,7 @@ class AddPlannedWorkoutTests(TestCase):
         self.add_workout()
         response = self.add_workout()
         self.assertEqual(response.status_code, 200)
-        self.assertContains(
-            response, "There is already a planned workout on that day."
-        )
+        self.assertContains(response, "There is already a planned workout on that day.")
         self.assertEqual(PlannedWorkout.objects.count(), 1)
 
     def test_distance_field_is_optional_in_form(self):
@@ -182,9 +180,7 @@ class MovePlannedWorkoutTests(TestCase):
     def test_move_changes_the_date(self):
         response = self.move("2026-09-08")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json(), {"id": self.workout.pk, "date": "2026-09-08"}
-        )
+        self.assertEqual(response.json(), {"id": self.workout.pk, "date": "2026-09-08"})
         self.workout.refresh_from_db()
         self.assertEqual(self.workout.workout_date, date(2026, 9, 8))
 
@@ -192,13 +188,9 @@ class MovePlannedWorkoutTests(TestCase):
         # 2026-09-05 belongs to the week ending Sunday 09-06; 09-15 to 09-20.
         self.move("2026-09-15")
         # Nothing is left in the old week, so its summary row is dropped.
-        self.assertFalse(
-            WeeklySummary.objects.filter(date=date(2026, 9, 6)).exists()
-        )
+        self.assertFalse(WeeklySummary.objects.filter(date=date(2026, 9, 6)).exists())
         new_week = WeeklySummary.objects.get(date=date(2026, 9, 20))
-        self.assertEqual(
-            new_week.summary["planned_workout"]["run"]["workouts"], 1
-        )
+        self.assertEqual(new_week.summary["planned_workout"]["run"]["workouts"], 1)
 
     def test_move_rejects_an_invalid_date(self):
         response = self.move("not-a-date")
@@ -442,7 +434,9 @@ class RecreateWeeklySummariesCommandTests(TestCase):
     def test_start_and_end_limit_the_rebuilt_range(self):
         self.create_planned(date(2026, 9, 2))  # week ending 09-06
         self.create_planned(date(2026, 9, 16))  # week ending 09-20
-        WeeklySummary.objects.filter(date=date(2026, 9, 6)).update(summary={"stale": True})
+        WeeklySummary.objects.filter(date=date(2026, 9, 6)).update(
+            summary={"stale": True}
+        )
 
         call_command(
             "recreate_weekly_summaries", "--start", "2026-09-16", "--end", "2026-09-16"

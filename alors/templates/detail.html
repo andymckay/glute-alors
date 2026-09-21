@@ -11,13 +11,6 @@
                 {% include "workout_card.html" %}
             </p>
 
-            <dl class="row">
-                <dt class="col-sm-4">Notes</dt>
-                <dd class="col-sm-8">
-                    {% if workout.notes %}{{ workout.notes|markdown }}{% else %}—{% endif %}
-                </dd>
-            </dl>
-
             <div class="d-flex gap-2">
                 <a href="{% url 'alors:edit_planned' workout.pk %}" class="btn btn-primary">Edit workout</a>
             </div>

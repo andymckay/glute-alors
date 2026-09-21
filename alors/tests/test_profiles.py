@@ -37,9 +37,7 @@ class UserProfileModelTests(TestCase):
         self.assertEqual(profile.timezone, settings.TIME_ZONE)
 
     def test_can_set_timezone(self):
-        profile = UserProfile.objects.create(
-            user=self.user, timezone="Europe/London"
-        )
+        profile = UserProfile.objects.create(user=self.user, timezone="Europe/London")
         self.assertEqual(profile.timezone, "Europe/London")
 
 

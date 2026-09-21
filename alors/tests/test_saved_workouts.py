@@ -53,6 +53,4 @@ class SavedWorkoutViewTests(TestCase):
             reverse("alors:saved_workout_delete", args=[self.saved_workout.pk])
         )
         self.assertRedirects(response, reverse("alors:saved_workout_list"))
-        self.assertFalse(
-            SavedWorkout.objects.filter(pk=self.saved_workout.pk).exists()
-        )
+        self.assertFalse(SavedWorkout.objects.filter(pk=self.saved_workout.pk).exists())

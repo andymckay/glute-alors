@@ -13,6 +13,7 @@ from dateutil.parser import isoparse
 from parsers.fit import Fit, NullParser
 from django.core.exceptions import ObjectDoesNotExist
 
+
 class WorkoutType(models.TextChoices):
     RUN = ["run", "Run"]
     WALK = ["walk", "Walk"]
@@ -286,7 +287,8 @@ class Workout(models.Model):
 
     def status(self):
         obj = self.get_planned()
-        if not obj: return ""
+        if not obj:
+            return ""
         return obj.status
 
     def get_effort_as_text(self):

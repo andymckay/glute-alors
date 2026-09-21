@@ -15,6 +15,7 @@ import pytz
 
 import calendar
 
+
 class CalendarForm(forms.Form):
     d = forms.DateField(
         widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
@@ -32,21 +33,25 @@ class CalendarForm(forms.Form):
         }
         if date_range == "w":
             start = date - timedelta(days=date.weekday())
-            dates.update({
-                "start": start,
-                "end": start + timedelta(days=6),
-                "previous": start - timedelta(days=1),
-                "next": start + timedelta(days=6 + 7),
-            })
+            dates.update(
+                {
+                    "start": start,
+                    "end": start + timedelta(days=6),
+                    "previous": start - timedelta(days=1),
+                    "next": start + timedelta(days=6 + 7),
+                }
+            )
         if date_range == "m":
             start = date - timedelta(days=date.day - 1)
             days_in_month = calendar.monthrange(date.year, date.month)[1]
-            dates.update({
-                "start": start,
-                "end": start + timedelta(days=days_in_month - 1),
-                "previous": start - timedelta(days=days_in_month - 1),
-                "next": start + timedelta(days=days_in_month + 1), 
-            })
+            dates.update(
+                {
+                    "start": start,
+                    "end": start + timedelta(days=days_in_month - 1),
+                    "previous": start - timedelta(days=days_in_month - 1),
+                    "next": start + timedelta(days=days_in_month + 1),
+                }
+            )
 
         self.cleaned_data["start_end_dates"] = {
             k: v.strftime("%Y-%m-%d") for k, v in dates.items()

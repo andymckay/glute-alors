@@ -82,15 +82,14 @@ def calendar(request):
     # Note: use __lt to ensure we get runs up to midnight the last day.
     planned_workouts = dateList(
         PlannedWorkout.objects.filter(
-            workout_date__gte=dates["start"], 
+            workout_date__gte=dates["start"],
             workout_date__lt=dates["next"],
         ).order_by("workout_date")
     )
 
     actual_workouts = dateList(
         Workout.objects.filter(
-            workout_date__gte=dates["start"],
-            workout_date__lt=dates["next"]
+            workout_date__gte=dates["start"], workout_date__lt=dates["next"]
         ).order_by("workout_date")
     )
 
@@ -138,7 +137,11 @@ def _week_summary(date_value):
 
 @login_required
 def add_planned(request):
-    date = request.GET.get("date") if request.method == "GET" else request.POST.get("workout_date")
+    date = (
+        request.GET.get("date")
+        if request.method == "GET"
+        else request.POST.get("workout_date")
+    )
     date_value = parse_date(date) if isinstance(date, str) else None
     this_week_summary = _week_summary(date_value)
     last_week_summary = (
@@ -161,7 +164,15 @@ def add_planned(request):
         form = PlannedWorkoutForm()
         form.fields["workout_date"].initial = date
 
-    return render(request, "planned.html", {"form": form, "this_week_summary": this_week_summary, "last_week_summary": last_week_summary})
+    return render(
+        request,
+        "planned.html",
+        {
+            "form": form,
+            "this_week_summary": this_week_summary,
+            "last_week_summary": last_week_summary,
+        },
+    )
 
 
 @login_required
@@ -372,7 +383,9 @@ def planned_webcal(request):
 @login_required
 def saved_workout_list(request):
     saved_workouts = SavedWorkout.objects.all().order_by("title")
-    return render(request, "saved_workout_list.html", {"saved_workouts": saved_workouts})
+    return render(
+        request, "saved_workout_list.html", {"saved_workouts": saved_workouts}
+    )
 
 
 @login_required
