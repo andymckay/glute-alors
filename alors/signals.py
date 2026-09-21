@@ -63,13 +63,34 @@ def _by_type(queryset, with_time=False):
     return grouped
 
 
+def _effort_feeling(queryset):
+    """Return each completed workout's effort and feeling, in date order.
+
+    A flat list, deliberately not grouped by workout type::
+
+        [{"workout_type": "run", "effort": 6, "feeling": 4}, ...]
+
+    An unrated effort or feeling stays ``None``.
+    """
+    return [
+        {
+            "workout_type": workout.workout_type,
+            "effort": workout.effort,
+            "feeling": workout.feeling,
+        }
+        for workout in queryset.order_by("workout_date", "pk")
+    ]
+
+
 def refresh_weekly_summary(sunday):
     """Recompute and store the weekly summary for the week ending on ``sunday``.
 
     Planned and completed workouts are each aggregated by workout type:
 
     ``{"planned_workout": {"run": {"total_distance": 10.0, "total_time": 0}},
-       "workout": {"run": {"total_distance": 10.0, "total_time": 1800}}}``
+       "workout": {"run": {"total_distance": 10.0, "total_time": 1800}},
+       "effort_feeling": [{"workout_type": "run", "effort": 6,
+                           "feeling": 4}]}``
     """
     week_start = sunday - datetime.timedelta(days=6)
 
@@ -89,6 +110,7 @@ def refresh_weekly_summary(sunday):
     summary = {
         "planned_workout": _by_type(planned),
         "workout": _by_type(completed, with_time=True),
+        "effort_feeling": _effort_feeling(completed),
     }
     WeeklySummary.objects.update_or_create(
         date=sunday,
@@ -256,9 +278,9 @@ def _sync_planned_status_from_workout(sender, instance, created, **kwargs):
     The distances of every actual workout of the same type on the same day are
     summed and compared with the single planned workout for that type and day:
 
-    * within 10% of the plan -> done
-    * more than 10% under the plan -> under
-    * more than 10% over the plan -> over
+    * within 20% of the plan -> done
+    * more than 20% under the plan -> under
+    * more than 20% over the plan -> over
     """
     if not created:
         return

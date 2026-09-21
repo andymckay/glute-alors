@@ -3,7 +3,6 @@ import json
 import shutil
 import tempfile
 from datetime import datetime, timedelta
-from decimal import Decimal
 from pathlib import Path
 from unittest import mock
 
@@ -174,121 +173,6 @@ class ImportWorkoutsCommandTests(TestCase):
 
         workout = Workout.objects.get(workout_source="a.fit")
         self.assertIsNone(workout.created_by)
-
-    def test_extract_datetime_from_activity(self):
-        command = ImportWorkoutsCommand()
-        messages = {
-            "file_id_mesgs": [{"time_created": datetime(2026, 9, 3, 18, 0)}],
-            "activity_mesgs": [{"timestamp": datetime(2026, 9, 3, 12, 0)}],
-        }
-        self.assertEqual(
-            command._extract_datetime(messages),
-            datetime(2026, 9, 3, 12, 0),
-        )
-
-    def test_extract_datetime_uses_first_activity_with_timestamp(self):
-        command = ImportWorkoutsCommand()
-        messages = {
-            "activity_mesgs": [
-                {"type": "manual"},
-                {"timestamp": datetime(2026, 9, 3, 12, 0)},
-            ]
-        }
-        self.assertEqual(
-            command._extract_datetime(messages),
-            datetime(2026, 9, 3, 12, 0),
-        )
-
-    def test_extract_datetime_falls_back_to_record(self):
-        command = ImportWorkoutsCommand()
-        messages = {"record_mesgs": [{"timestamp": datetime(2026, 9, 4, 8, 0)}]}
-        self.assertEqual(
-            command._extract_datetime(messages),
-            datetime(2026, 9, 4, 8, 0),
-        )
-
-    def test_extract_total_time_from_records(self):
-        command = ImportWorkoutsCommand()
-        messages = {
-            "record_mesgs": [
-                {"timestamp": datetime(2026, 9, 4, 8, 0)},
-                {"timestamp": datetime(2026, 9, 4, 8, 45)},
-            ]
-        }
-        self.assertEqual(
-            command._extract_total_time(messages),
-            timedelta(minutes=45),
-        )
-
-    def test_extract_type_maps_sport(self):
-        command = ImportWorkoutsCommand()
-        messages = {"session_mesgs": [{"sport": "walking"}]}
-        self.assertEqual(command._extract_type(messages), "walk")
-
-    def test_extract_type_returns_none_without_session(self):
-        command = ImportWorkoutsCommand()
-        self.assertIsNone(command._extract_type({}))
-
-    def test_extract_type_raises_on_unknown_sport(self):
-        command = ImportWorkoutsCommand()
-        messages = {"session_mesgs": [{"sport": "swimming"}]}
-        with self.assertRaises(ValueError):
-            command._extract_type(messages)
-
-    def test_extract_distance_from_session(self):
-        command = ImportWorkoutsCommand()
-        messages = {"session_mesgs": [{"total_distance": 10500}]}
-        self.assertEqual(command._extract_distance(messages), Decimal("10.50"))
-
-    def test_extract_distance_falls_back_to_last_record(self):
-        command = ImportWorkoutsCommand()
-        messages = {
-            "record_mesgs": [
-                {"distance": 2500},
-                {"distance": 5200},
-            ]
-        }
-        self.assertEqual(command._extract_distance(messages), Decimal("5.20"))
-
-    def test_extract_distance_returns_none_when_missing(self):
-        command = ImportWorkoutsCommand()
-        self.assertIsNone(command._extract_distance({}))
-
-    def test_extract_moving_time_from_session(self):
-        command = ImportWorkoutsCommand()
-        messages = {"session_mesgs": [{"total_timer_time": 2700}]}
-        self.assertEqual(
-            command._extract_moving_time(messages),
-            timedelta(minutes=45),
-        )
-
-    def test_extract_moving_time_returns_none_when_missing(self):
-        command = ImportWorkoutsCommand()
-        self.assertIsNone(command._extract_moving_time({}))
-
-    def test_extract_pace_from_session_speed(self):
-        command = ImportWorkoutsCommand()
-        messages = {"session_mesgs": [{"avg_speed": 3.0}]}
-        # 1000 m / 3 m/s = 333.33 s per km
-        self.assertEqual(
-            command._extract_pace(messages),
-            timedelta(seconds=333),
-        )
-
-    def test_extract_pace_from_distance_and_time(self):
-        command = ImportWorkoutsCommand()
-        messages = {
-            "session_mesgs": [{"total_distance": 10000, "total_timer_time": 3600}]
-        }
-        # 10 km in 3600 s -> 360 s per km
-        self.assertEqual(
-            command._extract_pace(messages),
-            timedelta(seconds=360),
-        )
-
-    def test_extract_pace_returns_none_when_missing(self):
-        command = ImportWorkoutsCommand()
-        self.assertIsNone(command._extract_pace({}))
 
     def test_import_fit_file_populates_elevation_gain_and_loss(self):
         command = ImportWorkoutsCommand()

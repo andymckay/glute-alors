@@ -1,9 +1,85 @@
 from dateutil.parser import isoparse
 import json
 from bisect import bisect_left, bisect_right
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+
+# Distances are converted from metres to kilometres with two decimals.
+KM_DECIMAL_PLACES = Decimal("0.01")
+
+# Garmin FIT sport -> workout type values, matching WorkoutType choices.
+# They are plain strings so this package stays free of Django imports
+# (alors.models imports this module).
+SPORT_MAP = {
+    "running": "run",
+    "walking": "walk",
+    "hiking": "hike",
+    "cycling": "run",
+    "racing": "run",
+    "training": "strength",
+}
+
+
+def _to_datetime(value):
+    """Coerce an epoch timestamp (seconds) or a datetime to a datetime."""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value, tz=timezone.utc)
+    return None
+
+
+def _messages_for(messages, *keys):
+    """Return the first message found under any of ``keys``."""
+    for key in keys:
+        value = messages.get(key)
+        if isinstance(value, list) and value:
+            return value[0]
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def _seconds_at_distance(samples, distance):
+    """Return the elapsed seconds at ``distance`` (km) from ``(seconds, km)`` samples.
+
+    The value between two samples is interpolated, so the halfway point of a
+    workout does not have to line up with a recorded point.
+    """
+    if distance <= samples[0][1]:
+        return samples[0][0]
+
+    previous_seconds, previous_distance = samples[0]
+    for seconds, km in samples[1:]:
+        if km >= distance:
+            span = km - previous_distance
+            if span <= 0:
+                return seconds
+            ratio = (distance - previous_distance) / span
+            return previous_seconds + ratio * (seconds - previous_seconds)
+        previous_seconds, previous_distance = seconds, km
+    return samples[-1][0]
 
 
 class Parser:
+    def get_datetime(self):
+        raise NotImplementedError
+
+    def get_total_time(self):
+        raise NotImplementedError
+
+    def get_workout_type(self):
+        raise NotImplementedError
+
+    def get_distance(self):
+        raise NotImplementedError
+
+    def get_moving_time(self):
+        raise NotImplementedError
+
+    def get_pace(self):
+        raise NotImplementedError
+
     def get_heart_rate_series(self, max_points=300):
         raise NotImplementedError
 
@@ -17,6 +93,9 @@ class Parser:
         raise NotImplementedError
 
     def elevation_loss(self):
+        raise NotImplementedError
+
+    def negative_split(self):
         raise NotImplementedError
 
     def get_power_series(self, max_points=300):
@@ -40,6 +119,24 @@ class NullParser(Parser):
     For when there's no data, just returns empty results
     """
 
+    def get_datetime(self):
+        return None
+
+    def get_total_time(self):
+        return None
+
+    def get_workout_type(self):
+        return None
+
+    def get_distance(self):
+        return None
+
+    def get_moving_time(self):
+        return None
+
+    def get_pace(self):
+        return None
+
     def get_heart_rate_series(self, max_points=300):
         return []
 
@@ -54,6 +151,9 @@ class NullParser(Parser):
 
     def elevation_loss(self):
         return 0.0
+
+    def negative_split(self):
+        return False
 
     def get_power_series(self, max_points=300):
         return []
@@ -77,15 +177,108 @@ class Fit(Parser):
     """
 
     def __init__(self, workout_data):
-        """Return the ``record_mesgs`` from the decoded FIT data."""
-        try:
-            data = workout_data
-        except (ValueError, TypeError):
-            raise
+        """Keep the decoded FIT messages and the parts used most often."""
+        data = workout_data
 
+        self.data = data
         self.records = data.get("record_mesgs") or []
         self.laps = data.get("lap_mesgs") or []
         self.device = data.get("device_info_mesgs") or []
+
+    def get_datetime(self):
+        """Workout datetime from the first activity/record timestamp, else now."""
+        activities = self.data.get("activity_mesgs") or []
+        if isinstance(activities, dict):
+            activities = [activities]
+        for activity in activities:
+            timestamp = _to_datetime(activity.get("timestamp"))
+            if timestamp is not None:
+                return timestamp
+
+        for record in self.records:
+            timestamp = _to_datetime(record.get("timestamp"))
+            if timestamp is not None:
+                return timestamp
+
+        return datetime.now(tz=timezone.utc)
+
+    def get_total_time(self):
+        """Total time from the first and last record timestamps."""
+        timestamps = []
+        for record in self.records:
+            timestamp = _to_datetime(record.get("timestamp"))
+            if timestamp is not None:
+                timestamps.append(timestamp)
+
+        if len(timestamps) >= 2:
+            seconds = (max(timestamps) - min(timestamps)).total_seconds()
+            return timedelta(seconds=max(0, int(seconds)))
+        return timedelta(0)
+
+    def get_workout_type(self):
+        """Best-effort workout type from the session sport field."""
+        session = _messages_for(self.data, "session_mesgs")
+        if session is not None:
+            sport = session.get("sport")
+            if isinstance(sport, str):
+                if sport.lower() not in SPORT_MAP:
+                    raise ValueError("Unknown sport:", sport.lower())
+                return SPORT_MAP[sport.lower()]
+        return None
+
+    def get_distance(self):
+        """Total distance in km, from the session or the last record message.
+
+        FIT distances are expressed in meters.
+        """
+        session = _messages_for(self.data, "session_mesgs")
+        if session is not None:
+            meters = session.get("total_distance")
+            if meters:
+                return (Decimal(str(meters)) / Decimal(1000)).quantize(
+                    KM_DECIMAL_PLACES
+                )
+
+        cumulative = None
+        for record in self.records:
+            distance = record.get("distance")
+            if distance is not None:
+                cumulative = distance
+        if cumulative:
+            return (Decimal(str(cumulative)) / Decimal(1000)).quantize(
+                KM_DECIMAL_PLACES
+            )
+        return None
+
+    def get_moving_time(self):
+        """Moving time from the session's active timer (in seconds)."""
+        session = _messages_for(self.data, "session_mesgs")
+        if session is not None:
+            seconds = session.get("total_timer_time")
+            if seconds:
+                return timedelta(seconds=int(seconds))
+        return None
+
+    def get_pace(self):
+        """Average pace (time per km), from session speed or distance/time.
+
+        FIT speed is expressed in meters per second, so pace in seconds per
+        kilometer is 1000 / speed.
+        """
+        session = _messages_for(self.data, "session_mesgs")
+        if session is not None:
+            meters_per_second = session.get("avg_speed")
+            if meters_per_second:
+                seconds_per_km = Decimal(1000) / Decimal(str(meters_per_second))
+                return timedelta(seconds=int(seconds_per_km))
+
+        moving_time = self.get_moving_time()
+        distance_km = self.get_distance()
+        seconds = moving_time.total_seconds() if moving_time else 0
+        if distance_km and seconds > 0:
+            seconds_per_km = Decimal(seconds) / Decimal(str(distance_km))
+            return timedelta(seconds=int(seconds_per_km))
+        return None
 
     def _record_series(self, extract, max_points=300):
         """Build ``(seconds, value)`` samples from the FIT records.
@@ -210,6 +403,27 @@ class Fit(Parser):
     def elevation_loss(self):
         """Return the total elevation lost in metres."""
         return self._elevation_totals()[1]
+
+    def negative_split(self):
+        """Return True when the second half of the activity was faster.
+
+        The time taken to cover the first and the second half of the recorded
+        distance is compared, interpolating the time at the halfway point. A
+        workout without usable distances or timestamps returns False, as does
+        an even split.
+        """
+        # Ask for every sample: get_distance_series decimates long series.
+        samples = self.get_distance_series(max_points=len(self.records))
+        if len(samples) < 2:
+            return False
+
+        total_distance = samples[-1][1]
+        if total_distance <= 0:
+            return False
+
+        first_half = _seconds_at_distance(samples, total_distance / 2.0)
+        second_half = samples[-1][0] - first_half
+        return second_half < first_half
 
     def get_power_series(self, max_points=300):
         """Return ``(seconds, watts)`` samples from the decoded FIT records."""

@@ -1,6 +1,7 @@
 import json
 import unittest
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 from ..fit import Fit
 
@@ -293,3 +294,155 @@ class FitRouteTests(unittest.TestCase):
         self.assertEqual(len(route), 3)
         self.assertAlmostEqual(route[0][0], 49.2827)
         self.assertAlmostEqual(route[0][1], -123.1207)
+
+
+class FitMetadataTests(unittest.TestCase):
+    """Tests for the workout metadata pulled out of the FIT messages."""
+
+    def test_get_datetime_prefers_the_activity_message(self):
+        fit = Fit(
+            {
+                "file_id_mesgs": [{"time_created": datetime(2026, 9, 3, 18, 0)}],
+                "activity_mesgs": [{"timestamp": datetime(2026, 9, 3, 12, 0)}],
+            }
+        )
+        self.assertEqual(fit.get_datetime(), datetime(2026, 9, 3, 12, 0))
+
+    def test_get_datetime_uses_first_activity_with_a_timestamp(self):
+        fit = Fit(
+            {
+                "activity_mesgs": [
+                    {"type": "manual"},
+                    {"timestamp": datetime(2026, 9, 3, 12, 0)},
+                ]
+            }
+        )
+        self.assertEqual(fit.get_datetime(), datetime(2026, 9, 3, 12, 0))
+
+    def test_get_datetime_falls_back_to_records(self):
+        fit = Fit({"record_mesgs": [{"timestamp": datetime(2026, 9, 4, 8, 0)}]})
+        self.assertEqual(fit.get_datetime(), datetime(2026, 9, 4, 8, 0))
+
+    def test_get_datetime_falls_back_to_now(self):
+        before = datetime.now(timezone.utc)
+        value = Fit({}).get_datetime()
+        self.assertGreaterEqual(value, before)
+        self.assertIsNotNone(value.tzinfo)
+
+    def test_get_total_time_from_records(self):
+        fit = Fit(
+            {
+                "record_mesgs": [
+                    {"timestamp": datetime(2026, 9, 4, 8, 0)},
+                    {"timestamp": datetime(2026, 9, 4, 8, 45)},
+                ]
+            }
+        )
+        self.assertEqual(fit.get_total_time(), timedelta(minutes=45))
+
+    def test_get_total_time_without_records(self):
+        self.assertEqual(Fit({}).get_total_time(), timedelta(0))
+
+    def test_get_workout_type_maps_the_sport(self):
+        fit = Fit({"session_mesgs": [{"sport": "walking"}]})
+        self.assertEqual(fit.get_workout_type(), "walk")
+
+    def test_get_workout_type_without_a_session(self):
+        self.assertIsNone(Fit({}).get_workout_type())
+
+    def test_get_workout_type_raises_on_an_unknown_sport(self):
+        fit = Fit({"session_mesgs": [{"sport": "swimming"}]})
+        with self.assertRaises(ValueError):
+            fit.get_workout_type()
+
+    def test_get_distance_from_the_session(self):
+        fit = Fit({"session_mesgs": [{"total_distance": 10500}]})
+        self.assertEqual(fit.get_distance(), Decimal("10.50"))
+
+    def test_get_distance_falls_back_to_the_last_record(self):
+        fit = Fit({"record_mesgs": [{"distance": 2500}, {"distance": 5200}]})
+        self.assertEqual(fit.get_distance(), Decimal("5.20"))
+
+    def test_get_distance_without_data(self):
+        self.assertIsNone(Fit({}).get_distance())
+
+    def test_get_moving_time_from_the_session(self):
+        fit = Fit({"session_mesgs": [{"total_timer_time": 2700}]})
+        self.assertEqual(fit.get_moving_time(), timedelta(minutes=45))
+
+    def test_get_moving_time_without_data(self):
+        self.assertIsNone(Fit({}).get_moving_time())
+
+    def test_get_pace_from_the_session_speed(self):
+        fit = Fit({"session_mesgs": [{"avg_speed": 3.0}]})
+        # 1000 m / 3 m/s = 333.33 s per km
+        self.assertEqual(fit.get_pace(), timedelta(seconds=333))
+
+    def test_get_pace_from_distance_and_time(self):
+        fit = Fit({"session_mesgs": [{"total_distance": 10000, "total_timer_time": 3600}]})
+        # 10 km in 3600 s -> 360 s per km
+        self.assertEqual(fit.get_pace(), timedelta(seconds=360))
+
+    def test_get_pace_without_data(self):
+        self.assertIsNone(Fit({}).get_pace())
+
+
+class FitNegativeSplitTests(unittest.TestCase):
+    """Tests for the half-versus-half speed comparison."""
+
+    def make_fit(self, points):
+        """Build a Fit from ``(minute, distance_in_metres)`` points."""
+        return Fit(
+            {
+                "record_mesgs": [
+                    {
+                        "timestamp": f"2026-09-04T08:{minute:02d}:00+00:00",
+                        "distance": distance,
+                    }
+                    for minute, distance in points
+                ]
+            }
+        )
+
+    def test_speeding_up_is_a_negative_split(self):
+        # 4 km: the first 2 km take 12 minutes, the last 2 km take 10.
+        fit = self.make_fit(
+            [(0, 0), (6, 1000), (12, 2000), (17, 3000), (22, 4000)]
+        )
+        self.assertTrue(fit.negative_split())
+
+    def test_slowing_down_is_not_a_negative_split(self):
+        # 4 km: the first 2 km take 10 minutes, the last 2 km take 11.
+        fit = self.make_fit(
+            [(0, 0), (5, 1000), (10, 2000), (15, 3000), (21, 4000)]
+        )
+        self.assertFalse(fit.negative_split())
+
+    def test_an_even_split_is_not_a_negative_split(self):
+        fit = self.make_fit(
+            [(0, 0), (5, 1000), (10, 2000), (15, 3000), (20, 4000)]
+        )
+        self.assertFalse(fit.negative_split())
+
+    def test_interpolates_the_time_at_the_halfway_distance(self):
+        # 2.5 km; halfway is 1.25 km, between the 1 km and 2.5 km records.
+        fit = self.make_fit([(0, 0), (6, 1000), (13, 2500)])
+        self.assertTrue(fit.negative_split())
+
+    def test_without_data(self):
+        self.assertFalse(Fit({}).negative_split())
+
+    def test_without_distances(self):
+        fit = Fit(
+            {
+                "record_mesgs": [
+                    {"timestamp": "2026-09-04T08:00:00+00:00"},
+                    {"timestamp": "2026-09-04T08:10:00+00:00"},
+                ]
+            }
+        )
+        self.assertFalse(fit.negative_split())
+
+    def test_without_a_distance_gain(self):
+        fit = self.make_fit([(0, 0), (10, 0)])
+        self.assertFalse(fit.negative_split())

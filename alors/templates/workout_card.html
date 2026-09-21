@@ -28,7 +28,7 @@
                 {% if workout.total_distance %}
                     <b>{{ workout.total_distance }} km</b>
                 {% endif %}
-                {% if workout.pace %} at <b>{{ workout.pace|hms }} min/km</b>{% endif %}
+                {% if workout.pace %} at <b>{{ workout.pace|hms }} min/km</b> {% if workout.get_workout_data.negative_split %}<span class="badge text-bg-success">Negative split 👍</span>{% endif %} {% endif %}
                 <br>
                 {% if workout.elevation_gain %}📈 <b>{{ workout.elevation_gain }} m</b>{% endif %}
                 {% if workout.elevation_gain and workout.elevation_loss %} and {% endif %}

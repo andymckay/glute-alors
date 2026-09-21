@@ -264,7 +264,34 @@ class WeeklySummarySignalTests(TestCase):
                     }
                 },
                 "workout": {},
+                "effort_feeling": [],
             },
+        )
+
+    def test_summary_lists_the_effort_and_feeling_of_each_workout(self):
+        # The list is flat (not grouped by type) and ordered by date.
+        Workout.objects.create(
+            workout_date=datetime(2026, 9, 8, 8, 0),
+            total_time=timedelta(minutes=30),
+            workout_type="run",
+            total_distance="10.00",
+            effort=6,
+            feeling=4,
+        )
+        Workout.objects.create(
+            workout_date=datetime(2026, 9, 7, 8, 0),
+            total_time=timedelta(minutes=20),
+            workout_type="walk",
+            total_distance="2.00",
+            effort=2,
+        )
+        summary = self.summary_for(date(2026, 9, 13))
+        self.assertEqual(
+            summary.summary["effort_feeling"],
+            [
+                {"workout_type": "walk", "effort": 2, "feeling": None},
+                {"workout_type": "run", "effort": 6, "feeling": 4},
+            ],
         )
 
     def test_planned_types_are_grouped(self):
