@@ -34,7 +34,7 @@ from .ical import render_calendar
 from itertools import chain
 from .utils import dateList, combineDateLists
 import json
-
+from django.core.exceptions import ObjectDoesNotExist
 
 def index(request):
     if request.user.is_authenticated:
@@ -79,20 +79,18 @@ def calendar(request):
     dates = form.cleaned_data["start_end_dates"]
     list_dates = form.cleaned_data["list_dates"]
 
+    # Note: use __lt to ensure we get runs up to midnight the last day.
     planned_workouts = dateList(
         PlannedWorkout.objects.filter(
-            workout_date__gte=dates["start"], workout_date__lte=dates["end"]
+            workout_date__gte=dates["start"], 
+            workout_date__lt=dates["next"],
         ).order_by("workout_date")
     )
 
-    # Hack, need to solve this properly, but this ensures that we check up to the last minute
-    # of the last day.
-    end = dates["end"]
-    end = end + " 23:59:59"
     actual_workouts = dateList(
         Workout.objects.filter(
             workout_date__gte=dates["start"],
-            workout_date__lte=end
+            workout_date__lt=dates["next"]
         ).order_by("workout_date")
     )
 
@@ -231,12 +229,23 @@ def delete_planned(request, pk):
 def move_planned_workout(request, pk):
     """Move a planned workout to another date (calendar drag and drop).
 
-    Saving refreshes the weekly summary of both the old and the new week.
+    Only one planned workout is allowed per day, and saving refreshes the
+    weekly summary of both the old and the new week.
     """
     workout = get_object_or_404(PlannedWorkout, pk=pk)
     new_date = parse_date(request.POST.get("date", ""))
     if new_date is None:
         return JsonResponse({"error": "A valid date is required."}, status=400)
+    taken = (
+        PlannedWorkout.objects.filter(workout_date=new_date)
+        .exclude(pk=workout.pk)
+        .exists()
+    )
+    if taken:
+        return JsonResponse(
+            {"error": "There is already a planned workout on that day."},
+            status=409,
+        )
     workout.workout_date = new_date
     workout.save()
     return JsonResponse({"id": workout.pk, "date": new_date.isoformat()})
@@ -268,6 +277,7 @@ def workout_detail(request, pk):
         "workout_detail.html",
         {
             "workout": workout,
+            "planned": workout.get_planned(),
             "route_points": json.dumps(fit.get_route_points()),
             "power_series": fit.get_power_series(),
             "elevation_series": fit.get_elevation_series(),

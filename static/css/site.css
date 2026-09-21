@@ -208,3 +208,7 @@ dt {
   outline: 2px dashed var(--bs-primary);
   outline-offset: -2px;
 }
+
+.link-card-hack {
+  color: var(--bs-secondary-color) !important;
+}

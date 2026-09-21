@@ -4,18 +4,8 @@
 <div class="container-lg">
     <div class="d-none">{% csrf_token %}</div>
     {% include "calendar_nav.html" %}
-    <div class="row border">
-        <div class="col-3">
-        </div>
-        <div class="col p-2">
-            <div><b>Planned</b></div>
-        </div>
-        <div class="col p-2">
-            <div><b>Actual</b></div>
-        </div>
-    </div>
     {% for entry in dates_and_objects %}
-        <div class="row border-start border-end {% if not entry.summaries %}border-bottom{% endif %}">
+        <div class="row border-start border-end border-top {% if not entry.summaries %}border-bottom{% endif %}">
             <div class="col-3 p-2">
                 <div>{% if entry.date|date:"Y-m-d" == today %}<a id="today">👉</a> <b>{{ entry.date|date:"D, M j" }}</b>{% else %}🗓 {{ entry.date|date:"D, M j" }}{% endif %} <br>
                     {% for label in entry.labels %}
@@ -30,12 +20,8 @@
                             {% include "workout_card.html" %}
                         </div>
                     {% empty %}
-                        <a class="js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add</a>
+                        {% if not entry.past %}<a class="js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add plan</a>{% endif %}
                     {% endfor %}
-                </div>
-            </div>
-            <div class="col p-2">
-                <div>
                     {% for workout in entry.actual %}
                         {% include "workout_card.html" %}
                         {% if entry.actual|length > 1 and not forloop.last %}<div class="mb-2"></div>{% endif %}
@@ -50,15 +36,15 @@
                 </div>
                 <div class="col p-2 bg-tertiary">
                     <div>
+                        <p>Planned</p>
                         {% for summary in entry.summaries %}
                             {% with planned=True %}
                                 {% include "summary_card.html" %}
                             {% endwith %}
                         {% endfor %}
                     </div>
-                </div>
-                <div class="col p-2 bg-tertiary">
                     <div>
+                        <p>Actual</p>
                         {% for summary in entry.summaries %}
                             {% with planned=False %}
                                 {% include "summary_card.html" %}

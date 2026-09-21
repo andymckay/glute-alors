@@ -17,11 +17,18 @@ def dateList(queryset):
 
 
 def combineDateLists(dates, **kwargs):
+    today = datetime.datetime.today().date()
     result = []
     for date in dates:
-        res = {"date": date}
+        res = {"date": date, "future": date > today, "past": date < today, "today": date == today}
         result.append(res)
         for name, queryset in kwargs.items():
             objects = queryset.get(date.strftime("%Y-%m-%d"))
             res[name] = objects
+    
+    for res in result:
+        # If we've got an actual run, don't show the planned.
+        if res["actual"]:
+            res["planned"] = None
+
     return result

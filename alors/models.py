@@ -11,7 +11,7 @@ from datetime import timedelta
 from bisect import bisect_left, bisect_right
 from dateutil.parser import isoparse
 from parsers.fit import Fit, NullParser
-
+from django.core.exceptions import ObjectDoesNotExist
 
 class WorkoutType(models.TextChoices):
     RUN = ["run", "Run"]
@@ -98,11 +98,21 @@ class PlannedWorkout(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     get_model_name_display = "Planned"
+    is_planned = True
 
     class Meta:
         ordering = ["workout_date", "-created_at"]
         verbose_name = "planned workout"
         verbose_name_plural = "planned workouts"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["workout_date"],
+                name="unique_planned_workout_per_day",
+                violation_error_message=(
+                    "There is already a planned workout on that day."
+                ),
+            )
+        ]
 
     def __str__(self):
         return f"{self.get_workout_type_display()} on {self.workout_date}"
@@ -252,6 +262,7 @@ class Workout(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     get_model_name_display = "Workout"
+    is_actual = True
 
     class Meta:
         ordering = ["-workout_date"]
@@ -266,6 +277,17 @@ class Workout(models.Model):
 
     def get_date_as_str(self):
         return self.workout_date.strftime("%Y-%m-%d")
+
+    def get_planned(self):
+        try:
+            return PlannedWorkout.objects.get(workout_date=self.workout_date)
+        except ObjectDoesNotExist:
+            return None
+
+    def status(self):
+        obj = self.get_planned()
+        if not obj: return ""
+        return obj.status
 
     def get_effort_as_text(self):
         return {

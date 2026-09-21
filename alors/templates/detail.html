@@ -6,7 +6,7 @@
     <p><a href="/calendar" class="text-muted link-underline link-underline-opacity-0">👈 Back to the calendar</a></p>
     <div class="row">
         <div class="col-lg-7">
-            <h2 class="mb-1">Planned: {{ workout.workout_type|emoji }} {{ workout.title|default:workout.get_workout_type_display }}</h2>
+            <h2 class="mb-1">{{ workout.workout_type|emoji }} {{ workout.title|default:workout.get_workout_type_display }}</h2>
             <p>
                 {% include "workout_card.html" %}
             </p>

@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 
@@ -79,6 +80,15 @@ class AddPlannedWorkoutTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(PlannedWorkout.objects.get().title, "Long run")
+
+    def test_cannot_plan_two_workouts_on_the_same_day(self):
+        self.add_workout()
+        response = self.add_workout()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, "There is already a planned workout on that day."
+        )
+        self.assertEqual(PlannedWorkout.objects.count(), 1)
 
     def test_distance_field_is_optional_in_form(self):
         from ..forms import PlannedWorkoutForm
@@ -193,6 +203,21 @@ class MovePlannedWorkoutTests(TestCase):
     def test_move_rejects_an_invalid_date(self):
         response = self.move("not-a-date")
         self.assertEqual(response.status_code, 400)
+        self.workout.refresh_from_db()
+        self.assertEqual(self.workout.workout_date, date(2026, 9, 5))
+
+    def test_move_refuses_a_day_that_already_has_a_planned_workout(self):
+        PlannedWorkout.objects.create(
+            workout_type=WorkoutType.RUN,
+            workout_date="2026-09-10",
+            total_distance="5.00",
+        )
+        response = self.move("2026-09-10")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            response.json(),
+            {"error": "There is already a planned workout on that day."},
+        )
         self.workout.refresh_from_db()
         self.assertEqual(self.workout.workout_date, date(2026, 9, 5))
 
@@ -505,14 +530,12 @@ class PlannedStatusUpdateTests(TestCase):
         planned.refresh_from_db()
         self.assertEqual(planned.status, "")
 
-    def test_multiple_plans_for_type_and_day_are_not_matched(self):
-        first = self.create_planned()
-        second = self.create_planned(title="Second run")
-        self.create_workout(total_distance=Decimal("10.00"))
-        first.refresh_from_db()
-        second.refresh_from_db()
-        self.assertEqual(first.status, "")
-        self.assertEqual(second.status, "")
+    def test_only_one_planned_workout_is_allowed_per_day(self):
+        # The database enforces it too, not just the form.
+        self.create_planned()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                self.create_planned(title="Second run")
 
 
 class MarkMissCommandTests(TestCase):

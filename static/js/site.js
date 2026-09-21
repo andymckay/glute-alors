@@ -255,6 +255,12 @@ function movePlannedWorkout(card, cell) {
     if (!from || from === cell || !token) {
         return;
     }
+    // Only one planned workout per day, so the target day has to be free.
+    const occupant = cell.querySelector(".js-planned-card");
+    if (occupant && occupant !== card) {
+        window.alert("There is already a planned workout on that day.");
+        return;
+    }
 
     fetch(card.dataset.moveUrl, {
         method: "POST",

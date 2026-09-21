@@ -24,16 +24,28 @@
             </ul>
         </div>
     </div>
-    <div class="row mb-4">
-        <div class="col-lg mb-2">
-            <h3 class="border-bottom">Actual: {{ workout.workout_type|emoji }}{{ workout.workout_type|capfirst }}</h3>
-            <p class="mb-4">
+    <div class="row">
+        <div class="col-lg">
+            <h3 class="border-bottom">{{ workout.workout_type|emoji }}{{ workout.workout_type|capfirst }}</h3>
+            <p>
                 {% with object=workout %}{% include "created.html" %}{% endwith %}<br>
                 <span class="text-muted">Recorded on: {{ recorded_on }}</span><br>
                 <b>Workout:</b> {{ workout.workout_date }}<br>
             </p>
-
+        </div>
+    </div>
+    <div class="row mb-2">
+        <div class="col-lg-6 mb-2">
             {% include "workout_card.html" %}
+        </div>
+        <div class="col-lg-6 mb-2">
+            {% if planned %}
+                {% with workout=planned %}
+                    {% include "workout_card.html" %}
+                {% endwith %}
+            {% else %}
+                <p>Nothing was planned</p>
+            {% endif %}
         </div>
     </div>
     <div class="row">
