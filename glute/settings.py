@@ -41,7 +41,7 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # Application definition
-SECURE_HSTS_SECONDS = 3600
+SECURE_HSTS_SECONDS = 15768000
 SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_HTTPONLY = True
 
@@ -74,6 +74,7 @@ MIDDLEWARE = [
     "alors.middleware.UserTimezoneMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django.middleware.csp.ContentSecurityPolicyMiddleware",
 ]
 
 ROOT_URLCONF = "glute.urls"
