@@ -190,7 +190,7 @@ def edit_planned(request, pk):
                 messages.SUCCESS,
                 f"✏️ Updated {workout.get_workout_type_display().lower()} workout for {workout.workout_date}.",
             )
-            return redirect("alors:index")
+            return redirect(f"/calendar/?d={workout.workout_date}")
         summary = _week_summary(form.data.get("workout_date"))
     else:
         form = PlannedWorkoutForm(instance=workout)
