@@ -282,9 +282,6 @@ def _sync_planned_status_from_workout(sender, instance, created, **kwargs):
     * more than 20% under the plan -> under
     * more than 20% over the plan -> over
     """
-    if not created:
-        return
-
     workout_date = _as_date(instance.workout_date)
     planned = PlannedWorkout.objects.filter(
         workout_date=workout_date,

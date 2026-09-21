@@ -34,7 +34,7 @@ from .ical import render_calendar
 from itertools import chain
 from .utils import dateList, combineDateLists
 import json
-from django.core.exceptions import ObjectDoesNotExist
+
 
 def index(request):
     if request.user.is_authenticated:
@@ -155,7 +155,7 @@ def add_planned(request):
                 messages.SUCCESS,
                 f"🎉 Planned {workout.get_workout_type_display().lower()} added for {workout.workout_date}.",
             )
-            return redirect("alors:index")
+            return redirect(f"/calendar/?d={date}")
     else:
         date = request.GET.get("date", None)
         form = PlannedWorkoutForm()
