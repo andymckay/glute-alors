@@ -48,8 +48,7 @@ CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_HTTPONLY = True
 
 SECURE_CSP = {
-    "default-src": [CSP.SELF],
-    "img-src": ["data:", CSP.SELF],
+    "img-src": ["data:", CSP.SELF, "tile.openstreetmap.org"],
     "frame-src": [CSP.NONE],
 }
 
