@@ -122,7 +122,9 @@ LOGIN_URL = "/"
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
-USE_TZ = True
+
+# Ugh, need to dive into this, but this was breaking on prod.
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)

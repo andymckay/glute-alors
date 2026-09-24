@@ -7,11 +7,21 @@ from .models import Exercise
 class ExerciseAdmin(admin.ModelAdmin):
     list_display = (
         "name",
-        "category",
         "level",
-        "force",
-        "mechanic",
-        "equipment",
+        "mobility_type",
+        "is_bodyweight",
+        "is_cardio",
+        "rating",
     )
-    list_filter = ("category", "level", "force", "mechanic", "equipment")
-    search_fields = ("name",)
+    list_filter = (
+        "level",
+        "mobility_type",
+        "is_bodyweight",
+        "is_cardio",
+        "is_timed",
+        "is_distance",
+        "is_web_published",
+        "rating",
+    )
+    search_fields = ("name", "alias", "slug")
+    readonly_fields = ("raw", "imported_at")
