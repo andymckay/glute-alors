@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -164,10 +164,11 @@ class WorkoutEditViewTests(TestCase):
         self.assertEqual(self.workout.notes, "Now **better**.")
         self.assertEqual(self.workout.effort, 8)
         self.assertEqual(self.workout.feeling, 5)
-        # Everything else must remain untouched.
+        # Everything else must remain untouched. The stored value comes back
+        # naive because the project runs with USE_TZ = False.
         self.assertEqual(
             self.workout.workout_date,
-            datetime(2026, 9, 5, 8, 30, tzinfo=timezone.utc),
+            datetime(2026, 9, 5, 8, 30),
         )
         self.assertEqual(self.workout.workout_type, "run")
         self.assertEqual(self.workout.total_time, timedelta(hours=1))

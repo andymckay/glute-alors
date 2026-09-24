@@ -13,7 +13,9 @@ class Command(BaseCommand):
     )
 
     def handle(self, *args, **options):
-        today = timezone.localdate()
+        # timezone.localdate() cannot be used with USE_TZ = False: it refuses a
+        # naive datetime, which is exactly what now() returns in that mode.
+        today = timezone.now().date()
         missed = (
             PlannedWorkout.objects.filter(workout_date__lt=today, status="")
             .exclude(workout_type="recovery")

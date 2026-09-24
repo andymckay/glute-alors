@@ -324,10 +324,44 @@ class FitMetadataTests(unittest.TestCase):
         self.assertEqual(fit.get_datetime(), datetime(2026, 9, 4, 8, 0))
 
     def test_get_datetime_falls_back_to_now(self):
-        before = datetime.now(timezone.utc)
+        before = datetime.now(timezone.utc).replace(tzinfo=None)
         value = Fit({}).get_datetime()
         self.assertGreaterEqual(value, before)
-        self.assertIsNotNone(value.tzinfo)
+        # USE_TZ is False, so a naive datetime is what can be stored.
+        self.assertIsNone(value.tzinfo)
+
+    def test_get_datetime_drops_the_timezone(self):
+        """A FIT timestamp is UTC; only the wall clock is kept."""
+        fit = Fit(
+            {
+                "activity_mesgs": [
+                    {"timestamp": datetime(2026, 9, 3, 12, 0, tzinfo=timezone.utc)}
+                ]
+            }
+        )
+        value = fit.get_datetime()
+        self.assertEqual(value, datetime(2026, 9, 3, 12, 0))
+        self.assertIsNone(value.tzinfo)
+
+    def test_get_datetime_converts_an_offset_to_utc(self):
+        fit = Fit(
+            {
+                "activity_mesgs": [
+                    {
+                        "timestamp": datetime(
+                            2026, 9, 3, 14, 0, tzinfo=timezone(timedelta(hours=2))
+                        )
+                    }
+                ]
+            }
+        )
+        self.assertEqual(fit.get_datetime(), datetime(2026, 9, 3, 12, 0))
+
+    def test_get_datetime_normalises_an_epoch_timestamp(self):
+        fit = Fit({"activity_mesgs": [{"timestamp": 1788436800.0}]})
+        value = fit.get_datetime()
+        self.assertIsNone(value.tzinfo)
+        self.assertEqual(value, datetime(2026, 9, 3, 12, 0))
 
     def test_get_total_time_from_records(self):
         fit = Fit(

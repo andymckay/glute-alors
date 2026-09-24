@@ -297,11 +297,7 @@ def _sync_planned_status_from_workout(sender, instance, created, **kwargs):
     actual_total = sum(
         (
             actual.total_distance
-            for actual in Workout.objects.filter(
-                workout_date__date=workout_date,
-                workout_type=instance.workout_type,
-                total_distance__isnull=False,
-            )
+            for actual in Workout.objects.filter(workout_date__date=workout_date,workout_type=instance.workout_type,total_distance__isnull=False,)
         ),
         Decimal("0"),
     )

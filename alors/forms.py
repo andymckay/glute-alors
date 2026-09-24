@@ -29,7 +29,7 @@ class CalendarForm(forms.Form):
         date_range = self.cleaned_data.get("r")
         date = date if date else timezone.now().date()
         dates = {
-            "today": timezone.localdate(),
+            "today": timezone.now().date(),
         }
         if date_range == "w":
             start = date - timedelta(days=date.weekday())

@@ -75,7 +75,7 @@ class Command(BaseCommand):
             raise CommandError("--limit must be at least 1.")
         oldest = (
             options["oldest"]
-            or (timezone.localdate() - timedelta(days=365)).isoformat()
+            or (timezone.now().date() - timedelta(days=365)).isoformat()
         )
 
         data_dir = Path(options["data_dir"])

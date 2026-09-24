@@ -2,7 +2,7 @@ import base64
 import json
 import shutil
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -193,6 +193,33 @@ class ImportWorkoutsCommandTests(TestCase):
 
         self.assertEqual(workout.elevation_gain, 50.0)
         self.assertEqual(workout.elevation_loss, 30.0)
+
+    def test_import_fit_file_stores_a_naive_workout_date(self):
+        """The FIT SDK hands back aware timestamps and USE_TZ is False.
+
+        An aware value would be refused by the database backend outright, so the
+        parser has to strip the timezone while keeping the UTC wall clock.
+        """
+        command = ImportWorkoutsCommand()
+        messages = {
+            "session_mesgs": [{"sport": "running"}],
+            "activity_mesgs": [
+                {"timestamp": datetime(2026, 9, 4, 8, 0, tzinfo=timezone.utc)}
+            ],
+            "record_mesgs": [
+                {"timestamp": datetime(2026, 9, 4, 8, 0, tzinfo=timezone.utc)},
+                {"timestamp": datetime(2026, 9, 4, 8, 5, tzinfo=timezone.utc)},
+            ],
+        }
+
+        with mock.patch.object(
+            import_workouts, "Decoder"
+        ) as decoder, mock.patch.object(import_workouts, "Stream"):
+            decoder.return_value.read.return_value = (messages, None)
+            workout = command._import_fit_file(Path("/tmp/does-not-exist.fit"))
+
+        self.assertEqual(workout.workout_date, datetime(2026, 9, 4, 8, 0))
+        self.assertIsNone(workout.workout_date.tzinfo)
 
 
 @override_settings(INTERVALS_TOKEN="test-intervals-token")

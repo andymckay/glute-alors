@@ -21,12 +21,22 @@ SPORT_MAP = {
 
 
 def _to_datetime(value):
-    """Coerce an epoch timestamp (seconds) or a datetime to a datetime."""
+    """Coerce an epoch timestamp (seconds) or a datetime to a naive datetime.
+
+    FIT timestamps are UTC and the project runs with ``USE_TZ = False``, so the
+    timezone is dropped while keeping the UTC wall clock.  That is also what the
+    rows imported before the switch hold, so old and new workouts line up.
+    """
     if isinstance(value, datetime):
-        return value
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, tz=timezone.utc)
-    return None
+        converted = value
+    elif isinstance(value, (int, float)):
+        converted = datetime.fromtimestamp(value, tz=timezone.utc)
+    else:
+        return None
+
+    if converted.tzinfo is not None:
+        converted = converted.astimezone(timezone.utc).replace(tzinfo=None)
+    return converted
 
 
 def _messages_for(messages, *keys):
@@ -200,7 +210,7 @@ class Fit(Parser):
             if timestamp is not None:
                 return timestamp
 
-        return datetime.now(tz=timezone.utc)
+        return datetime.now(timezone.utc).replace(tzinfo=None)
 
     def get_total_time(self):
         """Total time from the first and last record timestamps."""
