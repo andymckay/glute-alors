@@ -8,7 +8,7 @@
     {% endif %}
     <a href="{{ workout.get_absolute_url }}" class="link-underline link-underline-opacity-0 link-card-hack">
         <div class="card-body text-muted">
-            {% if workout.status %}
+            {% if workout.status and workout.workout_type == 'run' %}
             <span class="position-absolute top-0 start-50 translate-middle badge rounded-pill bg-{{ workout.status|status }}">
                 {% if workout.is_actual %}Actual{% else %}Planned{% endif %} | {{ workout.status|capfirst }}
             </span>
@@ -30,7 +30,7 @@
                     <b>{{ workout.total_distance }} km</b>
                 {% endif %}
                 {% if workout.is_actual %}
-                    {% if workout.pace %} at <b>{{ workout.pace|hms }} min/km</b> {% if workout.get_workout_data.negative_split %}<span class="badge text-bg-success">Negative split 👍</span>{% endif %} {% endif %}
+                    {% if workout.pace %} at <b>{{ workout.pace|hms }} min/km</b> {% if workout.workout_type == 'run' and workout.get_workout_data.negative_split %}<span class="badge text-bg-primary">Negative split 👍</span>{% endif %} {% endif %}
                     <br>
                     {% if workout.elevation_gain %}📈 <b>{{ workout.elevation_gain }} m</b>{% endif %}
                     {% if workout.elevation_gain and workout.elevation_loss %} and {% endif %}

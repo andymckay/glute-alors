@@ -202,11 +202,11 @@ def edit_planned(request, pk):
                 f"✏️ Updated {workout.get_workout_type_display().lower()} workout for {workout.workout_date}.",
             )
             return redirect(f"/calendar/?d={workout.workout_date}")
-        summary = _week_summary(workout.workout_date)
+        
     else:
         form = PlannedWorkoutForm(instance=workout)
-        summary = _week_summary(workout.workout_date)
 
+    summary = _week_summary(workout.workout_date)
     return render(
         request,
         "planned.html",
