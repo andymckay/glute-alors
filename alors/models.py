@@ -286,10 +286,12 @@ class Workout(models.Model):
             return None
 
     def status(self):
-        obj = self.get_planned()
-        if not obj:
-            return ""
-        return obj.status
+        if self.workout_type == 'run':
+            obj = self.get_planned()
+            if not obj:
+                return ""
+            return obj.status
+        return ""
 
     def get_effort_as_text(self):
         return {
