@@ -280,18 +280,17 @@ class Workout(models.Model):
         return self.workout_date.strftime("%Y-%m-%d")
 
     def get_planned(self):
-        try:
-            return PlannedWorkout.objects.get(workout_date=self.workout_date)
-        except ObjectDoesNotExist:
-            return None
+        if self.workout_type == 'run':
+            try:
+                return PlannedWorkout.objects.get(workout_date=self.workout_date)
+            except ObjectDoesNotExist:
+                pass
 
     def status(self):
-        if self.workout_type == 'run':
-            obj = self.get_planned()
-            if not obj:
-                return ""
-            return obj.status
-        return ""
+        obj = self.get_planned()
+        if not obj:
+            return ""
+        return obj.status
 
     def get_effort_as_text(self):
         return {
