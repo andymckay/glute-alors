@@ -678,3 +678,12 @@ def email_html(request):
 
 def styles(request):
     return render(request, "styles.html")
+
+@login_required
+def error(request):
+    return 1/0
+
+from django.core.exceptions import PermissionDenied
+@login_required
+def nope(request):
+    raise PermissionDenied

@@ -27,7 +27,7 @@ SECRET_KEY = os.getenv(
     "django-insecure-z#vdq369mheu9lxu%ylfcbfvba!!=5jm@^!uekvjy_yof2n752",
 )
 # Set DJANGO_DEBUG to any string to enable, set to empty to turn off.
-DEBUG = not not os.getenv("DJANGO_DEBUG", True)
+DEBUG = False #not not os.getenv("DJANGO_DEBUG", True)
 
 ALLOWED_HOSTS = [
     "localhost",
@@ -39,7 +39,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://glute1.vps.webdock.cloud",
     "https://glute.clearwind.ca",
 ]
-HOST = "http://localhost:8000"
+HOST = os.getenv("HOST", "http://localhost:8000")
 
 # Application definition
 SECURE_HSTS_SECONDS = 15768000

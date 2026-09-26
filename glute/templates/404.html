@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="container-lg">
+    <h2 class="mb-1">Page not found 🧭</h2>
+    <p class="text-muted mb-4">We could not find that page. It may have been moved, or the link might be wrong.</p>
+    <a class="btn btn-primary" href="{% url 'alors:index' %}">Back to the start</a>
+</div>
+{% endblock %}

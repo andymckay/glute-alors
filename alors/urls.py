@@ -80,4 +80,6 @@ urlpatterns = [
     path("labels/<int:pk>/delete/", views.label_delete, name="label_delete"),
     path("debug/styles", views.styles),
     path("debug/email", views.email_html),
+    path("debug/error", views.error),
+    path("debug/nope", views.nope),
 ]
