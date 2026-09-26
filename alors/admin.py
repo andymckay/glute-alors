@@ -107,10 +107,11 @@ class UserProfileAdmin(admin.ModelAdmin):
         "user",
         "role",
         "timezone",
+        "send_daily_email",
         "created_at",
         "updated_at",
     )
-    list_filter = ("role", "timezone")
+    list_filter = ("role", "timezone", "send_daily_email")
     search_fields = ("user__username", "user__email")
 
 

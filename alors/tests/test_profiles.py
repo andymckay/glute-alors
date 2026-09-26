@@ -40,6 +40,14 @@ class UserProfileModelTests(TestCase):
         profile = UserProfile.objects.create(user=self.user, timezone="Europe/London")
         self.assertEqual(profile.timezone, "Europe/London")
 
+    def test_daily_email_is_off_by_default(self):
+        profile = UserProfile.objects.create(user=self.user)
+        self.assertFalse(profile.send_daily_email)
+
+    def test_can_turn_the_daily_email_on(self):
+        profile = UserProfile.objects.create(user=self.user, send_daily_email=True)
+        self.assertTrue(profile.send_daily_email)
+
 
 class ProfileViewTests(TestCase):
     def setUp(self):
@@ -58,6 +66,23 @@ class ProfileViewTests(TestCase):
         self.assertContains(response, "Role")
         self.assertContains(response, "Timezone")
         self.assertTrue(UserProfile.objects.filter(user=self.user).exists())
+
+    def test_profile_page_shows_the_daily_email_unticked(self):
+        response = self.client.get(reverse("alors:profile"))
+        self.assertContains(response, "Send daily email")
+        self.assertFalse(response.context["form"]["send_daily_email"].value())
+
+    def test_post_can_turn_the_daily_email_on_and_off_again(self):
+        data = {"role": "athlete", "timezone": "UTC", "email": "runner@example.com"}
+
+        self.client.post(reverse("alors:profile"), {**data, "send_daily_email": "on"})
+        self.user.profile.refresh_from_db()
+        self.assertTrue(self.user.profile.send_daily_email)
+
+        # An unticked box is simply absent from the post.
+        self.client.post(reverse("alors:profile"), data)
+        self.user.profile.refresh_from_db()
+        self.assertFalse(self.user.profile.send_daily_email)
 
     def test_post_updates_role_timezone_and_email(self):
         response = self.client.post(

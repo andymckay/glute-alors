@@ -20,7 +20,7 @@
                             {% include "workout_card.html" %}
                         </div>
                     {% empty %}
-                        {% if not entry.past %}<a class="js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add plan</a>{% endif %}
+                        {% if entry.future %}<a class="js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add plan</a>{% endif %}
                     {% endfor %}
                     {% for workout in entry.actual %}
                         {% include "workout_card.html" %}

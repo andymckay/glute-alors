@@ -268,7 +268,10 @@ class CommentForm(forms.ModelForm):
 
 
 class ProfileForm(forms.ModelForm):
-    """Edit a user's role, timezone and email address (email lives on the user)."""
+    """Edit a user's role, timezone, daily email and email address.
+
+    The email address itself lives on the user, not the profile.
+    """
 
     email = forms.EmailField(
         label="Email address",
@@ -284,9 +287,12 @@ class ProfileForm(forms.ModelForm):
 
     class Meta:
         model = UserProfile
-        fields = ["role", "timezone", "avatar"]
+        fields = ["role", "timezone", "send_daily_email", "avatar"]
         widgets = {
             "role": forms.Select(attrs={"class": "form-select"}),
+            "send_daily_email": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
             "avatar": forms.ClearableFileInput(attrs={"class": "form-control"}),
         }
 

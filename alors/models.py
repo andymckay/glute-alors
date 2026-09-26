@@ -649,6 +649,11 @@ class UserProfile(models.Model):
         null=True,
         help_text="An image shown next to your name.",
     )
+    send_daily_email = models.BooleanField(
+        "send daily email",
+        default=False,
+        help_text="Receive a daily email about your training.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
