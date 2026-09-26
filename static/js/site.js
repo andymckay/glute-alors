@@ -333,7 +333,134 @@ function initCalendarDragAndDrop() {
     });
 }
 
+function initPullToRefresh() {
+    // A touch gesture: at the very top of a page, drag down to reload it. This
+    // is an enhancement only - reloading the page the usual way still works.
+    const DRAG_START = 6; // ignore jitter until the finger has really moved
+    const THRESHOLD = 70; // pull this far and releasing reloads
+    const DAMPING = 0.5; // the content follows the finger at half speed
+    const MAX_PULL = 120; // the furthest the content can be dragged
+    const TARGET_CLASS = "pull-to-refresh-target";
+    // Things that pan on touch themselves, where a downward drag means
+    // something else entirely.
+    const IGNORES_PULL = ".leaflet-container";
+
+    const indicator = document.createElement("div");
+    indicator.className = "pull-to-refresh";
+    indicator.setAttribute("aria-hidden", "true");
+    document.body.appendChild(indicator);
+
+    let startX = 0;
+    let startY = 0;
+    let distance = 0;
+    let active = false;
+    let reloading = false;
+
+    function content() {
+        // Everything the page is made of, minus the indicator. Read fresh each
+        // time so anything added to the page since is included.
+        return [...document.body.children].filter((el) => el !== indicator);
+    }
+
+    function dragged() {
+        return document.querySelectorAll(`.${TARGET_CLASS}`);
+    }
+
+    function paint() {
+        dragged().forEach((el) => {
+            el.style.transform = `translateY(${distance}px)`;
+        });
+        // Half the pull, so the indicator sits in the gap the content leaves.
+        indicator.style.opacity = String(Math.min(1, distance / THRESHOLD));
+        indicator.style.transform = `translate(-50%, ${distance / 2}px)`;
+        indicator.classList.toggle("armed", distance >= THRESHOLD);
+    }
+
+    function reset() {
+        active = false;
+        distance = 0;
+        dragged().forEach((el) => {
+            // Dropping the inline transition restores the one on the class, so
+            // the content eases back instead of snapping.
+            el.style.transition = "";
+            el.style.transform = "";
+        });
+        indicator.style.opacity = "";
+        indicator.style.transform = "";
+        indicator.classList.remove("armed", "loading");
+    }
+
+    function onTouchStart(event) {
+        if (reloading || window.scrollY > 0 || event.touches.length !== 1) {
+            return;
+        }
+        const target = event.target;
+        if (target instanceof Element && target.closest(IGNORES_PULL)) {
+            return;
+        }
+        content().forEach((el) => {
+            el.classList.add(TARGET_CLASS);
+            // Follow the finger exactly; the class only transitions the release.
+            el.style.transition = "none";
+        });
+        startX = event.touches[0].clientX;
+        startY = event.touches[0].clientY;
+        active = true;
+    }
+
+    function onTouchMove(event) {
+        if (!active) {
+            return;
+        }
+        if (event.touches.length !== 1) {
+            reset();
+            return;
+        }
+        const delta = event.touches[0].clientY - startY;
+        const sideways = Math.abs(event.touches[0].clientX - startX);
+        // A sideways gesture, or one that started after scrolling, belongs to
+        // the browser.
+        if (delta < DRAG_START || sideways > delta || window.scrollY > 0) {
+            if (distance > 0) {
+                reset();
+            }
+            return;
+        }
+        // Ours now: stop the browser's own overscroll fighting the drag.
+        event.preventDefault();
+        distance = Math.min(MAX_PULL, delta * DAMPING);
+        paint();
+    }
+
+    function onTouchEnd() {
+        if (!active) {
+            return;
+        }
+        if (distance >= THRESHOLD) {
+            reloading = true;
+            active = false;
+            indicator.classList.remove("armed");
+            indicator.classList.add("loading");
+            indicator.style.opacity = "1";
+            // Leave the page pulled down; it is about to be replaced. The
+            // delay lets the spinner paint first.
+            window.setTimeout(() => window.location.reload(), 80);
+            return;
+        }
+        reset();
+    }
+
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    // Not passive: the whole point is to cancel the browser's own overscroll.
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    document.addEventListener("touchend", onTouchEnd);
+    document.addEventListener("touchcancel", reset);
+    // A back/forward restore can bring the page back mid-pull.
+    window.addEventListener("pageshow", reset);
+}
+
 window.addEventListener("DOMContentLoaded", initTheme);
 window.addEventListener("DOMContentLoaded", initCalendarDragAndDrop);
+window.addEventListener("DOMContentLoaded", initPullToRefresh);
 window.addEventListener("load", initHeartRateCharts);
 window.addEventListener("load", initSite);

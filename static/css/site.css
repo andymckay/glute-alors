@@ -212,3 +212,55 @@ dt {
 .link-card-hack {
   color: var(--bs-secondary-color) !important;
 }
+
+/* Pull down to reload: the content follows the finger and an indicator appears
+   in the gap it leaves above (see initPullToRefresh in site.js). */
+body {
+  /* Hand the platform's own pull-to-refresh over to the one above, so Chrome
+     and Safari do not show theirs as well. Remove this to opt back out. */
+  overscroll-behavior-y: contain;
+}
+
+.pull-to-refresh-target {
+  transition: transform 0.25s ease-out;
+}
+
+.pull-to-refresh {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  z-index: 1080;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  /* Centred on the top edge, so half the pull parks it in the gap. */
+  margin-top: -1rem;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pull-to-refresh::before {
+  content: "";
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid var(--bs-secondary-color);
+  border-top-color: transparent;
+  border-radius: 50%;
+}
+
+.pull-to-refresh.armed::before,
+.pull-to-refresh.loading::before {
+  border-color: var(--bs-primary);
+  border-top-color: transparent;
+}
+
+.pull-to-refresh.loading::before {
+  animation: pull-to-refresh-spin 0.7s linear infinite;
+}
+
+@keyframes pull-to-refresh-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
