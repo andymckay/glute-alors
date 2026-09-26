@@ -33,6 +33,7 @@ from .validators import validate_date
 from .ical import render_calendar
 from itertools import chain
 from .utils import dateList, combineDateLists
+from .emails import email_as_text
 import json
 
 
@@ -663,7 +664,17 @@ def mark_all_notifications_read(request):
             + " as read.",
         )
     return redirect("alors:notifications")
+ 
 
+@login_required
+def email_html(request):
+    text = email_as_text(request.user) or ""
+    lines = []
+    for line in text.split("\n"):
+        line = line.rstrip()
+        lines.append(line)
+    
+    return render(request, "email.html", {"text": "\n".join(lines)})
 
 def styles(request):
     return render(request, "styles.html")

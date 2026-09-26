@@ -79,4 +79,5 @@ urlpatterns = [
     path("labels/<int:pk>/edit/", views.label_edit, name="label_edit"),
     path("labels/<int:pk>/delete/", views.label_delete, name="label_delete"),
     path("debug/styles", views.styles),
+    path("debug/email", views.email_html),
 ]

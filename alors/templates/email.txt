@@ -1,0 +1,16 @@
+{% load markdown_extras %}
+Hi {{ user }} 👋
+
+Here's what has happened Glute Alors that you haven't already seen:
+
+{% for notification in notifications %}{% with summary=notification.summary object=notification.content_object %}{{ summary.actor }} {{ summary.verb }} a {{ summary.object_name }}:
+
+    {% if summary.is_planned %}{{ object.workout_date }}{% else %}{{ notification.created_at }}{% endif %}
+    {% if summary.is_comment %}{{ object.text }}{% endif %}{% if summary.is_actual %}{{ object.total_distance }} km in {{ object.moving_time }}{% endif %}{% if summary.is_planned %}{{ object.title }}: {{ object.total_distance }}km{% endif %}{% endwith %}
+
+    See more: {{ host }}{{ notification.get_absolute_url }}
+
+{% endfor %}--
+
+Get a full list of notification here: https://glute.clearwind.ca/notifications/
+Turn off email here: https://glute.clearwind.ca/profile/

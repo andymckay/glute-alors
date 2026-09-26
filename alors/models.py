@@ -608,11 +608,17 @@ class Notification(models.Model):
             iscomment = True
         else:
             object_name = self.content_object.get_workout_type_display()
+
+        for attribute in ["is_actual", "is_planned"]:
+            setattr(self, attribute, getattr(self.content_object, attribute, False))
+
         return {
             "actor": actor,
             "verb": verb,
             "object_name": object_name,
             "is_comment": iscomment,
+            "is_actual": self.is_actual,
+            "is_planned": self.is_planned
         }
 
 
