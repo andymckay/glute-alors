@@ -12,6 +12,7 @@ from .models import (
 from datetime import timedelta
 from django.utils import timezone
 import pytz
+from .utils import today
 
 import calendar
 
@@ -23,13 +24,17 @@ class CalendarForm(forms.Form):
     )
     r = forms.CharField(required=False, empty_value="w")
 
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
+        super(CalendarForm, self).__init__(*args, **kwargs)
+
     def is_valid(self):
         valid = super().is_valid()
         date = self.cleaned_data.get("d")
         date_range = self.cleaned_data.get("r")
-        date = date if date else timezone.now().date()
+        date = date if date else today(self.user)
         dates = {
-            "today": timezone.now().date(),
+            "today": today(self.user),
         }
         if date_range == "w":
             start = date - timedelta(days=date.weekday())

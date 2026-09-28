@@ -74,7 +74,7 @@ def logout(request):
 
 @login_required
 def calendar(request):
-    form = CalendarForm(request.GET)
+    form = CalendarForm(request.GET, user=request.user)
     form.is_valid()
     date = form.cleaned_data["d"]
     dates = form.cleaned_data["start_end_dates"]

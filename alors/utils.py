@@ -1,8 +1,19 @@
-from django.utils import timezone
 import calendar
 import datetime
 from collections import defaultdict
+import pytz
+from alors.models import UserProfile
 
+def today(user):
+    """
+    Today for the user given their timezone
+    """
+    profile = UserProfile.objects.get(user=user)
+    if not profile:
+        timezone = 'UTC'
+    else:
+        timezone = pytz.timezone(profile.timezone)
+    return datetime.datetime.utcnow().replace(tzinfo=timezone).date()
 
 def dateList(queryset):
     dates = defaultdict(list)
