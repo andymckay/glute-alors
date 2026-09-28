@@ -32,13 +32,17 @@ DEBUG = False #not not os.getenv("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    "glute1.vps.webdock.cloud",
     "glute.clearwind.ca",
 ]
-CSRF_TRUSTED_ORIGINS = [
-    "https://glute1.vps.webdock.cloud",
-    "https://glute.clearwind.ca",
-]
+allowed_env = os.getenv("ALLOWED_HOSTS", None)
+if allowed_env:
+    ALLOWED_HOSTS.append(allowed_env)
+
+CSRF_TRUSTED_ORIGINS = []
+trusted_env = os.getenv("CSRF_TRUSTED_ORIGINS", None)
+if trusted_env:
+    CSRF_TRUSTED_ORIGINS.append(trusted_env)
+
 HOST = os.getenv("HOST", "http://localhost:8000")
 
 # Application definition
@@ -136,7 +140,7 @@ STATIC_ROOT = BASE_DIR / "static/"
 
 # User-uploaded media (profile avatars, etc.)
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = os.getenv("MEDIA_ROOT", BASE_DIR) / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
