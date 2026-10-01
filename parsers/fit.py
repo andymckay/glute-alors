@@ -17,6 +17,7 @@ SPORT_MAP = {
     "cycling": "run",
     "racing": "run",
     "training": "strength",
+    "swimming": "swim",
 }
 
 

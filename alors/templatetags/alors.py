@@ -10,6 +10,7 @@ emojis = {
     "strength": "🏋",
     "recovery": "❤️",
     "other": "🌸",
+    "swim": "🏊",
 }
 register = template.Library()
 
