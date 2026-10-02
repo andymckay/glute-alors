@@ -77,6 +77,7 @@ def calendar(request):
     form = CalendarForm(request.GET, user=request.user)
     form.is_valid()
     date = form.cleaned_data["d"]
+    template = "weekly.html" if form.cleaned_data["r"] == "w" else "monthly.html"
     dates = form.cleaned_data["start_end_dates"]
     list_dates = form.cleaned_data["list_dates"]
 
@@ -114,9 +115,14 @@ def calendar(request):
         summaries=summaries,
         labels=labels,
     )
+
+    # If the monthly, split the data into weeks to make the template easier.
+    if form.cleaned_data["r"] == "m":
+        results = [results[i:i + 7] for i in range(0, len(results), 7)]
+
     return render(
         request,
-        "calendar.html",
+        template,
         {
             "today": dates["today"],
             "date": date,
@@ -241,23 +247,13 @@ def delete_planned(request, pk):
 def move_planned_workout(request, pk):
     """Move a planned workout to another date (calendar drag and drop).
 
-    Only one planned workout is allowed per day, and saving refreshes the
-    weekly summary of both the old and the new week.
+    A day can hold several planned workouts, and saving refreshes the weekly
+    summary of both the old and the new week.
     """
     workout = get_object_or_404(PlannedWorkout, pk=pk)
     new_date = parse_date(request.POST.get("date", ""))
     if new_date is None:
         return JsonResponse({"error": "A valid date is required."}, status=400)
-    taken = (
-        PlannedWorkout.objects.filter(workout_date=new_date)
-        .exclude(pk=workout.pk)
-        .exists()
-    )
-    if taken:
-        return JsonResponse(
-            {"error": "There is already a planned workout on that day."},
-            status=409,
-        )
     workout.workout_date = new_date
     workout.save()
     return JsonResponse({"id": workout.pk, "date": new_date.isoformat()})

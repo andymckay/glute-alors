@@ -11,7 +11,6 @@ from datetime import timedelta
 from bisect import bisect_left, bisect_right
 from dateutil.parser import isoparse
 from parsers.fit import Fit, NullParser
-from django.core.exceptions import ObjectDoesNotExist
 
 
 class WorkoutType(models.TextChoices):
@@ -105,15 +104,6 @@ class PlannedWorkout(models.Model):
         ordering = ["workout_date", "-created_at"]
         verbose_name = "planned workout"
         verbose_name_plural = "planned workouts"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["workout_date"],
-                name="unique_planned_workout_per_day",
-                violation_error_message=(
-                    "There is already a planned workout on that day."
-                ),
-            )
-        ]
 
     def __str__(self):
         return f"{self.get_workout_type_display()} on {self.workout_date}"
@@ -281,10 +271,10 @@ class Workout(models.Model):
 
     def get_planned(self):
         if self.workout_type == 'run':
-            try:
-                return PlannedWorkout.objects.get(workout_date=self.workout_date)
-            except ObjectDoesNotExist:
-                pass
+            # A day can hold several planned workouts; show the earliest one.
+            return PlannedWorkout.objects.filter(
+                workout_date=self.workout_date
+            ).first()
 
     def status(self):
         obj = self.get_planned()

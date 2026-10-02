@@ -47,14 +47,17 @@ class CalendarForm(forms.Form):
                 }
             )
         if date_range == "m":
-            start = date - timedelta(days=date.day - 1)
+            start_of_month = date - timedelta(days=date.day - 1)
+            start = start_of_month - timedelta(days=start_of_month.weekday())  # Start on a Monday
             days_in_month = calendar.monthrange(date.year, date.month)[1]
+            end_of_month = start_of_month + timedelta(days=days_in_month - 1)
+            end = end_of_month + timedelta(days=(6 - end_of_month.weekday()))  # End on a Sunday
             dates.update(
                 {
                     "start": start,
-                    "end": start + timedelta(days=days_in_month - 1),
-                    "previous": start - timedelta(days=days_in_month - 1),
-                    "next": start + timedelta(days=days_in_month + 1),
+                    "end": end,
+                    "previous": start_of_month - timedelta(days=days_in_month - 1),
+                    "next": start_of_month + timedelta(days=days_in_month + 1),
                 }
             )
 
@@ -65,6 +68,7 @@ class CalendarForm(forms.Form):
             (dates["start"] + timezone.timedelta(days=i))
             for i in range((dates["end"] - dates["start"]).days + 1)
         ]
+
         return valid
 
 

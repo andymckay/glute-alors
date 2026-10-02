@@ -36,6 +36,7 @@ def combineDateLists(dates, **kwargs):
             "future": date > today,
             "past": date < today,
             "today": date == today,
+            "weekday": date.weekday()
         }
         result.append(res)
         for name, queryset in kwargs.items():

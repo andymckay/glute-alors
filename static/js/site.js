@@ -28,6 +28,9 @@ function initSite() {
         el.addEventListener("click", switchTheme);
     }
 
+    const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]')
+    const popoverList = [...popoverTriggerList].map(popoverTriggerEl => new bootstrap.Popover(popoverTriggerEl))
+    console.log("initSite: popovers", popoverList.length);
 };
 
 function initHeartRateCharts() {
@@ -233,32 +236,10 @@ function sundayKey(value) {
     return `${date.getFullYear()}-${month}-${day}`;
 }
 
-function syncAddBadge(cell) {
-    // A day shows an "Add" badge exactly when it has no planned workout card.
-    const badge = cell.querySelector(".js-add-badge");
-    const hasCards = cell.querySelector(".js-planned-card");
-    if (hasCards && badge) {
-        badge.remove();
-    } else if (!hasCards && !badge) {
-        const link = document.createElement("a");
-        link.href = cell.dataset.addUrl;
-        link.className =
-            "js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0";
-        link.textContent = "Add";
-        cell.appendChild(link);
-    }
-}
-
 function movePlannedWorkout(card, cell) {
     const from = card.closest(".js-planned-drop");
     const token = document.querySelector("[name=csrfmiddlewaretoken]");
     if (!from || from === cell || !token) {
-        return;
-    }
-    // Only one planned workout per day, so the target day has to be free.
-    const occupant = cell.querySelector(".js-planned-card");
-    if (occupant && occupant !== card) {
-        window.alert("There is already a planned workout on that day.");
         return;
     }
 
@@ -277,8 +258,6 @@ function movePlannedWorkout(card, cell) {
             if (sundayKey(from.dataset.date) === sundayKey(cell.dataset.date)) {
                 // Same week: move the card, the weekly summary is unchanged.
                 cell.appendChild(card);
-                syncAddBadge(from);
-                syncAddBadge(cell);
             } else {
                 // A move between weeks changes the weekly summaries, so re-render.
                 window.location.reload();

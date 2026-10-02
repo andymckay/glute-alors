@@ -10,6 +10,9 @@
             <p>
                 {% include "workout_card.html" %}
             </p>
+            <p>
+                {{ workout.notes|markdown }}
+            </p>
 
             <div class="d-flex gap-2">
                 <a href="{% url 'alors:edit_planned' workout.pk %}" class="btn btn-primary">Edit workout</a>

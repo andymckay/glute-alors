@@ -1,95 +1,30 @@
-{% extends "base.html" %}
-{% block main %}
-<div class="container-lg">
-    <div class="row">
-        <div class="col-lg-6">
-            <h2 class="mb-1">{{ page_title|default:"Plan a workout" }}</h2>
-            <p class="text-muted mb-4">{{ page_intro|default:"Add a planned workout to your calendar." }}</p>
-
-            <form method="post" novalidate>
-                {% csrf_token %}
-                {% for error in form.non_field_errors %}
-                    <div class="alert alert-danger">{{ error }}</div>
-                {% endfor %}
-                {% for field in form %}
-                    <div class="mb-3">
-                        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
-                        {{ field }}
-                        {% if field.help_text %}
-                            <div class="form-text">{{ field.help_text }}</div>
-                        {% endif %}
-                        {% for error in field.errors %}
-                            <div class="invalid-feedback d-block">{{ error }}</div>
-                        {% endfor %}
-                    </div>
-                {% endfor %}
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Save workout</button>
-                    <a href="/" class="btn btn-outline-secondary">Cancel</a>
+{% load alors %}
+{% load markdown_extras %}
+<div class="card card-event border-{{ workout.status|status }}" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="{{ workout.notes|markdown|safe }}" data-bs-allowList="p, b, i, u, a, br, span, div, ul, ol, li" data-bs-html="true">
+    {% if workout.is_race %}
+        <div class="card-header bg-warning">
+            <b>🏆 Race</b>
+        </div>
+    {% endif %}
+    <a href="{{ workout.get_absolute_url }}" class="link-underline link-underline-opacity-0 link-card-hack">
+        <div class="card-body text-muted">
+            <span class="position-absolute top-0 start-50 translate-middle badge rounded-pill bg-{{ workout.status|status }}">
+                {{ workout.status|capfirst }}
+            </span>
+            <div class="mb-2">
+                <span class="text-muted">{{ workout.workout_type|emoji }} {{ workout.title|capfirst }} 
+                </span><br>
+                {% if workout.total_distance %}
+                    <b>{{ workout.total_distance }} km</b>
+                {% endif %}
+            </div>
+            {% if workout.comment_count %}
+                <div>
+                    {% if workout.comment_count %}
+                        <div class="badge bg-primary">{{ workout.comment_count }} comment{{ workout.comment_count|pluralize }}</div>
+                    {% endif %}
                 </div>
-            </form>
-
-            {% if workout %}
-                <hr class="my-4">
-                <form method="post" action="{% url 'alors:delete_planned' workout.pk %}"
-                      onsubmit="return confirm('Are you sure you want to delete this planned workout?');">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-danger">Delete workout</button>
-                </form>
             {% endif %}
         </div>
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header"><b>Last</b> week summary</div>
-                <div class="card-body">
-                    <div>
-                        {% with summary=last_week_summary %}
-                            {% with planned=True %}
-                                <p>Planned so far:</p>
-                                {% include "summary_card.html" %}
-                            {% endwith %}
-                            {% with planned=False %}
-                                <p>Actual so far:</p>
-                                {% include "summary_card.html" %}
-                            {% endwith %}
-                        {% endwith %}
-                    </div>
-                </div>
-            </div>
-            <div class="card mt-4">
-                <div class="card-header"><b>This</b> week summary</div>
-                <div class="card-body">
-                    <div>
-                        {% with summary=this_week_summary %}
-                            {% with planned=True %}
-                                <p>Planned so far:</p>
-                                {% include "summary_card.html" %}
-                            {% endwith %}
-                            {% with planned=False %}
-                                <p>Actual so far:</p>
-                                {% include "summary_card.html" %}
-                            {% endwith %}
-                        {% endwith %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    </a>
 </div>
-<script>
-    (function () {
-        const picker = document.getElementById("id_saved_workout");
-        const notes = document.getElementById("id_notes");
-        if (!picker || !notes) {
-            return;
-        }
-        picker.addEventListener("change", () => {
-            const option = picker.selectedOptions[0];
-            const text = option ? option.dataset.text : "";
-            if (text) {
-                notes.value = text;
-            }
-        });
-    })();
-</script>
-{% endblock %}

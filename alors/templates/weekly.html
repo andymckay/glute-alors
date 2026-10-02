@@ -3,7 +3,7 @@
 {% block main %}
 <div class="container-lg">
     <div class="d-none">{% csrf_token %}</div>
-    {% include "calendar_nav.html" %}
+    {% include "calendar_nav.html" %}Weekly
     {% for entry in dates_and_objects %}
         <div class="row border-start border-end border-top {% if not entry.summaries %}border-bottom{% endif %}">
             <div class="col-3 p-2">
@@ -19,9 +19,8 @@
                         <div class="js-planned-card" draggable="true" data-planned-id="{{ workout.pk }}" data-move-url="{% url 'alors:move_planned_workout' workout.pk %}">
                             {% include "workout_card.html" %}
                         </div>
-                    {% empty %}
-                        {% if entry.date|date:"Y-m-d" > today %}<a class="js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add plan</a>{% endif %}
                     {% endfor %}
+                    {% if entry.date|date:"Y-m-d" > today %}<a class="js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add plan</a>{% endif %}
                     {% for workout in entry.actual %}
                         {% include "workout_card.html" %}
                         {% if entry.actual|length > 1 and not forloop.last %}<div class="mb-2"></div>{% endif %}
