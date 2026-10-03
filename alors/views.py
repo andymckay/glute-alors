@@ -74,7 +74,11 @@ def logout(request):
 
 @login_required
 def calendar(request):
-    form = CalendarForm(request.GET, user=request.user)
+    query = {
+        "d": request.GET.get("d", request.COOKIES.get("d", "")),
+        "r": request.GET.get("r", request.COOKIES.get("r", "")),
+    }
+    form = CalendarForm(query, request=request)
     form.is_valid()
     date = form.cleaned_data["d"]
     template = "weekly.html" if form.cleaned_data["r"] == "w" else "monthly.html"
@@ -120,7 +124,7 @@ def calendar(request):
     if form.cleaned_data["r"] == "m":
         results = [results[i:i + 7] for i in range(0, len(results), 7)]
 
-    return render(
+    response = render(
         request,
         template,
         {
@@ -131,7 +135,13 @@ def calendar(request):
             "dates_and_objects": results,
         },
     )
-
+    for cookie in ["d", "r"]:
+        value = form.cleaned_data.get(cookie, "")
+        if value:
+            response.set_cookie(cookie, value)
+        else:
+            response.delete_cookie(cookie)
+    return response
 
 def _week_summary(date_value):
     """Return the stored WeeklySummary for the week containing ``date_value``."""
@@ -144,6 +154,7 @@ def _week_summary(date_value):
 
 @login_required
 def add_planned(request):
+    import pdb; pdb.set_trace()  # --- IGNORE ---
     date = (
         request.GET.get("date")
         if request.method == "GET"
@@ -173,7 +184,7 @@ def add_planned(request):
 
     return render(
         request,
-        "planned.html",
+        "planned_add.html",
         {
             "form": form,
             "this_week_summary": this_week_summary,

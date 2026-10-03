@@ -41,6 +41,9 @@ def hms(data):
 
 @register.filter
 def status(value):
+    if not value:
+        return ""
+        
     return {
         "missed": "danger",
         "under": "warning",

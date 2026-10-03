@@ -7,6 +7,12 @@ wheels/
 
 # Virtual environments
 .venv
+.env
 
 # Mac
 .DS_Store
+
+# Other
+.intervals
+db.sqlite3
+media

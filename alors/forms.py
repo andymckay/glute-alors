@@ -15,17 +15,19 @@ import pytz
 from .utils import today
 
 import calendar
-
+from django.http import QueryDict
+from urllib.parse import urlencode
 
 class CalendarForm(forms.Form):
     d = forms.DateField(
         widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
         required=False,
     )
-    r = forms.CharField(required=False, empty_value="w")
+    r = forms.CharField(required=False, empty_value="m")
 
     def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop("user")
+        self.request = kwargs.pop("request", None)
+        self.user = self.request.user if self.request else None
         super(CalendarForm, self).__init__(*args, **kwargs)
 
     def is_valid(self):
@@ -47,6 +49,8 @@ class CalendarForm(forms.Form):
                 }
             )
         if date_range == "m":
+            # In calendar view we go from Monday to Sunday, ensuring we show all
+            # the days of the month. So might be longer than a month.
             start_of_month = date - timedelta(days=date.day - 1)
             start = start_of_month - timedelta(days=start_of_month.weekday())  # Start on a Monday
             days_in_month = calendar.monthrange(date.year, date.month)[1]

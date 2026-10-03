@@ -30,7 +30,6 @@ function initSite() {
 
     const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]')
     const popoverList = [...popoverTriggerList].map(popoverTriggerEl => new bootstrap.Popover(popoverTriggerEl))
-    console.log("initSite: popovers", popoverList.length);
 };
 
 function initHeartRateCharts() {

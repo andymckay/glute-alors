@@ -1,6 +1,6 @@
 {% load alors %}
 {% load markdown_extras %}
-<div class="card card-event border-{{ workout.status|status }}" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="{{ workout.notes|markdown|safe }}" data-bs-allowList="p, b, i, u, a, br, span, div, ul, ol, li" data-bs-html="true">
+<div class="card card-event {% if workout.status|status %}border-{{ workout.status|status }}{% endif %}" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="{{ workout.notes|markdown|safe }}" data-bs-allowList="p, b, i, u, a, br, span, div, ul, ol, li" data-bs-html="true">
     {% if workout.is_race %}
         <div class="card-header bg-warning">
             <b>🏆 Race</b>
