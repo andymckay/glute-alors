@@ -11,10 +11,10 @@
                     <a class="nav-link" href="?d={{ previous }}&r={{ request.GET.r }}">Previous</a>
                 </li>
                 <li class="nav-item">
-                    {% if request.GET.r == 'm' %}
-                        <a class="nav-link" href="?r=w">Week</a>
+                    {% if template == 'monthly' %}
+                        <a class="nav-link" href="?r=w">Switch to weekly</a>
                     {% else %}
-                        <a class="nav-link" href="?r=m">Month</a>
+                        <a class="nav-link" href="?r=m">Switch to monthly</a>
                     {% endif %}
                 </li>
             </ul>

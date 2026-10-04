@@ -124,8 +124,8 @@ class AddPlannedWorkoutTests(TestCase):
         self.assertEqual(response.status_code, 200)
         # "<b>Last</b> week summary" / "<b>This</b> week summary" cards.
         self.assertContains(response, "week summary")
-        self.assertContains(response, "workout for")
-        self.assertContains(response, "21.1 km")
+        self.assertContains(response, "Planned so far:")
+        self.assertContains(response, "21.1")
 
     def test_add_page_shows_placeholder_when_week_has_no_summary(self):
         response = self.client.get(reverse("alors:add_planned"), {"date": "2026-09-05"})
@@ -145,8 +145,8 @@ class AddPlannedWorkoutTests(TestCase):
             reverse("alors:planned_weekly_summary"), {"date": "2026-09-05"}
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "workout for")
-        self.assertContains(response, "21.1 km")
+        self.assertContains(response, "Run")
+        self.assertContains(response, "21.1")
 
     def test_weekly_summary_snippet_returns_placeholder_without_data(self):
         response = self.client.get(

@@ -87,7 +87,7 @@ class WorkoutDetailViewTests(TestCase):
             "Run",
             "Sept. 5, 2026",
             "1:02:03",
-            "10.50 km",
+            "10.50",
             "58:00",
             "Hard",
             "Good",

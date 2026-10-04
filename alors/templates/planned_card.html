@@ -1,6 +1,14 @@
 {% load alors %}
 {% load markdown_extras %}
-<div class="card card-event {% if workout.status|status %}border-{{ workout.status|status }}{% endif %}" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="{{ workout.notes|markdown|safe }}" data-bs-allowList="p, b, i, u, a, br, span, div, ul, ol, li" data-bs-html="true">
+<div class="card card-event {% if not expand %}card-compact{% endif %} {% if workout.status|status %}border-{{ workout.status|status }}{% endif %}" 
+            {% if not expand %}
+            data-bs-toggle="popover" 
+            data-bs-trigger="hover"
+            data-bs-title="{{ workout.title|default:workout.get_workout_type_display }}"
+            data-bs-content="{{ workout.card_summary|markdown|force_escape }}"
+            data-bs-sanitize="false" 
+            data-bs-html="true"
+            {% endif %}>
     {% if workout.is_race %}
         <div class="card-header bg-warning">
             <b>🏆 Race</b>
@@ -8,7 +16,8 @@
     {% endif %}
     <a href="{{ workout.get_absolute_url }}" class="link-underline link-underline-opacity-0 link-card-hack">
         <div class="card-body text-muted">
-            <span class="position-absolute top-0 start-50 translate-middle badge rounded-pill bg-{{ workout.status|status }}">
+            <span class="position-absolute top-0 start-50 
+                         translate-middle badge rounded-pill bg-{{ workout.status|status }}">
                 {{ workout.status|capfirst }}
             </span>
             <div class="mb-2">
@@ -18,7 +27,12 @@
                     <b>{{ workout.total_distance }} km</b>
                 {% endif %}
             </div>
-            {% if workout.comment_count %}
+            {% if expand and workout.notes %}
+                <div class="mt-2">
+                    {{ workout.notes|markdown }}
+                </div>
+            {% endif %}
+            {% if workout.comment_count and not expand%}
                 <div>
                     {% if workout.comment_count %}
                         <div class="badge bg-primary">{{ workout.comment_count }} comment{{ workout.comment_count|pluralize }}</div>

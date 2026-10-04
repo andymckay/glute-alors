@@ -11,7 +11,10 @@ function initSite() {
     const userTimezone = document.getElementById("timezone");
     if (userTimezone) {
         if (userTimezone.innerText !== Intl.DateTimeFormat().resolvedOptions().timeZone) {
-            document.getElementById("timezone-alert").classList.remove("d-none");
+            const timezoneElement = document.getElementById("timezone-alert");
+            if (timezoneElement) {
+                timezoneElement.classList.remove("d-none");
+            }
         }
     }
 

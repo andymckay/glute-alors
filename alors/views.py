@@ -133,6 +133,7 @@ def calendar(request):
             "next": dates["next"],
             "previous": dates["previous"],
             "dates_and_objects": results,
+            "template": "monthly" if form.cleaned_data["r"] == "m" else "weekly",
         },
     )
     for cookie in ["d", "r"]:
@@ -154,7 +155,6 @@ def _week_summary(date_value):
 
 @login_required
 def add_planned(request):
-    import pdb; pdb.set_trace()  # --- IGNORE ---
     date = (
         request.GET.get("date")
         if request.method == "GET"
@@ -227,7 +227,7 @@ def edit_planned(request, pk):
     summary = _week_summary(workout.workout_date)
     return render(
         request,
-        "planned.html",
+        "planned_add.html",
         {
             "form": form,
             "workout": workout,

@@ -1,6 +1,14 @@
 {% load alors %}
 {% load markdown_extras %}
-<div class="card card-event border-{{ workout.status|status }}">
+<div class="card card-event {% if not expand %}card-compact{% endif %} border-{{ workout.status|status }}"
+            {% if not expand and workout.get_planned %}
+            data-bs-toggle="popover" 
+            data-bs-trigger="hover" 
+            data-bs-title="{{ workout.title|default:workout.get_workout_type_display }}"
+            data-bs-content="{{ workout.get_planned.card_summary|markdown|force_escape }}" 
+            data-bs-sanitize="false"
+            data-bs-html="true"
+            {% endif %}>
     <a href="{{ workout.get_absolute_url }}" class="link-underline link-underline-opacity-0 link-card-hack">
         <div class="card-body text-muted">
             {% if workout.status and workout.workout_type == 'run' %}
@@ -11,22 +19,21 @@
             <div class="mb-2">
                 {{ workout.workout_type|emoji }}
                 <span class="text-muted">{{ workout.workout_type|capfirst }} 
-                    {% if workout.title %}&bull; {{ workout.title }}{% endif %}
+                    {% if workout.title %}&bull; {{ workout.title }}{% endif %}<br>
+                    {% if workout.total_distance %}
+                        <b>{{ workout.total_distance }}</b> km<br>
+                    {% endif %}
                     {% if workout.moving_time %}
                         {% if workout.workout_type == "run" %}
-                            <b>{{ workout.moving_time|hms }}</b> moving &bull; <b>{{ workout.total_time|hms }} </b>total
-                        {% else %}
-                            <b>{{ workout.total_time }}</b>
+                            {% if expand %}Moving time{% endif %}: <b>{{ workout.moving_time|hms }}</b> min<br>
+                            {% if expand %}Elapsed time: <b>{{ workout.total_time|hms }}</b> min<br>{% endif %}
                         {% endif %}
                     {% endif %}
                 </span>
-                {% if workout.total_distance %}
-                    <b>{{ workout.total_distance }} km</b>
-                {% endif %}
-                {% if workout.pace %} at <b>{{ workout.pace|hms }} min/km</b> {% if workout.workout_type == 'run' and workout.get_workout_data.negative_split %}<span class="badge text-bg-primary">Negative split 👍</span>{% endif %} {% endif %}
-                {% if workout.elevation_gain %}📈 <b>{{ workout.elevation_gain }} m</b>{% endif %}
-                {% if workout.elevation_gain and workout.elevation_loss %} and {% endif %}
-                {% if workout.elevation_gain %}📉 <b>{{ workout.elevation_loss }} m</b>{% endif %}
+
+                {% if workout.pace %}<b>{{ workout.pace|hms }}</b> min/km{% endif %}<br>
+                {% if workout.elevation_gain %}📈 <b>{{ workout.elevation_gain }}</b> m<br>{% endif %}
+                {% if workout.elevation_gain %}📉 <b>{{ workout.elevation_loss }}</b> m<br>{% endif %}
             </div>
             {% if workout.effort or workout.feeling %}
                 <div>
@@ -38,12 +45,15 @@
                     {% endif %}
                 </div>
             {% endif %}
-            {% if workout.issues.all %}
+            {% if expand %}
+                {% if workout.issues %}
                 <div>
+                    {% if workout.workout_type == 'run' and workout.get_workout_data.negative_split %}<span class="badge text-bg-primary">Negative split 👍</span>{% endif %}
                     {% for issue in workout.issues.all %}
                         <span class="badge text-bg-{{ issue.colour }}">{{ issue }}</span>
                     {% endfor %}
                 </div>
+                {% endif %}
             {% endif %}
             {% if workout.comment_count %}
                 <div>

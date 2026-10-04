@@ -27,21 +27,25 @@
     <div class="row">
         <div class="col-lg">
             <h3 class="border-bottom">{{ workout.workout_type|emoji }}{{ workout.workout_type|capfirst }}</h3>
-            <p>
+            <p class="collapse" id="upload-summary">
                 {% with object=workout %}{% include "created.html" %}{% endwith %}<br>
                 <span class="text-muted">Recorded on: {{ recorded_on }}</span><br>
-                <b>Workout:</b> {{ workout.workout_date }}<br>
+            <p>
+            <p>
+                <b>Workout:</b> {{ workout.workout_date }} &bull; <a href="#upload-summary" data-bs-toggle="collapse" href="#upload-summary">Upload details</a><br>
             </p>
         </div>
     </div>
     <div class="row mb-2">
         <div class="col-lg-6 mb-2">
-            {% include "workout_card.html" %}
+            {% with expand="yes" %}
+                {% include "workout_card.html" %}
+            {% endwith %}
         </div>
         <div class="col-lg-6 mb-2">
             {% if planned %}
-                {% with workout=planned %}
-                    {% include "workout_card.html" %}
+                {% with workout=planned expand="yes" %}
+                    {% include "planned_card.html" %}
                 {% endwith %}
             {% else %}
                 <p>Nothing was planned</p>

@@ -384,8 +384,12 @@ class FitMetadataTests(unittest.TestCase):
     def test_get_workout_type_without_a_session(self):
         self.assertIsNone(Fit({}).get_workout_type())
 
-    def test_get_workout_type_raises_on_an_unknown_sport(self):
+    def test_get_workout_type_maps_swimming(self):
         fit = Fit({"session_mesgs": [{"sport": "swimming"}]})
+        self.assertEqual(fit.get_workout_type(), "swim")
+
+    def test_get_workout_type_raises_on_an_unknown_sport(self):
+        fit = Fit({"session_mesgs": [{"sport": "kayaking"}]})
         with self.assertRaises(ValueError):
             fit.get_workout_type()
 

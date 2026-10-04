@@ -5,9 +5,10 @@
     <div class="d-none">{% csrf_token %}</div>
     {% include "calendar_nav.html" %}
 </div>
-<div class="container-fluid x-4">
+<div class="container-fluid px-5">
     <table class="table">
-        <tr>
+        <thead class="day-header">
+        <tr >
             <th>Monday</th>
             <th>Tuesday</th>
             <th>Wednesday</th>
@@ -17,11 +18,12 @@
             <th>Sunday</th>
             <th>Summary</th>
         </tr>
+    </thead>
     {% for week in dates_and_objects %}
         <tr>
             {% for entry in week %}
-            <td class="" style="width: 5em">
-                <div>{{ entry.date|date:"M j" }}
+            <td>
+                <div>{% if entry.today %}<a id="today" class="badge text-bg-primary">Today</a> {% endif %}{{ entry.date|date:"M j" }}
                     <div class="label-block mb-2">
                         {% for label in entry.labels %}
                             <span class="badge text-bg-{{ label.colour }}">{{ label.title }}</span>
@@ -33,7 +35,7 @@
                 <div class="js-planned-drop" data-date="{{ entry.date|date:'Y-m-d' }}" data-add-url="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">
                     {% for workout in entry.planned %}
                         <div class="js-planned-card" draggable="true" data-planned-id="{{ workout.pk }}" data-move-url="{% url 'alors:move_planned_workout' workout.pk %}">
-                            {% include "planned.html" %}
+                            {% include "planned_card.html" %}
                         </div>
                     {% endfor %}
                     {% if entry.date|date:"Y-m-d" > today %}<a class="js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add plan</a>{% endif %}

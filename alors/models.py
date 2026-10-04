@@ -114,6 +114,10 @@ class PlannedWorkout(models.Model):
     def get_date_as_str(self):
         return self.workout_date.strftime("%Y-%m-%d")
 
+    def card_summary(self):
+        if self.total_distance:
+            return f"**{self.total_distance} km**\n\n{self.notes}"
+        return self.notes
 
 class SavedWorkout(models.Model):
     """A reusable workout that can be saved and reused."""

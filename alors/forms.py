@@ -52,10 +52,16 @@ class CalendarForm(forms.Form):
             # In calendar view we go from Monday to Sunday, ensuring we show all
             # the days of the month. So might be longer than a month.
             start_of_month = date - timedelta(days=date.day - 1)
-            start = start_of_month - timedelta(days=start_of_month.weekday())  # Start on a Monday
+            end_previous_month = start_of_month - timedelta(days=1)
+            start_previous_month = end_previous_month - timedelta(days=end_previous_month.day - 1)
+
             days_in_month = calendar.monthrange(date.year, date.month)[1]
             end_of_month = start_of_month + timedelta(days=days_in_month - 1)
-            end = end_of_month + timedelta(days=(6 - end_of_month.weekday()))  # End on a Sunday
+            start_next_month = end_of_month + timedelta(days=1)
+            end_next_month = start_next_month + timedelta(days=calendar.monthrange(start_next_month.year, start_next_month.month)[1] - 1)
+
+            start = start_previous_month - timedelta(days=start_previous_month.weekday())  # Start on a Monday
+            end = end_next_month + timedelta(days=(6 - end_next_month.weekday()))  # End on a Sunday
             dates.update(
                 {
                     "start": start,

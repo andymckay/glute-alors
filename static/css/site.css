@@ -219,6 +219,9 @@ dt {
   color: var(--bs-secondary-color) !important;
 }
 
+.card-compact {
+  font-size: small;
+}
 /* Pull down to reload: the content follows the finger and an indicator appears
    in the gap it leaves above (see initPullToRefresh in site.js). */
 body {
@@ -269,4 +272,9 @@ body {
   to {
     transform: rotate(1turn);
   }
+}
+
+thead {
+  position: sticky;
+  top: 0;
 }

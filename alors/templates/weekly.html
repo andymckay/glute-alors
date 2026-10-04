@@ -17,7 +17,7 @@
                 <div class="js-planned-drop" data-date="{{ entry.date|date:'Y-m-d' }}" data-add-url="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">
                     {% for workout in entry.planned %}
                         <div class="js-planned-card" draggable="true" data-planned-id="{{ workout.pk }}" data-move-url="{% url 'alors:move_planned_workout' workout.pk %}">
-                            {% include "planned.html" %}
+                            {% include "planned_card.html" %}
                         </div>
                     {% endfor %}
                     {% if entry.date|date:"Y-m-d" > today %}<a class="js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add plan</a>{% endif %}
