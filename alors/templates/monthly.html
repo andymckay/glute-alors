@@ -38,7 +38,7 @@
                         {% if entry.planned|length > 1 and not forloop.last %}<div class="mb-2"></div>{% endif %}
                     </div>
                 {% endfor %}
-                {% if entry.date|date:"Y-m-d" > today and entry.planned|length < 1 %}<a class="js-add-badge badge bg-primary link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add plan</a>{% endif %}
+                {% if entry.date|date:"Y-m-d" > today and entry.planned|length < 1 %}<a class="js-add-badge badge bg-primary link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}" data-bs-toggle="modal" data-bs-target="#add-planned" data-date="{{ entry.date|date:'Y-m-d' }}">Add plan</a>{% endif %}
                 {% for workout in entry.actual %}
                     {% include "workout_card.html" %}
                     {% if entry.actual|length > 1 and not forloop.last %}<div class="mb-2"></div>{% endif %}
@@ -72,4 +72,5 @@
     {% include "calendar_nav.html" %}
 </div>
 {% include "planned_edit_modal.html" %}
+{% include "planned_add_modal.html" %}
 {% endblock %}

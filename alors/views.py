@@ -10,8 +10,8 @@ from .forms import (
     CommentForm,
     IssueForm,
     LabelForm,
-    PlannedWorkoutEditForm,
     PlannedWorkoutForm,
+    PlannedWorkoutModalForm,
     PlannedWorkoutUpdateForm,
     ProfileForm,
     SavedWorkoutForm,
@@ -145,30 +145,32 @@ def calendar(request):
     if form.cleaned_data["r"] == "m":
         results = [results[i:i + 7] for i in range(0, len(results), 7)]
 
-    # A pre-filled form per planned workout, used by the calendar edit modals.
-    # The ``auto_id`` keeps each modal's field ids unique on the page. The
-    # saved-workout choices are read once and handed to every form as plain
-    # choices, so the page does not query once per modal.
-    planned_edit_forms = []
-    if planned_workouts:
-        saved_workout_choices = []
-        saved_workout_texts = {}
-        for pk, title, text in SavedWorkout.objects.values_list("pk", "title", "text"):
-            saved_workout_choices.append((str(pk), title))
-            saved_workout_texts[str(pk)] = text
-        planned_edit_forms = [
-            (
-                workout,
-                PlannedWorkoutEditForm(
-                    instance=workout,
-                    auto_id=f"edit-{workout.pk}-%s",
-                    saved_workout_choices=saved_workout_choices,
-                    saved_workout_texts=saved_workout_texts,
-                ),
-            )
-            for workouts in planned_workouts.values()
-            for workout in workouts
-        ]
+    # The add and edit modals share one set of saved-workout choices, read
+    # once so a page full of modals does not query for each form.
+    saved_workout_choices = []
+    saved_workout_texts = {}
+    for pk, title, text in SavedWorkout.objects.values_list("pk", "title", "text"):
+        saved_workout_choices.append((str(pk), title))
+        saved_workout_texts[str(pk)] = text
+
+    add_planned_form = PlannedWorkoutModalForm(
+        saved_workout_choices=saved_workout_choices,
+        saved_workout_texts=saved_workout_texts,
+    )
+
+    planned_edit_forms = [
+        (
+            workout,
+            PlannedWorkoutModalForm(
+                instance=workout,
+                auto_id=f"edit-{workout.pk}-%s",
+                saved_workout_choices=saved_workout_choices,
+                saved_workout_texts=saved_workout_texts,
+            ),
+        )
+        for workouts in planned_workouts.values()
+        for workout in workouts
+    ]
 
     response = render(
         request,
@@ -180,6 +182,7 @@ def calendar(request):
             "previous": dates["previous"],
             "dates_and_objects": results,
             "planned_edit_forms": planned_edit_forms,
+            "add_planned_form": add_planned_form,
             "template": "monthly" if form.cleaned_data["r"] == "m" else "weekly",
         },
     )

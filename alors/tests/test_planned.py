@@ -438,8 +438,9 @@ class PlannedEditModalTests(TestCase):
             total_distance="5.00",
         )
         content = self.calendar().content.decode()
-        self.assertEqual(content.count('name="saved_workout"'), 2)
-        self.assertEqual(content.count('data-text="20 min tempo"'), 2)
+        # Two edit modals plus the shared add modal.
+        self.assertEqual(content.count('name="saved_workout"'), 3)
+        self.assertEqual(content.count('data-text="20 min tempo"'), 3)
 
     def test_calendar_queries_do_not_scale_with_planned_workouts(self):
         SavedWorkout.objects.create(title="Tempo session", text="20 min tempo")
@@ -537,6 +538,104 @@ class CalendarWorkoutQueryTests(TestCase):
         self.assertEqual(len(planned), 1)
 
 
+class AddPlannedModalTests(TestCase):
+    """The shared "Add plan" modal on the monthly and weekly calendar."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="planner", password="x")
+        UserProfile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+
+    def test_monthly_renders_the_add_modal_and_wires_the_links(self):
+        content = self.client.get(
+            reverse("alors:calendar"), {"d": "2026-11-05"}
+        ).content.decode()
+        self.assertIn('id="add-planned"', content)
+        self.assertIn(f'action="{reverse("alors:add_planned")}"', content)
+        # The link opens the modal and carries the day it was clicked on.
+        self.assertIn(
+            'data-bs-target="#add-planned" data-date="2026-11-05"', content
+        )
+
+    def test_weekly_renders_the_add_modal(self):
+        content = self.client.get(
+            reverse("alors:calendar"), {"d": "2026-11-05", "r": "w"}
+        ).content.decode()
+        self.assertIn('id="add-planned"', content)
+        self.assertIn(
+            'data-bs-target="#add-planned" data-date="2026-11-05"', content
+        )
+
+    def test_add_modal_form_creates_a_planned_workout(self):
+        response = self.client.post(
+            reverse("alors:add_planned"),
+            {
+                "title": "Long run",
+                "workout_type": WorkoutType.RUN,
+                "workout_date": "2026-11-05",
+                "total_distance": "21.10",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        workout = PlannedWorkout.objects.get()
+        self.assertEqual(workout.workout_date, date(2026, 11, 5))
+        self.assertEqual(workout.created_by, self.user)
+
+
+class BusyModalTests(TestCase):
+    """Deleting, editing and duplicating show a busy modal while loading."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="busy", password="x")
+        UserProfile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+        self.workout = PlannedWorkout.objects.create(
+            title="Long run",
+            workout_type=WorkoutType.RUN,
+            workout_date="2026-09-05",
+            total_distance="21.10",
+        )
+
+    def calendar(self):
+        return self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
+
+    def test_the_thinking_modal_is_on_the_page(self):
+        self.assertContains(self.calendar(), 'id="thinking"')
+
+    def test_calendar_action_forms_show_the_busy_modal(self):
+        content = self.calendar().content.decode()
+        self.assertIn(
+            f'action="{reverse("alors:duplicate_planned", args=[self.workout.pk])}"'
+            ' class="d-inline js-busy-form"',
+            content,
+        )
+        self.assertIn(
+            f'action="{reverse("alors:delete_planned", args=[self.workout.pk])}"'
+            ' class="d-inline js-busy-form"',
+            content,
+        )
+        self.assertIn('data-confirm="Delete this planned workout?"', content)
+        self.assertIn(
+            f'action="{reverse("alors:edit_planned", args=[self.workout.pk])}"'
+            ' class="js-busy-form"',
+            content,
+        )
+
+    def test_edit_page_delete_form_shows_the_busy_modal(self):
+        content = self.client.get(
+            reverse("alors:edit_planned", args=[self.workout.pk])
+        ).content.decode()
+        self.assertIn(
+            f'action="{reverse("alors:delete_planned", args=[self.workout.pk])}"'
+            ' class="js-busy-form"',
+            content,
+        )
+        self.assertIn(
+            'data-confirm="Are you sure you want to delete this planned workout?"',
+            content,
+        )
+
+
 class DeletePlannedWorkoutTests(TestCase):
     """Deleting a planned workout from the calendar's confirm prompt."""
 
@@ -564,7 +663,7 @@ class DeletePlannedWorkoutTests(TestCase):
             f'action="{reverse("alors:delete_planned", args=[self.workout.pk])}"',
             content,
         )
-        self.assertIn("return confirm(", content)
+        self.assertIn('data-confirm="Delete this planned workout?"', content)
 
     def test_delete_removes_the_workout(self):
         response = self.delete()

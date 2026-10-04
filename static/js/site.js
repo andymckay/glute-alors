@@ -320,6 +320,49 @@ function initCalendarDragAndDrop() {
     });
 }
 
+function initAddPlannedModal() {
+    // The "Add plan" links all open one shared modal; carry the day they were
+    // clicked on into the form and title.
+    const modal = document.getElementById("add-planned");
+    if (!modal) {
+        return;
+    }
+    modal.addEventListener("show.bs.modal", (event) => {
+        const trigger = event.relatedTarget;
+        const date = trigger && trigger.dataset ? trigger.dataset.date : "";
+        const dateInput = modal.querySelector('[name="workout_date"]');
+        if (dateInput && date) {
+            dateInput.value = date;
+        }
+        const title = modal.querySelector(".modal-title");
+        if (title) {
+            title.textContent = date
+                ? `Plan a workout for ${date}`
+                : "Plan a workout";
+        }
+    });
+}
+
+function initBusyForms() {
+    // Deleting, editing and duplicating a planned workout all post and then
+    // load the next page. Keep a spinner up while that happens.
+    const modalElement = document.getElementById("thinking");
+    if (!modalElement) {
+        return;
+    }
+    document.addEventListener("submit", (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.matches(".js-busy-form")) {
+            return;
+        }
+        if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) {
+            event.preventDefault();
+            return;
+        }
+        bootstrap.Modal.getOrCreateInstance(modalElement).show();
+    });
+}
+
 function initSavedWorkoutPicker() {
     // A saved-workout picker fills in the notes of the form it belongs to.
     // Delegated so it covers every modal on the calendar and the add page.
@@ -467,6 +510,8 @@ function initPullToRefresh() {
 window.addEventListener("DOMContentLoaded", initTheme);
 window.addEventListener("DOMContentLoaded", initCalendarDragAndDrop);
 window.addEventListener("DOMContentLoaded", initSavedWorkoutPicker);
+window.addEventListener("DOMContentLoaded", initBusyForms);
+window.addEventListener("DOMContentLoaded", initAddPlannedModal);
 window.addEventListener("DOMContentLoaded", initPullToRefresh);
 window.addEventListener("load", initHeartRateCharts);
 window.addEventListener("load", initSite);

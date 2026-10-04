@@ -3,7 +3,7 @@
          aria-labelledby="edit-planned-title-{{ workout.pk }}" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form method="post" action="{% url 'alors:edit_planned' workout.pk %}">
+                <form method="post" action="{% url 'alors:edit_planned' workout.pk %}" class="js-busy-form">
                     {% csrf_token %}
                     <div class="modal-header">
                         <h5 class="modal-title" id="edit-planned-title-{{ workout.pk }}">

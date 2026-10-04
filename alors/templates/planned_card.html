@@ -53,13 +53,13 @@
             {% if not expand %}
                 <div><a href="#" class="link-underline link-underline-opacity-0 navbar-toggler-icon" data-bs-toggle="collapse" data-bs-target="#options-{{ workout.pk }}"> </a></div>
                 <div class="collapse mt-2" id="options-{{ workout.pk }}">
-                    <form method="post" action="{% url 'alors:duplicate_planned' workout.pk %}" class="d-inline">
+                    <form method="post" action="{% url 'alors:duplicate_planned' workout.pk %}" class="d-inline js-busy-form">
                         {% csrf_token %}
                         <button type="submit" class="badge bg-primary border-0 link-underline link-underline-opacity-0">Duplicate</button>
                     </form>&nbsp;
                     <a class="badge bg-primary border-0 link-underline link-underline-opacity-0" data-bs-toggle="modal" data-bs-target="#edit-planned-{{ workout.pk }}" href="{% url 'alors:edit_planned' workout.pk %}">Edit</a>&nbsp;&nbsp;
-                    <form method="post" action="{% url 'alors:delete_planned' workout.pk %}" class="d-inline"
-                          onsubmit="return confirm('Delete this planned workout?');">
+                    <form method="post" action="{% url 'alors:delete_planned' workout.pk %}" class="d-inline js-busy-form"
+                          data-confirm="Delete this planned workout?">
                         {% csrf_token %}
                         <button type="submit" class="badge bg-danger border-0 link-underline link-underline-opacity-0">Delete</button>
                     </form>&nbsp;

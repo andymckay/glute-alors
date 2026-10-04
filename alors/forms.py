@@ -159,8 +159,8 @@ class PlannedWorkoutForm(PlannedWorkoutFieldsForm):
         self.order_fields(names)
 
 
-class PlannedWorkoutEditForm(PlannedWorkoutFieldsForm):
-    """Edit a planned workout, used by the calendar's Bootstrap modal.
+class PlannedWorkoutModalForm(PlannedWorkoutFieldsForm):
+    """Add or edit a planned workout in a calendar Bootstrap modal.
 
     It keeps the saved-workout picker so a user can copy a saved workout's
     text into the notes, just like on the add/edit page. The picker is built
