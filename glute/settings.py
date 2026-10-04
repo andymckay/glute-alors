@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 
 import dj_database_url
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -28,6 +29,15 @@ SECRET_KEY = os.getenv(
 )
 # Set DJANGO_DEBUG to any string to enable, set to empty to turn off.
 DEBUG = False #not not os.getenv("DJANGO_DEBUG", True)
+
+# Local development mode (DJANGO_DEBUG is set in .env). It drives static-file
+# serving and local debug tooling, but never applies to the test suite.
+LOCAL_DEBUG = bool(os.getenv("DJANGO_DEBUG", ""))
+DEBUG_TOOLBAR = LOCAL_DEBUG and "test" not in sys.argv
+
+def show_debug_toolbar(request):
+    """Show the toolbar whenever local debug mode is enabled."""
+    return DEBUG_TOOLBAR
 
 ALLOWED_HOSTS = [
     "localhost",
@@ -70,6 +80,9 @@ INSTALLED_APPS = [
 if not DEBUG:
     INSTALLED_APPS.append("django.contrib.staticfiles")
 
+if DEBUG_TOOLBAR:
+    INSTALLED_APPS.append("debug_toolbar")
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -82,6 +95,15 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.middleware.csp.ContentSecurityPolicyMiddleware",
 ]
+
+if DEBUG_TOOLBAR:
+    # As early as possible so the toolbar can instrument every request.
+    MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
+    INTERNAL_IPS = ["127.0.0.1", "localhost"]
+    DEBUG_TOOLBAR_CONFIG = {
+        # The default callback requires DEBUG, which this project keeps off.
+        "SHOW_TOOLBAR_CALLBACK": "glute.settings.show_debug_toolbar",
+    }
 
 ROOT_URLCONF = "glute.urls"
 
@@ -137,6 +159,14 @@ USE_TZ = False
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static/"
+
+# WhiteNoise caches each static file's metadata until the process restarts.
+# Locally (where DJANGO_DEBUG is set in .env) refresh it on every request and
+# fall back to Django's staticfiles finders, so CSS/JS edits show up without
+# restarting runserver and app static (admin, django-debug-toolbar) is served
+# without needing collectstatic.
+WHITENOISE_AUTOREFRESH = LOCAL_DEBUG
+WHITENOISE_USE_FINDERS = LOCAL_DEBUG
 
 # User-uploaded media (profile avatars, etc.)
 MEDIA_URL = "/media/"

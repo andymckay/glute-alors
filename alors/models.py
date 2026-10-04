@@ -2,6 +2,7 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
+from django.utils.functional import cached_property
 from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -104,6 +105,9 @@ class PlannedWorkout(models.Model):
         ordering = ["workout_date", "-created_at"]
         verbose_name = "planned workout"
         verbose_name_plural = "planned workouts"
+        indexes = [
+            models.Index(fields=["workout_date"], name="planned_workout_date_idx"),
+        ]
 
     def __str__(self):
         return f"{self.get_workout_type_display()} on {self.workout_date}"
@@ -263,6 +267,9 @@ class Workout(models.Model):
         ordering = ["-workout_date"]
         verbose_name = "workout"
         verbose_name_plural = "workouts"
+        indexes = [
+            models.Index(fields=["workout_date"], name="workout_date_idx"),
+        ]
 
     def __str__(self):
         return f"{self.get_workout_type_display()} on {self.workout_date}"
@@ -273,15 +280,22 @@ class Workout(models.Model):
     def get_date_as_str(self):
         return self.workout_date.strftime("%Y-%m-%d")
 
+    @cached_property
     def get_planned(self):
-        if self.workout_type == 'run':
+        """The planned workout for this run, if any.
+
+        Cached per instance: the workout card reads it several times, and the
+        calendar pre-answers it in bulk before rendering.
+        """
+        if self.workout_type == "run":
             # A day can hold several planned workouts; show the earliest one.
             return PlannedWorkout.objects.filter(
                 workout_date=self.workout_date
             ).first()
+        return None
 
     def status(self):
-        obj = self.get_planned()
+        obj = self.get_planned
         if not obj:
             return ""
         return obj.status
@@ -415,6 +429,11 @@ class WeeklySummary(models.Model):
         ordering = ["-date"]
         verbose_name = "weekly summary"
         verbose_name_plural = "weekly summaries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["date"], name="uniq_weekly_summary_date"
+            ),
+        ]
 
     def __str__(self):
         return f"Week starting {self.date}"
@@ -462,6 +481,9 @@ class Label(models.Model):
         ordering = ["start_date", "title"]
         verbose_name = "label"
         verbose_name_plural = "labels"
+        indexes = [
+            models.Index(fields=["start_date"], name="label_start_date_idx"),
+        ]
 
     def __str__(self):
         return self.title
@@ -569,6 +591,17 @@ class Notification(models.Model):
         ordering = ["-created_at"]
         verbose_name = "notification"
         verbose_name_plural = "notifications"
+        indexes = [
+            models.Index(
+                fields=["content_type", "object_id"],
+                name="notif_content_object_idx",
+            ),
+            models.Index(
+                fields=["recipient", "read"],
+                name="notif_recipient_read_idx",
+            ),
+            models.Index(fields=["created_at"], name="notif_created_at_idx"),
+        ]
 
     def __str__(self):
         actor = self.actor or "System"

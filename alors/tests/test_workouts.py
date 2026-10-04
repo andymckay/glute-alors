@@ -4,10 +4,12 @@ from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.db import connection
 from django.test import SimpleTestCase, TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from ..models import Issue, Workout
+from ..models import Issue, PlannedWorkout, Workout
 
 
 class WorkoutModelTests(SimpleTestCase):
@@ -61,6 +63,42 @@ class WorkoutModelTests(SimpleTestCase):
     def test_valid_effort_and_feeling_pass(self):
         workout = self.make_workout(effort=7, feeling=4)
         workout.full_clean()  # should not raise
+
+
+class WorkoutGetPlannedTests(TestCase):
+    """``Workout.get_planned`` is cached per instance."""
+
+    def test_get_planned_is_fetched_once_per_instance(self):
+        PlannedWorkout.objects.create(
+            workout_type="run",
+            workout_date="2026-09-05",
+            total_distance="10.00",
+        )
+        workout = Workout.objects.create(
+            workout_date=datetime(2026, 9, 5, 8),
+            total_time=timedelta(minutes=45),
+            workout_type="run",
+        )
+        with CaptureQueriesContext(connection) as ctx:
+            first = workout.get_planned
+            second = workout.get_planned
+        self.assertIsNotNone(first)
+        self.assertIs(first, second)
+        planned = [q for q in ctx.captured_queries if "alors_plannedworkout" in q["sql"]]
+        self.assertEqual(len(planned), 1)
+
+    def test_get_planned_is_none_for_a_non_run(self):
+        PlannedWorkout.objects.create(
+            workout_type="run",
+            workout_date="2026-09-05",
+            total_distance="10.00",
+        )
+        workout = Workout.objects.create(
+            workout_date=datetime(2026, 9, 5, 8),
+            total_time=timedelta(minutes=45),
+            workout_type="walk",
+        )
+        self.assertIsNone(workout.get_planned)
 
 
 class WorkoutDetailViewTests(TestCase):

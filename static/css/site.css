@@ -48,10 +48,6 @@ dt {
     box-shadow: 0 10px 20px #031a3c, 0 4px 8px rgba(0,0,0,.06);
 }
 
-.badge-add {
-    color: grey !important;
-}
-
 .badge-workout .number::after {
   content: " | ";
 }
@@ -197,7 +193,7 @@ dt {
 }
 
 /* Calendar drag and drop of planned workouts */
-.js-planned-card {
+.js-drag-handle {
   cursor: grab;
 }
 
@@ -277,4 +273,5 @@ body {
 thead {
   position: sticky;
   top: 0;
+  z-index: 100;
 }

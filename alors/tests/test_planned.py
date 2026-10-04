@@ -1,15 +1,19 @@
+import json
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from ..models import (
     PlannedWorkout,
     SavedWorkout,
+    UserProfile,
     WeeklySummary,
     Workout,
     WorkoutType,
@@ -157,7 +161,7 @@ class AddPlannedWorkoutTests(TestCase):
 
 
 class MovePlannedWorkoutTests(TestCase):
-    """The calendar drag-and-drop endpoint that moves a workout's date."""
+    """The calendar JSON endpoint that moves and edits a planned workout."""
 
     def setUp(self):
         self.user = User.objects.create_user(username="mover", password="secret123")
@@ -196,6 +200,12 @@ class MovePlannedWorkoutTests(TestCase):
         self.workout.refresh_from_db()
         self.assertEqual(self.workout.workout_date, date(2026, 9, 5))
 
+    def test_move_rejects_an_empty_date(self):
+        response = self.move("")
+        self.assertEqual(response.status_code, 400)
+        self.workout.refresh_from_db()
+        self.assertEqual(self.workout.workout_date, date(2026, 9, 5))
+
     def test_move_allows_a_day_that_already_has_a_planned_workout(self):
         PlannedWorkout.objects.create(
             workout_type=WorkoutType.RUN,
@@ -213,6 +223,359 @@ class MovePlannedWorkoutTests(TestCase):
     def test_move_rejects_a_get_request(self):
         url = reverse("alors:move_planned_workout", args=[self.workout.pk])
         self.assertEqual(self.client.get(url).status_code, 405)
+
+    def update(self, **fields):
+        return self.client.post(
+            reverse("alors:move_planned_workout", args=[self.workout.pk]),
+            fields,
+        )
+
+    def test_update_changes_every_allowed_field(self):
+        response = self.update(
+            title="Tempo",
+            workout_type=WorkoutType.RECOVERY,
+            is_race="true",
+            total_distance="5.25",
+            notes="Take it easy",
+            date="2026-09-12",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.workout.refresh_from_db()
+        self.assertEqual(self.workout.title, "Tempo")
+        self.assertEqual(self.workout.workout_type, WorkoutType.RECOVERY)
+        self.assertTrue(self.workout.is_race)
+        self.assertEqual(self.workout.total_distance, Decimal("5.25"))
+        self.assertEqual(self.workout.notes, "Take it easy")
+        self.assertEqual(self.workout.workout_date, date(2026, 9, 12))
+        body = response.json()
+        self.assertEqual(body["date"], "2026-09-12")
+        self.assertEqual(body["title"], "Tempo")
+        self.assertEqual(body["total_distance"], "5.25")
+        self.assertIs(body["is_race"], True)
+
+    def test_update_leaves_omitted_fields_alone(self):
+        response = self.update(title="Tempo")
+        self.assertEqual(response.status_code, 200)
+        self.workout.refresh_from_db()
+        self.assertEqual(self.workout.title, "Tempo")
+        self.assertEqual(self.workout.workout_type, WorkoutType.RUN)
+        self.assertEqual(self.workout.total_distance, Decimal("10.00"))
+        self.assertEqual(self.workout.workout_date, date(2026, 9, 5))
+        self.assertEqual(self.workout.notes, "")
+        self.assertFalse(self.workout.is_race)
+
+    def test_update_can_clear_the_distance_and_the_race_flag(self):
+        self.workout.is_race = True
+        self.workout.save()
+        response = self.update(total_distance="", is_race="false")
+        self.assertEqual(response.status_code, 200)
+        self.workout.refresh_from_db()
+        self.assertIsNone(self.workout.total_distance)
+        self.assertFalse(self.workout.is_race)
+
+    def test_update_rejects_an_unknown_workout_type(self):
+        response = self.update(workout_type="juggling")
+        self.assertEqual(response.status_code, 400)
+        self.workout.refresh_from_db()
+        self.assertEqual(self.workout.workout_type, WorkoutType.RUN)
+
+    def test_update_rejects_an_invalid_distance(self):
+        response = self.update(total_distance="far")
+        self.assertEqual(response.status_code, 400)
+        self.workout.refresh_from_db()
+        self.assertEqual(self.workout.total_distance, Decimal("10.00"))
+
+    def test_update_requires_at_least_one_allowed_field(self):
+        response = self.update(nope="value")
+        self.assertEqual(response.status_code, 400)
+
+    def test_update_accepts_a_json_body(self):
+        response = self.client.post(
+            reverse("alors:move_planned_workout", args=[self.workout.pk]),
+            data=json.dumps({"title": "Tempo", "total_distance": 8.5}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.workout.refresh_from_db()
+        self.assertEqual(self.workout.title, "Tempo")
+        self.assertEqual(self.workout.total_distance, Decimal("8.50"))
+
+
+class DuplicatePlannedWorkoutTests(TestCase):
+    """Copying a planned workout onto the same day from the calendar."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="copier", password="x")
+        UserProfile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+        self.workout = PlannedWorkout.objects.create(
+            title="Long run",
+            workout_type=WorkoutType.RUN,
+            workout_date="2026-09-05",
+            total_distance="21.10",
+            is_race=True,
+            notes="Easy pace.",
+            status="done",
+            comment_count=3,
+        )
+
+    def duplicate(self):
+        return self.client.post(
+            reverse("alors:duplicate_planned", args=[self.workout.pk])
+        )
+
+    def test_duplicate_creates_a_copy_on_the_same_day(self):
+        response = self.duplicate()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(PlannedWorkout.objects.count(), 2)
+        copy = PlannedWorkout.objects.exclude(pk=self.workout.pk).get()
+        self.assertEqual(copy.workout_date, date(2026, 9, 5))
+        self.assertEqual(copy.title, "Long run")
+        self.assertEqual(copy.workout_type, WorkoutType.RUN)
+        self.assertEqual(copy.total_distance, Decimal("21.10"))
+        self.assertTrue(copy.is_race)
+        self.assertEqual(copy.notes, "Easy pace.")
+        self.assertEqual(copy.created_by, self.user)
+
+    def test_duplicate_does_not_copy_status_or_comments(self):
+        self.duplicate()
+        copy = PlannedWorkout.objects.exclude(pk=self.workout.pk).get()
+        self.assertEqual(copy.status, "")
+        self.assertEqual(copy.comment_count, 0)
+
+    def test_duplicate_leaves_the_original_untouched(self):
+        self.duplicate()
+        self.workout.refresh_from_db()
+        self.assertEqual(self.workout.status, "done")
+        self.assertEqual(self.workout.comment_count, 3)
+
+    def test_duplicate_refreshes_the_weekly_summary(self):
+        self.duplicate()
+        summary = WeeklySummary.objects.get(date=date(2026, 9, 6))
+        self.assertEqual(summary.summary["planned_workout"]["run"]["workouts"], 2)
+
+    def test_duplicate_rejects_a_get_request(self):
+        url = reverse("alors:duplicate_planned", args=[self.workout.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+
+    def test_calendar_card_posts_to_the_duplicate_endpoint(self):
+        response = self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            f'action="{reverse("alors:duplicate_planned", args=[self.workout.pk])}"',
+        )
+        self.assertContains(response, "Duplicate")
+
+
+class PlannedEditModalTests(TestCase):
+    """The Bootstrap modal used to edit a planned workout from the calendar."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="editor", password="x")
+        UserProfile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+        self.workout = PlannedWorkout.objects.create(
+            title="Long run",
+            workout_type=WorkoutType.RUN,
+            workout_date="2026-09-05",
+            total_distance="21.10",
+            notes="Easy pace.",
+        )
+
+    def calendar(self):
+        return self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
+
+    def test_calendar_renders_a_modal_per_planned_workout(self):
+        response = self.calendar()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'id="edit-planned-{self.workout.pk}"')
+        self.assertContains(
+            response,
+            f'data-bs-target="#edit-planned-{self.workout.pk}"',
+        )
+        self.assertContains(
+            response,
+            f'action="{reverse("alors:edit_planned", args=[self.workout.pk])}"',
+        )
+
+    def test_modal_form_has_every_field_prefilled(self):
+        content = self.calendar().content.decode()
+        for name in [
+            "title",
+            "workout_type",
+            "is_race",
+            "workout_date",
+            "total_distance",
+            "notes",
+        ]:
+            self.assertIn(f'name="{name}"', content)
+        # Ids are namespaced per workout so the modals do not clash.
+        self.assertIn(f'id="edit-{self.workout.pk}-title"', content)
+        self.assertIn('value="Long run"', content)
+        self.assertIn('value="2026-09-05"', content)
+        self.assertIn('value="21.10"', content)
+        self.assertIn("Easy pace.", content)
+
+    def test_modal_offers_saved_workouts_to_copy_into_notes(self):
+        SavedWorkout.objects.create(
+            title="Tempo session",
+            text="Warm up\n20 min tempo\nCool down",
+        )
+        content = self.calendar().content.decode()
+        self.assertIn('name="saved_workout"', content)
+        self.assertIn("Tempo session", content)
+        # The option carries the text for the client-side notes autofill.
+        self.assertIn('data-text="Warm up\n20 min tempo\nCool down"', content)
+        self.assertIn('name="notes"', content)
+
+    def test_every_modal_gets_the_shared_saved_workout_picker(self):
+        SavedWorkout.objects.create(title="Tempo session", text="20 min tempo")
+        PlannedWorkout.objects.create(
+            title="Easy jog",
+            workout_type=WorkoutType.RUN,
+            workout_date="2026-09-06",
+            total_distance="5.00",
+        )
+        content = self.calendar().content.decode()
+        self.assertEqual(content.count('name="saved_workout"'), 2)
+        self.assertEqual(content.count('data-text="20 min tempo"'), 2)
+
+    def test_calendar_queries_do_not_scale_with_planned_workouts(self):
+        SavedWorkout.objects.create(title="Tempo session", text="20 min tempo")
+        for i in range(5):
+            PlannedWorkout.objects.create(
+                title=f"Run {i}",
+                workout_type=WorkoutType.RUN,
+                workout_date=f"2026-09-{10 + i:02d}",
+                total_distance="10.00",
+            )
+        with CaptureQueriesContext(connection) as ctx:
+            self.calendar()
+        planned = [q for q in ctx.captured_queries if "alors_plannedworkout" in q["sql"]]
+        saved = [q for q in ctx.captured_queries if "alors_savedworkout" in q["sql"]]
+        # One query each, however many modals the page renders.
+        self.assertEqual(len(planned), 1)
+        self.assertEqual(len(saved), 1)
+
+    def test_modal_post_updates_the_workout(self):
+        response = self.client.post(
+            reverse("alors:edit_planned", args=[self.workout.pk]),
+            {
+                "title": "Tempo",
+                "workout_type": WorkoutType.RUN,
+                "workout_date": "2026-09-05",
+                "total_distance": "5.00",
+                "notes": "Faster.",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.workout.refresh_from_db()
+        self.assertEqual(self.workout.title, "Tempo")
+        self.assertEqual(self.workout.total_distance, Decimal("5.00"))
+        self.assertEqual(self.workout.notes, "Faster.")
+
+
+class CalendarDragHandleTests(TestCase):
+    """The drag handle, not the whole card, starts a calendar drag."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="dragger", password="x")
+        UserProfile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+        self.workout = PlannedWorkout.objects.create(
+            workout_type=WorkoutType.RUN,
+            workout_date="2026-09-05",
+            total_distance="10.00",
+        )
+
+    def test_card_uses_a_drag_handle_and_is_not_draggable(self):
+        response = self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn('class="js-drag-handle', content)
+        self.assertIn('draggable="true"', content)
+        self.assertIn(f'data-planned-id="{self.workout.pk}"', content)
+        # The wrapper is no longer the drag source.
+        self.assertNotIn('js-planned-card" draggable', content)
+
+    def test_monthly_drop_target_is_the_table_cell(self):
+        response = self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
+        content = response.content.decode()
+        self.assertIn('<td class="js-planned-drop"', content)
+        self.assertIn('data-date="2026-09-05"', content)
+        # The old inner drop wrapper is gone.
+        self.assertNotIn('<div class="js-planned-drop"', content)
+
+
+class CalendarWorkoutQueryTests(TestCase):
+    """Rendering workout cards must not look up the planned workout each time."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cal", password="x")
+        UserProfile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+
+    def test_planned_lookup_is_not_query_per_workout_card(self):
+        for i in range(4):
+            PlannedWorkout.objects.create(
+                workout_type=WorkoutType.RUN,
+                workout_date=f"2026-09-{5 + i:02d}",
+                total_distance="10.00",
+            )
+            Workout.objects.create(
+                workout_date=datetime(2026, 9, 5 + i, 8, 0),
+                total_time=timedelta(minutes=45),
+                workout_type=WorkoutType.RUN,
+            )
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(
+                reverse("alors:calendar"), {"d": "2026-09-05"}
+            )
+        self.assertEqual(response.status_code, 200)
+        planned = [q for q in ctx.captured_queries if "alors_plannedworkout" in q["sql"]]
+        self.assertEqual(len(planned), 1)
+
+
+class DeletePlannedWorkoutTests(TestCase):
+    """Deleting a planned workout from the calendar's confirm prompt."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="deleter", password="x")
+        UserProfile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+        self.workout = PlannedWorkout.objects.create(
+            title="Long run",
+            workout_type=WorkoutType.RUN,
+            workout_date="2026-09-05",
+            total_distance="21.10",
+        )
+
+    def delete(self):
+        return self.client.post(
+            reverse("alors:delete_planned", args=[self.workout.pk])
+        )
+
+    def test_calendar_delete_link_prompts_for_confirmation(self):
+        content = self.client.get(
+            reverse("alors:calendar"), {"d": "2026-09-05"}
+        ).content.decode()
+        self.assertIn(
+            f'action="{reverse("alors:delete_planned", args=[self.workout.pk])}"',
+            content,
+        )
+        self.assertIn("return confirm(", content)
+
+    def test_delete_removes_the_workout(self):
+        response = self.delete()
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(PlannedWorkout.objects.filter(pk=self.workout.pk).exists())
+        self.assertEqual(response.url, "/calendar/?d=2026-09-05#date-2026-09-05")
+
+    def test_delete_rejects_a_get_request(self):
+        url = reverse("alors:delete_planned", args=[self.workout.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.assertTrue(PlannedWorkout.objects.filter(pk=self.workout.pk).exists())
 
 
 class WeeklySummaryModelTests(TestCase):

@@ -32,6 +32,11 @@ urlpatterns = [
         name="edit_planned",
     ),
     path(
+        "planned/<int:pk>/duplicate/",
+        views.duplicate_planned,
+        name="duplicate_planned",
+    ),
+    path(
         "planned/<int:pk>/delete/",
         views.delete_planned,
         name="delete_planned",

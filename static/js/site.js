@@ -281,17 +281,23 @@ function initCalendarDragAndDrop() {
     let dragged = null;
 
     cards.forEach((card) => {
-        // Drag the whole card, not the link inside it.
+        // Only the drag button starts a drag, so the links inside the card
+        // stay clickable.
         card.querySelectorAll("a").forEach((link) => {
             link.draggable = false;
         });
-        card.addEventListener("dragstart", (event) => {
+        const handle = card.querySelector(".js-drag-handle");
+        if (!handle) {
+            return;
+        }
+        handle.draggable = true;
+        handle.addEventListener("dragstart", (event) => {
             dragged = card;
             event.dataTransfer.effectAllowed = "move";
             event.dataTransfer.setData("text/plain", card.dataset.plannedId);
             card.classList.add("dragging");
         });
-        card.addEventListener("dragend", () => {
+        handle.addEventListener("dragend", () => {
             dragged = null;
             card.classList.remove("dragging");
         });
@@ -311,6 +317,24 @@ function initCalendarDragAndDrop() {
                 movePlannedWorkout(dragged, cell);
             }
         });
+    });
+}
+
+function initSavedWorkoutPicker() {
+    // A saved-workout picker fills in the notes of the form it belongs to.
+    // Delegated so it covers every modal on the calendar and the add page.
+    document.addEventListener("change", (event) => {
+        const picker = event.target;
+        if (!(picker instanceof HTMLSelectElement) || picker.name !== "saved_workout") {
+            return;
+        }
+        const form = picker.form;
+        const notes = form ? form.querySelector('textarea[name="notes"]') : null;
+        const option = picker.selectedOptions[0];
+        const text = option ? option.dataset.text : "";
+        if (notes && text) {
+            notes.value = text;
+        }
     });
 }
 
@@ -442,6 +466,7 @@ function initPullToRefresh() {
 
 window.addEventListener("DOMContentLoaded", initTheme);
 window.addEventListener("DOMContentLoaded", initCalendarDragAndDrop);
+window.addEventListener("DOMContentLoaded", initSavedWorkoutPicker);
 window.addEventListener("DOMContentLoaded", initPullToRefresh);
 window.addEventListener("load", initHeartRateCharts);
 window.addEventListener("load", initSite);

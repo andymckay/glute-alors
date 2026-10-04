@@ -10,7 +10,9 @@ from .forms import (
     CommentForm,
     IssueForm,
     LabelForm,
+    PlannedWorkoutEditForm,
     PlannedWorkoutForm,
+    PlannedWorkoutUpdateForm,
     ProfileForm,
     SavedWorkoutForm,
     WorkoutEditForm,
@@ -27,7 +29,8 @@ from .models import (
 )
 from django.utils import timezone
 from django.utils.dateparse import parse_date
-from datetime import timedelta
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from .validators import validate_date
 from .ical import render_calendar
@@ -112,6 +115,24 @@ def calendar(request):
         ).order_by("title")
     )
 
+    # ``Workout.get_planned`` is read several times per card in the template.
+    # Answer it from the planned workouts already fetched for this range, so
+    # rendering the calendar does not run a query per workout card.
+    planned_by_date = {}
+    for workouts in planned_workouts.values():
+        for planned in workouts:
+            key = planned.get_date_as_str()
+            current = planned_by_date.get(key)
+            if current is None or planned.created_at > current.created_at:
+                planned_by_date[key] = planned
+    for workouts in actual_workouts.values():
+        for workout in workouts:
+            workout.get_planned = (
+                planned_by_date.get(workout.get_date_as_str())
+                if workout.workout_type == "run"
+                else None
+            )
+
     results = combineDateLists(
         list_dates,
         planned=planned_workouts,
@@ -124,6 +145,31 @@ def calendar(request):
     if form.cleaned_data["r"] == "m":
         results = [results[i:i + 7] for i in range(0, len(results), 7)]
 
+    # A pre-filled form per planned workout, used by the calendar edit modals.
+    # The ``auto_id`` keeps each modal's field ids unique on the page. The
+    # saved-workout choices are read once and handed to every form as plain
+    # choices, so the page does not query once per modal.
+    planned_edit_forms = []
+    if planned_workouts:
+        saved_workout_choices = []
+        saved_workout_texts = {}
+        for pk, title, text in SavedWorkout.objects.values_list("pk", "title", "text"):
+            saved_workout_choices.append((str(pk), title))
+            saved_workout_texts[str(pk)] = text
+        planned_edit_forms = [
+            (
+                workout,
+                PlannedWorkoutEditForm(
+                    instance=workout,
+                    auto_id=f"edit-{workout.pk}-%s",
+                    saved_workout_choices=saved_workout_choices,
+                    saved_workout_texts=saved_workout_texts,
+                ),
+            )
+            for workouts in planned_workouts.values()
+            for workout in workouts
+        ]
+
     response = render(
         request,
         template,
@@ -133,6 +179,7 @@ def calendar(request):
             "next": dates["next"],
             "previous": dates["previous"],
             "dates_and_objects": results,
+            "planned_edit_forms": planned_edit_forms,
             "template": "monthly" if form.cleaned_data["r"] == "m" else "weekly",
         },
     )
@@ -176,7 +223,7 @@ def add_planned(request):
                 messages.SUCCESS,
                 f"🎉 Planned {workout.get_workout_type_display().lower()} added for {workout.workout_date}.",
             )
-            return redirect(f"/calendar/?d={date}")
+            return redirect(f"/calendar/?d={date}#date-{workout.workout_date}")
     else:
         date = request.GET.get("date", None)
         form = PlannedWorkoutForm()
@@ -219,7 +266,7 @@ def edit_planned(request, pk):
                 messages.SUCCESS,
                 f"✏️ Updated {workout.get_workout_type_display().lower()} workout for {workout.workout_date}.",
             )
-            return redirect(f"/calendar/?d={workout.workout_date}")
+            return redirect(f"/calendar/?d={workout.workout_date}#date-{workout.workout_date}")
         
     else:
         form = PlannedWorkoutForm(instance=workout)
@@ -239,35 +286,121 @@ def edit_planned(request, pk):
 
 
 @login_required
+@require_POST
 def delete_planned(request, pk):
     workout = get_object_or_404(PlannedWorkout, pk=pk)
-    if request.method == "POST":
-        label = workout.get_workout_type_display().lower()
-        workout_date = workout.workout_date
-        workout.delete()
-        messages.add_message(
-            request,
-            messages.SUCCESS,
-            f"🗑️ Deleted {label} workout for {workout_date}.",
-        )
-    return redirect("alors:index")
+    label = workout.get_workout_type_display().lower()
+    workout_date = workout.workout_date
+    workout.delete()
+    messages.add_message(
+        request,
+        messages.SUCCESS,
+        f"🗑️ Deleted {label} workout for {workout_date}.",
+    )
+    return redirect(f"/calendar/?d={workout_date}#date-{workout_date}")
+
+
+# Fields the calendar JSON endpoint is allowed to change on a planned workout.
+PLANNED_API_FIELDS = (
+    "title",
+    "workout_type",
+    "is_race",
+    "workout_date",
+    "total_distance",
+    "notes",
+)
+
+
+def _planned_workout_data(request):
+    """Return the request body as a plain dict, supporting form and JSON posts.
+
+    ``None`` is returned when a JSON body is present but not a JSON object.
+    """
+    data = request.POST.dict()
+    if request.content_type == "application/json" and request.body:
+        try:
+            payload = json.loads(request.body)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        data.update(payload)
+    return data
+
+
+def _json_value(value):
+    """Coerce a model field value into something ``JsonResponse`` can encode."""
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    return value
+
+
+@login_required
+@require_POST
+def duplicate_planned(request, pk):
+    """Create a copy of a planned workout on the same day."""
+    workout = get_object_or_404(PlannedWorkout, pk=pk)
+    label = workout.get_workout_type_display().lower()
+    workout_date = workout.workout_date
+
+    # Re-insert the same row as a new object, resetting the fields that belong
+    # to the original rather than the copy.
+    workout.pk = None
+    workout._state.adding = True
+    workout.status = ""
+    workout.comment_count = 0
+    workout.created_by = request.user
+    workout.save()
+
+    messages.add_message(
+        request,
+        messages.SUCCESS,
+        f"📋 Duplicated {label} workout for {workout_date}.",
+    )
+    return redirect(f"/calendar/?d={workout_date}#date-{workout_date}")
 
 
 @login_required
 @require_POST
 def move_planned_workout(request, pk):
-    """Move a planned workout to another date (calendar drag and drop).
+    """Move or edit a planned workout from the calendar.
 
-    A day can hold several planned workouts, and saving refreshes the weekly
-    summary of both the old and the new week.
+    The drag and drop sends ``date``; the same endpoint also accepts any of
+    ``title``, ``workout_type``, ``is_race``, ``total_distance`` and ``notes``,
+    so a workout can be edited without posting the whole form. Only the fields
+    that are supplied are changed; saving refreshes the weekly summaries.
     """
     workout = get_object_or_404(PlannedWorkout, pk=pk)
-    new_date = parse_date(request.POST.get("date", ""))
-    if new_date is None:
-        return JsonResponse({"error": "A valid date is required."}, status=400)
-    workout.workout_date = new_date
-    workout.save()
-    return JsonResponse({"id": workout.pk, "date": new_date.isoformat()})
+
+    data = _planned_workout_data(request)
+    if data is None:
+        return JsonResponse({"error": "Invalid JSON body."}, status=400)
+
+    # ``date`` is the name the calendar sends; accept the model field too.
+    if "date" in data and "workout_date" not in data:
+        data["workout_date"] = data.pop("date")
+
+    posted = [field for field in PLANNED_API_FIELDS if field in data]
+    if not posted:
+        return JsonResponse({"error": "No fields to update."}, status=400)
+
+    # Seed the form with the stored values so it behaves as a partial update.
+    for field in PLANNED_API_FIELDS:
+        data.setdefault(field, getattr(workout, field))
+
+    form = PlannedWorkoutUpdateForm(data, instance=workout)
+    if not form.is_valid():
+        return JsonResponse({"errors": form.errors}, status=400)
+    workout = form.save()
+
+    response = {"id": workout.pk, "date": workout.workout_date.isoformat()}
+    for field in posted:
+        # The date is already reported as "date" above.
+        if field != "workout_date":
+            response[field] = _json_value(getattr(workout, field))
+    return JsonResponse(response)
 
 
 @login_required
@@ -296,7 +429,7 @@ def workout_detail(request, pk):
         "workout_detail.html",
         {
             "workout": workout,
-            "planned": workout.get_planned(),
+            "planned": workout.get_planned,
             "route_points": json.dumps(fit.get_route_points()),
             "power_series": fit.get_power_series(),
             "elevation_series": fit.get_elevation_series(),

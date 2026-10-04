@@ -22,8 +22,8 @@
     {% for week in dates_and_objects %}
         <tr>
             {% for entry in week %}
-            <td>
-                <div>{% if entry.today %}<a id="today" class="badge text-bg-primary">Today</a> {% endif %}{{ entry.date|date:"M j" }}
+            <td class="js-planned-drop" data-date="{{ entry.date|date:'Y-m-d' }}" data-add-url="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">
+                <div>{% if entry.today %}<a id="today" class="badge text-bg-primary link-underline link-underline-opacity-0">Today</a> {% endif %}<a id="date-{{ entry.date|date:'Y-m-d' }}" class="link-underline link-underline-opacity-0"></a>{{ entry.date|date:"M j" }}</a>    
                     <div class="label-block mb-2">
                         {% for label in entry.labels %}
                             <span class="badge text-bg-{{ label.colour }}">{{ label.title }}</span>
@@ -32,18 +32,17 @@
                         {% endfor %}
                     </div>
                 </div>
-                <div class="js-planned-drop" data-date="{{ entry.date|date:'Y-m-d' }}" data-add-url="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">
-                    {% for workout in entry.planned %}
-                        <div class="js-planned-card" draggable="true" data-planned-id="{{ workout.pk }}" data-move-url="{% url 'alors:move_planned_workout' workout.pk %}">
-                            {% include "planned_card.html" %}
-                        </div>
-                    {% endfor %}
-                    {% if entry.date|date:"Y-m-d" > today %}<a class="js-add-badge badge-add badge text-bg-light link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add plan</a>{% endif %}
-                    {% for workout in entry.actual %}
-                        {% include "workout_card.html" %}
-                        {% if entry.actual|length > 1 and not forloop.last %}<div class="mb-2"></div>{% endif %}
-                    {% endfor %}
-                </div>
+                {% for workout in entry.planned %}
+                    <div class="js-planned-card" data-planned-id="{{ workout.pk }}" data-move-url="{% url 'alors:move_planned_workout' workout.pk %}">
+                        {% include "planned_card.html" %}
+                        {% if entry.planned|length > 1 and not forloop.last %}<div class="mb-2"></div>{% endif %}
+                    </div>
+                {% endfor %}
+                {% if entry.date|date:"Y-m-d" > today and entry.planned|length < 1 %}<a class="js-add-badge badge bg-primary link-underline link-underline-opacity-0" href="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">Add plan</a>{% endif %}
+                {% for workout in entry.actual %}
+                    {% include "workout_card.html" %}
+                    {% if entry.actual|length > 1 and not forloop.last %}<div class="mb-2"></div>{% endif %}
+                {% endfor %}
             </td>
             {% if forloop.last %}
             <td class="border-start">
@@ -72,4 +71,5 @@
     <div class="mt-4"></div>
     {% include "calendar_nav.html" %}
 </div>
+{% include "planned_edit_modal.html" %}
 {% endblock %}

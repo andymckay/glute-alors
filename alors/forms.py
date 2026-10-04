@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models.utils import get_blank_choice_label
 from django.utils import timezone
 from .models import (
     Comment,
@@ -105,14 +106,8 @@ class SavedWorkoutSelect(forms.Select):
         return option
 
 
-class PlannedWorkoutForm(forms.ModelForm):
-    saved_workout = forms.ModelChoiceField(
-        queryset=SavedWorkout.objects.all(),
-        required=False,
-        label="Copy over saved workout",
-        widget=SavedWorkoutSelect(attrs={"class": "form-select"}),
-        help_text="Pick a saved workout to copy its text into the notes. Click Settings 👉 Saved workouts to add some in.",
-    )
+class PlannedWorkoutFieldsForm(forms.ModelForm):
+    """The editable planned-workout fields, shared by the forms below."""
 
     class Meta:
         model = PlannedWorkout
@@ -142,6 +137,16 @@ class PlannedWorkoutForm(forms.ModelForm):
             "notes": forms.Textarea(attrs={"rows": 10, "class": "form-control"}),
         }
 
+
+class PlannedWorkoutForm(PlannedWorkoutFieldsForm):
+    saved_workout = forms.ModelChoiceField(
+        queryset=SavedWorkout.objects.all(),
+        required=False,
+        label="Copy over saved workout",
+        widget=SavedWorkoutSelect(attrs={"class": "form-select"}),
+        help_text="Pick a saved workout to copy its text into the notes. Click Settings 👉 Saved workouts to add some in.",
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Show the picker directly above the notes it fills in, and give its
@@ -152,6 +157,52 @@ class PlannedWorkoutForm(forms.ModelForm):
         names = [name for name in self.fields if name != "saved_workout"]
         names.insert(names.index("notes"), "saved_workout")
         self.order_fields(names)
+
+
+class PlannedWorkoutEditForm(PlannedWorkoutFieldsForm):
+    """Edit a planned workout, used by the calendar's Bootstrap modal.
+
+    It keeps the saved-workout picker so a user can copy a saved workout's
+    text into the notes, just like on the add/edit page. The picker is built
+    from plain in-memory choices, not a queryset, so a calendar full of modals
+    does not run a query per form.
+    """
+
+    saved_workout = forms.ChoiceField(
+        required=False,
+        label="Copy over saved workout",
+        widget=SavedWorkoutSelect(attrs={"class": "form-select"}),
+        help_text="Pick a saved workout to copy its text into the notes. Click Settings 👉 Saved workouts to add some in.",
+    )
+
+    def __init__(
+        self, *args, saved_workout_choices=(), saved_workout_texts=None, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        # A shorter notes box keeps the modal a sensible height.
+        self.fields["notes"].widget.attrs["rows"] = 5
+        self.fields["saved_workout"].choices = [
+            ("", get_blank_choice_label()),
+            *saved_workout_choices,
+        ]
+        self.fields["saved_workout"].widget.texts = saved_workout_texts or {}
+        names = [name for name in self.fields if name != "saved_workout"]
+        names.insert(names.index("notes"), "saved_workout")
+        self.order_fields(names)
+
+
+class PlannedWorkoutUpdateForm(PlannedWorkoutFieldsForm):
+    """Partial update of a planned workout, used by the calendar JSON endpoint.
+
+    Every field is optional so a caller can change just one of them.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Everything is optional except the date, which the model requires.
+        for name, field in self.fields.items():
+            if name != "workout_date":
+                field.required = False
 
 
 class SavedWorkoutForm(forms.ModelForm):
