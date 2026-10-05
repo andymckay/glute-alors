@@ -101,6 +101,30 @@ class WorkoutGetPlannedTests(TestCase):
         self.assertIsNone(workout.get_planned)
 
 
+class WorkoutDataParsingTests(TestCase):
+    """``Workout.get_workout_data`` parses the stored FIT JSON once."""
+
+    def test_get_workout_data_is_parsed_once_per_instance(self):
+        workout = Workout.objects.create(
+            workout_date=datetime(2026, 9, 5, 8),
+            total_time=timedelta(minutes=45),
+            workout_type="run",
+            workout_data=json.dumps({"record_mesgs": [{"timestamp": 1}]}),
+        )
+        self.assertIs(workout.get_workout_data, workout.get_workout_data)
+
+    def test_get_workout_data_without_data_is_a_null_parser(self):
+        from parsers.fit import NullParser
+
+        workout = Workout.objects.create(
+            workout_date=datetime(2026, 9, 5, 8),
+            total_time=timedelta(minutes=45),
+            workout_type="run",
+            workout_data="",
+        )
+        self.assertIsInstance(workout.get_workout_data, NullParser)
+
+
 class WorkoutDetailViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="runner", password="secret123")

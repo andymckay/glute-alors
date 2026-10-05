@@ -319,7 +319,14 @@ class Workout(models.Model):
             self.feeling, ""
         )
 
+    @cached_property
     def get_workout_data(self):
+        """The parsed FIT data for this workout.
+
+        Decoding ``workout_data`` is expensive (it can be several megabytes),
+        so it is parsed once per instance and shared by the view and the chart
+        template filters.
+        """
         if not self.workout_data:
             return NullParser()
         try:

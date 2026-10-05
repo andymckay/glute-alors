@@ -93,7 +93,7 @@ def _line_chart_svg(
 
     distance_attr = ""
     if workout is not None:
-        fit = workout.get_workout_data()
+        fit = workout.get_workout_data
         distance_series = fit.get_distance_series()
         if len(distance_series) >= 2:
             distance_json = json.dumps([[sec, km] for sec, km in distance_series])

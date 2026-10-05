@@ -89,6 +89,8 @@ def calendar(request):
     list_dates = form.cleaned_data["list_dates"]
 
     # Note: use __lt to ensure we get runs up to midnight the last day.
+    # ``workout_data`` is deferred: it can be several megabytes per workout and
+    # the calendar cards never read it.
     planned_workouts = dateList(
         PlannedWorkout.objects.filter(
             workout_date__gte=dates["start"],
@@ -99,7 +101,9 @@ def calendar(request):
     actual_workouts = dateList(
         Workout.objects.filter(
             workout_date__gte=dates["start"], workout_date__lt=dates["next"]
-        ).order_by("workout_date")
+        )
+        .defer("workout_data")
+        .order_by("workout_date")
     )
 
     summaries = dateList(
@@ -426,7 +430,7 @@ def planned_detail(request, pk):
 def workout_detail(request, pk):
     workout = get_object_or_404(Workout, pk=pk)
     Notification.objects.mark_read_for(request.user, workout)
-    fit = workout.get_workout_data()
+    fit = workout.get_workout_data
     return render(
         request,
         "workout_detail.html",

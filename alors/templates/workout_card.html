@@ -25,7 +25,7 @@
                     {% endif %}
                     {% if workout.moving_time %}
                         {% if workout.workout_type == "run" %}
-                            {% if expand %}Moving time{% endif %}: <b>{{ workout.moving_time|hms }}</b> min<br>
+                            {% if expand %}Moving time: {% endif %}<b>{{ workout.moving_time|hms }}</b> min<br>
                             {% if expand %}Elapsed time: <b>{{ workout.total_time|hms }}</b> min<br>{% endif %}
                         {% endif %}
                     {% endif %}

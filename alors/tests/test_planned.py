@@ -537,6 +537,19 @@ class CalendarWorkoutQueryTests(TestCase):
         planned = [q for q in ctx.captured_queries if "alors_plannedworkout" in q["sql"]]
         self.assertEqual(len(planned), 1)
 
+    def test_calendar_does_not_fetch_workout_data(self):
+        Workout.objects.create(
+            workout_date=datetime(2026, 9, 5, 8),
+            total_time=timedelta(minutes=45),
+            workout_type=WorkoutType.RUN,
+            workout_data='{"record_mesgs": []}',
+        )
+        with CaptureQueriesContext(connection) as ctx:
+            self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
+        self.assertFalse(
+            any("workout_data" in q["sql"] for q in ctx.captured_queries)
+        )
+
 
 class AddPlannedModalTests(TestCase):
     """The shared "Add plan" modal on the monthly and weekly calendar."""
