@@ -2,7 +2,7 @@
      aria-labelledby="add-planned-title" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" action="{% url 'alors:add_planned' %}">
+            <form method="post" action="{% url 'alors:add_planned' %}" class="js-busy-form">
                 {% csrf_token %}
                 <div class="modal-header">
                     <h5 class="modal-title" id="add-planned-title">Plan a workout</h5>

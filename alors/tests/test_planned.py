@@ -621,6 +621,13 @@ class BusyModalTests(TestCase):
             content,
         )
 
+    def test_add_modal_form_shows_the_busy_modal(self):
+        content = self.calendar().content.decode()
+        self.assertIn(
+            f'action="{reverse("alors:add_planned")}" class="js-busy-form"',
+            content,
+        )
+
     def test_edit_page_delete_form_shows_the_busy_modal(self):
         content = self.client.get(
             reverse("alors:edit_planned", args=[self.workout.pk])
