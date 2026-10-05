@@ -3,7 +3,7 @@
 {% load alors %}
 {% block main %}
 <div class="container-lg">
-    <p><a href="/calendar#date={{ workout.workout_date }}" class="text-muted link-underline link-underline-opacity-0">👈 Back to the calendar</a></p>
+    <p><a href="/calendar#date-{{ workout.workout_date|date:'Y-m-d' }}" class="text-muted link-underline link-underline-opacity-0">👈 Back to the calendar</a></p>
     <div class="row">
         <div class="col">
             <ul class="nav nav-underline pb-4">
