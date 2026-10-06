@@ -21,12 +21,12 @@
     <br>
     {% for item in summary.summary.effort_feeling %}
         {% if item.effort %}
-            <span class="badge badge-workout workout-effort-{{ item.effort }}">{{ item.effort }}</span>
+            <span class="badge badge-workout workout-effort-{{ item.effort }}" data-bs-toggle="tooltip" data-bs-title="Workout effort {{ workout.effort }} out of 10">{{ item.effort }}</span>
         {% endif %} 
     {% endfor %}<br>
     {% for item in summary.summary.effort_feeling %}
         {% if item.feeling %}
-            <span class="badge badge-workout workout-feeling-{{ item.feeling }}">{{ item.feeling }}</span>
+            <span class="badge badge-workout workout-feeling-{{ item.feeling }}" data-bs-toggle="tooltip" data-bs-title="Workout feeling {{ workout.feeling }} out of 5">{{ item.feeling }}</span>
         {% endif %} 
     {% endfor %}
 {% endif %}

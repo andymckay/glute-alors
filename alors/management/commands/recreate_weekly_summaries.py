@@ -95,7 +95,8 @@ class Command(BaseCommand):
             first=Min("workout_date"), last=Max("workout_date")
         )
         completed = Workout.objects.aggregate(
-            first=Min("workout_date"), last=Max("workout_date")
+            first=Min("workout_date_for_timezone"),
+            last=Max("workout_date_for_timezone"),
         )
 
         dates = []

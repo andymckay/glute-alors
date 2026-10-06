@@ -1,7 +1,10 @@
 import json
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
+from importlib import import_module
 
+from django.apps import apps as django_apps
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import connection
@@ -9,7 +12,7 @@ from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from ..models import Issue, PlannedWorkout, Workout
+from ..models import Issue, PlannedWorkout, UserProfile, Workout
 
 
 class WorkoutModelTests(SimpleTestCase):
@@ -331,3 +334,247 @@ class WorkoutSourceDataTests(TestCase):
         self.assertEqual(workout.workout_source, "strava")
         self.assertEqual(workout.source_url, "https://example.com/workout/1")
         self.assertEqual(workout.workout_data, json.dumps(data))
+
+
+class WorkoutTimezoneTests(TestCase):
+    """``save`` captures the creator's timezone and the matching local date."""
+
+    def create_workout(self, **overrides):
+        values = {
+            "workout_date": datetime(2026, 9, 5, 8, 0),
+            "total_time": timedelta(minutes=45),
+            "workout_type": "run",
+        }
+        values.update(overrides)
+        return Workout.objects.create(**values)
+
+    def test_save_captures_creator_timezone_and_local_date(self):
+        owner = User.objects.create_user(username="runner", password="secret")
+        UserProfile.objects.create(user=owner, timezone="Europe/London")
+
+        workout = self.create_workout(created_by=owner)
+
+        # 08:00 UTC is 09:00 British Summer Time.
+        self.assertEqual(workout.timezone, "Europe/London")
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0)
+        )
+        self.assertIsNone(workout.workout_date_for_timezone.tzinfo)
+
+    def test_save_without_creator_uses_default_timezone(self):
+        workout = self.create_workout()
+
+        self.assertEqual(workout.timezone, settings.TIME_ZONE)
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
+        )
+
+    def test_save_without_profile_uses_default_timezone(self):
+        owner = User.objects.create_user(username="runner", password="secret")
+
+        workout = self.create_workout(created_by=owner)
+
+        self.assertEqual(workout.timezone, settings.TIME_ZONE)
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
+        )
+
+    def test_save_with_invalid_profile_timezone_falls_back(self):
+        owner = User.objects.create_user(username="runner", password="secret")
+        UserProfile.objects.create(user=owner, timezone="Not/AZone")
+
+        workout = self.create_workout(created_by=owner)
+
+        self.assertEqual(workout.timezone, settings.TIME_ZONE)
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
+        )
+
+    def test_timezone_is_kept_when_the_profile_changes(self):
+        owner = User.objects.create_user(username="runner", password="secret")
+        profile = UserProfile.objects.create(user=owner, timezone="Europe/London")
+        workout = self.create_workout(created_by=owner)
+
+        profile.timezone = "America/New_York"
+        profile.save()
+        workout.notes = "Updated"
+        workout.save()
+
+        workout.refresh_from_db()
+        self.assertEqual(workout.timezone, "Europe/London")
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0)
+        )
+
+
+class WorkoutTimezoneBackfillTests(TestCase):
+    """The data migration fills the timezone columns on existing workouts."""
+
+    def setUp(self):
+        self.migration = import_module(
+            "alors.migrations.0017_backfill_workout_timezones"
+        )
+
+    def make_legacy_workout(self, **overrides):
+        """Create a workout as it looked before the columns were added."""
+        values = {
+            "workout_date": datetime(2026, 9, 5, 8, 0),
+            "total_time": timedelta(minutes=45),
+            "workout_type": "run",
+        }
+        values.update(overrides)
+        workout = Workout.objects.create(**values)
+        Workout.objects.filter(pk=workout.pk).update(
+            timezone="", workout_date_for_timezone=None
+        )
+        workout.refresh_from_db()
+        return workout
+
+    def run_backfill(self):
+        self.migration.backfill_workout_timezones(django_apps, None)
+
+    def test_backfills_creator_timezone_and_local_date(self):
+        owner = User.objects.create_user(username="runner", password="secret")
+        UserProfile.objects.create(user=owner, timezone="Europe/London")
+        workout = self.make_legacy_workout(created_by=owner)
+
+        self.run_backfill()
+
+        workout.refresh_from_db()
+        self.assertEqual(workout.timezone, "Europe/London")
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0)
+        )
+
+    def test_defaults_to_settings_timezone_without_a_profile(self):
+        owner = User.objects.create_user(username="runner", password="secret")
+        workout = self.make_legacy_workout(created_by=owner)
+
+        self.run_backfill()
+
+        workout.refresh_from_db()
+        self.assertEqual(workout.timezone, settings.TIME_ZONE)
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
+        )
+
+    def test_invalid_profile_timezone_falls_back_to_default(self):
+        owner = User.objects.create_user(username="runner", password="secret")
+        UserProfile.objects.create(user=owner, timezone="Not/AZone")
+        workout = self.make_legacy_workout(created_by=owner)
+
+        self.run_backfill()
+
+        workout.refresh_from_db()
+        self.assertEqual(workout.timezone, settings.TIME_ZONE)
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
+        )
+
+
+class WorkoutTimezoneFallbackBackfillTests(TestCase):
+    """The follow-up migration fills rows 0017 left empty."""
+
+    def setUp(self):
+        self.migration = import_module(
+            "alors.migrations.0019_backfill_workout_default_timezones"
+        )
+
+    def make_legacy_workout(self, **overrides):
+        values = {
+            "workout_date": datetime(2026, 9, 5, 8, 0),
+            "total_time": timedelta(minutes=45),
+            "workout_type": "run",
+        }
+        values.update(overrides)
+        workout = Workout.objects.create(**values)
+        Workout.objects.filter(pk=workout.pk).update(
+            timezone="", workout_date_for_timezone=None
+        )
+        workout.refresh_from_db()
+        return workout
+
+    def run_backfill(self):
+        self.migration.backfill_workout_default_timezones(django_apps, None)
+
+    def test_backfills_workouts_without_a_creator(self):
+        workout = self.make_legacy_workout()
+
+        self.run_backfill()
+
+        workout.refresh_from_db()
+        self.assertEqual(workout.timezone, settings.TIME_ZONE)
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
+        )
+
+    def test_uses_the_creator_timezone_when_available(self):
+        owner = User.objects.create_user(username="runner", password="secret")
+        UserProfile.objects.create(user=owner, timezone="Europe/London")
+        workout = self.make_legacy_workout(created_by=owner)
+
+        self.run_backfill()
+
+        workout.refresh_from_db()
+        self.assertEqual(workout.timezone, "Europe/London")
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0)
+        )
+
+    def test_does_not_touch_workouts_already_backfilled(self):
+        owner = User.objects.create_user(username="runner", password="secret")
+        UserProfile.objects.create(user=owner, timezone="Europe/London")
+        workout = Workout.objects.create(
+            workout_date=datetime(2026, 9, 5, 8, 0),
+            total_time=timedelta(minutes=45),
+            workout_type="run",
+            created_by=owner,
+        )
+
+        self.run_backfill()
+
+        workout.refresh_from_db()
+        self.assertEqual(workout.timezone, "Europe/London")
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0)
+        )
+
+
+class WorkoutLocalDateTests(TestCase):
+    """Date helpers prefer the local wall clock for the creator."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="runner", password="secret")
+        UserProfile.objects.create(user=self.owner, timezone="America/New_York")
+        # 00:30 UTC on Mon 2026-09-07 is 20:30 Sun 2026-09-06 in New York.
+        self.workout = Workout.objects.create(
+            workout_date=datetime(2026, 9, 7, 0, 30),
+            total_time=timedelta(minutes=30),
+            workout_type="run",
+            created_by=self.owner,
+        )
+
+    def test_get_date_as_str_uses_the_local_date(self):
+        self.assertEqual(self.workout.get_date_as_str(), "2026-09-06")
+
+    def test_get_planned_matches_the_local_day(self):
+        planned = PlannedWorkout.objects.create(
+            workout_type="run",
+            workout_date=date(2026, 9, 6),
+            total_distance="10.00",
+        )
+
+        self.assertEqual(self.workout.get_planned, planned)
+
+    def test_get_date_as_str_falls_back_without_a_timezone(self):
+        workout = Workout.objects.create(
+            workout_date=datetime(2026, 9, 7, 0, 30),
+            total_time=timedelta(minutes=30),
+            workout_type="run",
+        )
+        Workout.objects.filter(pk=workout.pk).update(
+            workout_date_for_timezone=None
+        )
+        workout.refresh_from_db()
+
+        self.assertEqual(workout.get_date_as_str(), "2026-09-07")

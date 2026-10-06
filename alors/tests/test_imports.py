@@ -18,7 +18,7 @@ from ..management.commands.import_from_intervals import (
 from ..management.commands.import_workouts import (
     Command as ImportWorkoutsCommand,
 )
-from ..models import Workout
+from ..models import UserProfile, Workout
 
 
 class ImportWorkoutsCommandTests(TestCase):
@@ -220,6 +220,31 @@ class ImportWorkoutsCommandTests(TestCase):
 
         self.assertEqual(workout.workout_date, datetime(2026, 9, 4, 8, 0))
         self.assertIsNone(workout.workout_date.tzinfo)
+
+    def test_import_fit_file_captures_owner_timezone(self):
+        owner = User.objects.create_user(username="runner", password="secret")
+        UserProfile.objects.create(user=owner, timezone="Europe/London")
+        command = ImportWorkoutsCommand()
+        messages = {
+            "session_mesgs": [{"sport": "running"}],
+            "activity_mesgs": [
+                {"timestamp": datetime(2026, 9, 4, 8, 0, tzinfo=timezone.utc)}
+            ],
+        }
+
+        with mock.patch.object(
+            import_workouts, "Decoder"
+        ) as decoder, mock.patch.object(import_workouts, "Stream"):
+            decoder.return_value.read.return_value = (messages, None)
+            workout = command._import_fit_file(
+                Path("/tmp/does-not-exist.fit"), owner=owner
+            )
+
+        self.assertEqual(workout.workout_date, datetime(2026, 9, 4, 8, 0))
+        self.assertEqual(workout.timezone, "Europe/London")
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 4, 9, 0)
+        )
 
 
 @override_settings(INTERVALS_TOKEN="test-intervals-token")

@@ -1047,3 +1047,42 @@ class MarkMissCommandTests(TestCase):
         future.refresh_from_db()
         self.assertEqual(today.status, "")
         self.assertEqual(future.status, "")
+
+
+class WeeklySummaryTimezoneTests(TestCase):
+    """Weekly summaries must bucket workouts by their local date."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="runner", password="secret")
+        UserProfile.objects.create(user=self.owner, timezone="America/New_York")
+
+    def create_workout(self, workout_date, **overrides):
+        values = {
+            "total_time": timedelta(minutes=30),
+            "workout_type": "run",
+            "total_distance": "10.00",
+            "created_by": self.owner,
+        }
+        values.update(overrides)
+        return Workout.objects.create(workout_date=workout_date, **values)
+
+    def test_counts_toward_the_local_week(self):
+        # 00:30 UTC on Mon 2026-09-07 is 20:30 Sun 2026-09-06 in New York.
+        workout = self.create_workout(datetime(2026, 9, 7, 0, 30))
+
+        self.assertEqual(
+            workout.workout_date_for_timezone, datetime(2026, 9, 6, 20, 30)
+        )
+        summary = WeeklySummary.objects.get(date=date(2026, 9, 6))
+        self.assertEqual(summary.summary["workout"]["run"]["workouts"], 1)
+        # The UTC week must not be touched.
+        self.assertFalse(WeeklySummary.objects.filter(date=date(2026, 9, 13)).exists())
+
+    def test_moving_a_workout_refreshes_both_local_weeks(self):
+        workout = self.create_workout(datetime(2026, 9, 7, 0, 30))  # local week 09-06
+        workout.workout_date = datetime(2026, 9, 14, 0, 30)  # local week 09-13
+        workout.save()
+
+        self.assertFalse(WeeklySummary.objects.filter(date=date(2026, 9, 6)).exists())
+        summary = WeeklySummary.objects.get(date=date(2026, 9, 13))
+        self.assertEqual(summary.summary["workout"]["run"]["workouts"], 1)

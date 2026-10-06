@@ -78,7 +78,7 @@ def _effort_feeling(queryset):
             "effort": workout.effort,
             "feeling": workout.feeling,
         }
-        for workout in queryset.order_by("workout_date", "pk")
+        for workout in queryset.order_by("workout_date_for_timezone", "pk")
     ]
 
 
@@ -99,8 +99,8 @@ def refresh_weekly_summary(sunday):
         workout_date__lte=sunday,
     )
     completed = Workout.objects.filter(
-        workout_date__date__gte=week_start,
-        workout_date__date__lte=sunday,
+        workout_date_for_timezone__date__gte=week_start,
+        workout_date_for_timezone__date__lte=sunday,
     )
 
     if not planned.exists() and not completed.exists():
@@ -122,10 +122,11 @@ def _remember_original_date(sender, instance, **kwargs):
     """Stash the previous date so moved workouts can refresh both weeks."""
     instance._original_workout_date = None
     if instance.pk is not None:
+        value = "workout_date" if instance.is_planned else "workout_date_for_timezone"
         original = (
             type(instance)
             .objects.filter(pk=instance.pk)
-            .values_list("workout_date", flat=True)
+            .values_list(value, flat=True)
             .first()
         )
         instance._original_workout_date = original
@@ -133,7 +134,9 @@ def _remember_original_date(sender, instance, **kwargs):
 
 def _sync_weekly_summary(sender, instance, **kwargs):
     """Create or update weekly summaries for the workout's week(s)."""
-    sundays = {_sunday_for(instance.workout_date)}
+    value = "workout_date" if instance.is_planned else "workout_date_for_timezone"
+    workout_date = getattr(instance, value, None) or instance.workout_date
+    sundays = {_sunday_for(workout_date)}
     original = getattr(instance, "_original_workout_date", None)
     if original is not None:
         sundays.add(_sunday_for(original))
@@ -144,7 +147,8 @@ def _sync_weekly_summary(sender, instance, **kwargs):
 
 def _sync_weekly_summary_on_delete(sender, instance, **kwargs):
     """Refresh the weekly summary after a workout is deleted."""
-    workout_date = getattr(instance, "workout_date", None)
+    value = "workout_date" if instance.is_planned else "workout_date_for_timezone"
+    workout_date = getattr(instance, value, None) or instance.workout_date
     if workout_date is not None:
         refresh_weekly_summary(_sunday_for(workout_date))
 
@@ -282,7 +286,9 @@ def _sync_planned_status_from_workout(sender, instance, created, **kwargs):
     * more than 20% under the plan -> under
     * more than 20% over the plan -> over
     """
-    workout_date = _as_date(instance.workout_date)
+    workout_date = _as_date(
+        instance.workout_date_for_timezone or instance.workout_date
+    )
     planned = PlannedWorkout.objects.filter(
         workout_date=workout_date,
         workout_type=instance.workout_type,
@@ -297,7 +303,11 @@ def _sync_planned_status_from_workout(sender, instance, created, **kwargs):
     actual_total = sum(
         (
             actual.total_distance
-            for actual in Workout.objects.filter(workout_date__date=workout_date,workout_type=instance.workout_type,total_distance__isnull=False,)
+            for actual in Workout.objects.filter(
+                workout_date_for_timezone__date=workout_date,
+                workout_type=instance.workout_type,
+                total_distance__isnull=False,
+            )
         ),
         Decimal("0"),
     )

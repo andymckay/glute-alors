@@ -1,7 +1,9 @@
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone as django_timezone
 from django.utils.functional import cached_property
 from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -11,6 +13,7 @@ import json
 from datetime import timedelta
 from bisect import bisect_left, bisect_right
 from dateutil.parser import isoparse
+import pytz
 from parsers.fit import Fit, NullParser
 
 
@@ -100,6 +103,7 @@ class PlannedWorkout(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     get_model_name_display = "Planned"
     is_planned = True
+    is_actual = False
 
     class Meta:
         ordering = ["workout_date", "-created_at"]
@@ -160,6 +164,19 @@ class Workout(models.Model):
     """A workout that has been completed and recorded."""
 
     workout_date = models.DateTimeField("date of the workout")
+    workout_date_for_timezone = models.DateTimeField(
+        "date of the workout in the local timezone",
+        blank=True,
+        null=True,
+        help_text="workout_date converted into the creator's timezone.",
+    )
+    timezone = models.CharField(
+        "timezone",
+        max_length=63,
+        blank=True,
+        default="",
+        help_text="The creator's timezone when this workout was created.",
+    )
     total_time = models.DurationField(
         "total time",
         help_text="Total duration, e.g. 00:45:00 (hh:mm:ss).",
@@ -262,6 +279,7 @@ class Workout(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     get_model_name_display = "Workout"
     is_actual = True
+    is_planned = False
 
     class Meta:
         ordering = ["-workout_date"]
@@ -269,6 +287,10 @@ class Workout(models.Model):
         verbose_name_plural = "workouts"
         indexes = [
             models.Index(fields=["workout_date"], name="workout_date_idx"),
+            models.Index(
+                fields=["workout_date_for_timezone"],
+                name="workout_date_tz_idx",
+            ),
         ]
 
     def __str__(self):
@@ -278,7 +300,48 @@ class Workout(models.Model):
         return reverse("alors:workout_detail", args=[str(self.pk)])
 
     def get_date_as_str(self):
-        return self.workout_date.strftime("%Y-%m-%d")
+        value = self.workout_date_for_timezone or self.workout_date
+        return value.strftime("%Y-%m-%d")
+
+    def save(self, *args, **kwargs):
+        """Capture the creator's timezone and the matching local workout date.
+
+        The timezone is only filled in when it is still empty so later profile
+        changes do not rewrite workouts it was captured for; the converted
+        date is refreshed on every save to stay in step with ``workout_date``.
+        """
+        if not self.timezone:
+            self.timezone = self._creator_timezone()
+        if self.timezone and self.workout_date:
+            self.workout_date_for_timezone = self._in_timezone(
+                self.workout_date, self.timezone
+            )
+        super().save(*args, **kwargs)
+
+    def _creator_timezone(self):
+        """The creator's profile timezone, defaulting to settings.TIME_ZONE."""
+        if self.created_by_id is None:
+            return settings.TIME_ZONE
+        try:
+            profile = self.created_by.profile
+        except ObjectDoesNotExist:
+            return settings.TIME_ZONE
+        return self._resolve_timezone(profile.timezone).zone
+
+    @staticmethod
+    def _resolve_timezone(tzname):
+        """The pytz timezone for ``tzname``, or the settings default."""
+        try:
+            return pytz.timezone(tzname)
+        except (pytz.UnknownTimeZoneError, ValueError):
+            return pytz.timezone(settings.TIME_ZONE)
+
+    @classmethod
+    def _in_timezone(cls, value, tzname):
+        """Return a naive UTC datetime as a naive wall clock in ``tzname``."""
+        if django_timezone.is_naive(value):
+            value = value.replace(tzinfo=pytz.utc)
+        return value.astimezone(cls._resolve_timezone(tzname)).replace(tzinfo=None)
 
     @cached_property
     def get_planned(self):
@@ -289,9 +352,9 @@ class Workout(models.Model):
         """
         if self.workout_type == "run":
             # A day can hold several planned workouts; show the earliest one.
-            return PlannedWorkout.objects.filter(
-                workout_date=self.workout_date
-            ).first()
+            # Compare on the local date: the planned rows are plain dates.
+            local_date = (self.workout_date_for_timezone or self.workout_date).date()
+            return PlannedWorkout.objects.filter(workout_date=local_date).first()
         return None
 
     def status(self):

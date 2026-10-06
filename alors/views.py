@@ -100,10 +100,11 @@ def calendar(request):
 
     actual_workouts = dateList(
         Workout.objects.filter(
-            workout_date__gte=dates["start"], workout_date__lt=dates["next"]
+            workout_date_for_timezone__gte=dates["start"],
+            workout_date_for_timezone__lt=dates["next"],
         )
         .defer("workout_data")
-        .order_by("workout_date")
+        .order_by("workout_date_for_timezone")
     )
 
     summaries = dateList(
