@@ -23,7 +23,11 @@
         <tr>
             {% for entry in week %}
             <td class="js-planned-drop" data-date="{{ entry.date|date:'Y-m-d' }}" data-add-url="{% url 'alors:add_planned' %}?date={{ entry.date|date:'Y-m-d' }}">
-                <div>{% if entry.today %}<a id="today" class="badge text-bg-primary link-underline link-underline-opacity-0">Today</a> {% endif %}<a id="date-{{ entry.date|date:'Y-m-d' }}" class="link-underline link-underline-opacity-0"></a>{{ entry.date|date:"M j" }}</a>    
+                {% if entry.today %}<a id="today"></a>{% endif %}
+                <span id="date-{{ entry.date|date:'Y-m-d' }}"></span>
+                <div class="mt-2">
+                    {% if entry.today %}<span class="badge text-bg-primary">Today</span> {% endif %}
+                    {{ entry.date|date:"M j" }}
                     <div class="label-block mb-2">
                         {% for label in entry.labels %}
                             <span class="badge text-bg-{{ label.colour }}">{{ label.title }}</span>

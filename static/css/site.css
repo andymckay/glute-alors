@@ -274,4 +274,5 @@ thead {
   position: sticky;
   top: 0;
   z-index: 100;
+  opacity: 0.5;
 }

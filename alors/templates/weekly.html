@@ -7,11 +7,12 @@
     {% for entry in dates_and_objects %}
         <div class="row border-start border-end border-top {% if not entry.summaries %}border-bottom{% endif %}">
             <div class="col-3 p-2">
+                {% if entry.today %}<a id="today"></a>{% endif %}
+                <span id="date-{{ entry.date|date:'Y-m-d' }}"></span>
                 <div>
                     {% if entry.today %}
                         <a id="today" class="badge text-bg-primary link-underline link-underline-opacity-0">Today</a> 
                     {% endif %}
-                    <a id="date-{{ entry.date|date:'Y-m-d' }}" class="link-underline link-underline-opacity-0"></a>
                     <b>🗓 {{ entry.date|date:"D, M j" }}</b>
                     {% for label in entry.labels %}
                         <span class="badge text-bg-{{ label.colour }}">{{ label.title }}</span>
