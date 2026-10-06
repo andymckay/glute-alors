@@ -276,3 +276,13 @@ thead {
   z-index: 100;
   opacity: 0.5;
 }
+
+/* On the calendar, the day header only shows while the page is scrolling. */
+thead.day-header {
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+thead.day-header.scrolling {
+  opacity: 1;
+}

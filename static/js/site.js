@@ -393,6 +393,26 @@ function initSavedWorkoutPicker() {
     });
 }
 
+function initCalendarStickyHeader() {
+    const header = document.querySelector(".day-header");
+    if (!header) {
+        return;
+    }
+    const HIDE_DELAY = 400;
+    let timer;
+    window.addEventListener(
+        "scroll",
+        () => {
+            header.classList.add("scrolling");
+            clearTimeout(timer);
+            timer = window.setTimeout(() => {
+                header.classList.remove("scrolling");
+            }, HIDE_DELAY);
+        },
+        { passive: true }
+    );
+}
+
 function initPullToRefresh() {
     // A touch gesture: at the very top of a page, drag down to reload it. This
     // is an enhancement only - reloading the page the usual way still works.
@@ -524,6 +544,7 @@ window.addEventListener("DOMContentLoaded", initCalendarDragAndDrop);
 window.addEventListener("DOMContentLoaded", initSavedWorkoutPicker);
 window.addEventListener("DOMContentLoaded", initBusyForms);
 window.addEventListener("DOMContentLoaded", initAddPlannedModal);
+window.addEventListener("DOMContentLoaded", initCalendarStickyHeader);
 window.addEventListener("DOMContentLoaded", initPullToRefresh);
 window.addEventListener("load", initHeartRateCharts);
 window.addEventListener("load", initSite);
