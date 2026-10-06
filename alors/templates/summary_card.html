@@ -1,5 +1,5 @@
 {% load alors %}
-<p>
+<div class="card-compact mb-2">
 {% if planned %}
     {% for key, data in summary.summary.planned_workout.items %}
         {% if data.total_distance %}
@@ -18,5 +18,16 @@
             {{ key|emoji }} {{ key|capfirst }} x<b>{{ data.workouts }}</b> <br>
         {% endif %}
     {% endfor %}
+    <br>
+    {% for item in summary.summary.effort_feeling %}
+        {% if item.effort %}
+            <span class="badge badge-workout workout-effort-{{ item.effort }}">{{ item.effort }}</span>
+        {% endif %} 
+    {% endfor %}<br>
+    {% for item in summary.summary.effort_feeling %}
+        {% if item.feeling %}
+            <span class="badge badge-workout workout-feeling-{{ item.feeling }}">{{ item.feeling }}</span>
+        {% endif %} 
+    {% endfor %}
 {% endif %}
-</p>
+</div>
