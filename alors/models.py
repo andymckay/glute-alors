@@ -127,6 +127,7 @@ class PlannedWorkout(models.Model):
             return f"**{self.total_distance} km**\n\n{self.notes}"
         return self.notes
 
+
 class SavedWorkout(models.Model):
     """A reusable workout that can be saved and reused."""
 
@@ -500,9 +501,7 @@ class WeeklySummary(models.Model):
         verbose_name = "weekly summary"
         verbose_name_plural = "weekly summaries"
         constraints = [
-            models.UniqueConstraint(
-                fields=["date"], name="uniq_weekly_summary_date"
-            ),
+            models.UniqueConstraint(fields=["date"], name="uniq_weekly_summary_date"),
         ]
 
     def __str__(self):
@@ -715,7 +714,7 @@ class Notification(models.Model):
             "object_name": object_name,
             "is_comment": iscomment,
             "is_actual": self.is_actual,
-            "is_planned": self.is_planned
+            "is_planned": self.is_planned,
         }
 
 

@@ -35,8 +35,8 @@ def backfill_workout_timezones(apps, schema_editor):
             value = workout.workout_date
             if value.tzinfo is None:
                 value = value.replace(tzinfo=pytz.utc)
-            workout.workout_date_for_timezone = (
-                value.astimezone(user_timezone).replace(tzinfo=None)
+            workout.workout_date_for_timezone = value.astimezone(user_timezone).replace(
+                tzinfo=None
             )
         updates.append(workout)
 
@@ -47,9 +47,7 @@ def backfill_workout_timezones(apps, schema_editor):
             updates = []
 
     if updates:
-        Workout.objects.bulk_update(
-            updates, ["timezone", "workout_date_for_timezone"]
-        )
+        Workout.objects.bulk_update(updates, ["timezone", "workout_date_for_timezone"])
 
 
 def clear_workout_timezones(apps, schema_editor):

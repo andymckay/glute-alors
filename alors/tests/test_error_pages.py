@@ -48,9 +48,7 @@ class ErrorPageTests(TestCase):
             with self.subTest(status=status):
                 # The header and footer come from base.html.
                 self.assertContains(response, "glute alors", status_code=status)
-                self.assertContains(
-                    response, "Back to the start", status_code=status
-                )
+                self.assertContains(response, "Back to the start", status_code=status)
                 self.assertContains(response, 'href="/"', status_code=status)
 
     def test_the_pages_explain_themselves(self):

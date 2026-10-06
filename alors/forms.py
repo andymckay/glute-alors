@@ -19,6 +19,7 @@ import calendar
 from django.http import QueryDict
 from urllib.parse import urlencode
 
+
 class CalendarForm(forms.Form):
     d = forms.DateField(
         widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
@@ -54,20 +55,32 @@ class CalendarForm(forms.Form):
             # the days of the month. So might be longer than a month.
             start_of_month = date - timedelta(days=date.day - 1)
             end_previous_month = start_of_month - timedelta(days=1)
-            start_previous_month = end_previous_month - timedelta(days=end_previous_month.day - 1)
+            start_previous_month = end_previous_month - timedelta(
+                days=end_previous_month.day - 1
+            )
 
             days_in_month = calendar.monthrange(date.year, date.month)[1]
             end_of_month = start_of_month + timedelta(days=days_in_month - 1)
             start_next_month = end_of_month + timedelta(days=1)
-            end_next_month = start_next_month + timedelta(days=calendar.monthrange(start_next_month.year, start_next_month.month)[1] - 1)
+            end_next_month = start_next_month + timedelta(
+                days=calendar.monthrange(start_next_month.year, start_next_month.month)[
+                    1
+                ]
+                - 1
+            )
 
-            start = start_previous_month - timedelta(days=start_previous_month.weekday())  # Start on a Monday
-            end = end_next_month + timedelta(days=(6 - end_next_month.weekday()))  # End on a Sunday
+            start = start_previous_month - timedelta(
+                days=start_previous_month.weekday()
+            )  # Start on a Monday
+            end = end_next_month + timedelta(
+                days=(6 - end_next_month.weekday())
+            )  # End on a Sunday
             dates.update(
                 {
                     "start": start,
                     "end": end,
-                    "previous": start_previous_month - timedelta(days=days_in_month - 1),
+                    "previous": start_previous_month
+                    - timedelta(days=days_in_month - 1),
                     "next": end_next_month + timedelta(days=days_in_month + 1),
                 }
             )

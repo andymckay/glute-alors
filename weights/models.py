@@ -116,9 +116,7 @@ class Exercise(models.Model):
     oly_tier = models.PositiveSmallIntegerField("olympic tier", null=True, blank=True)
     power_tier = models.PositiveSmallIntegerField("power tier", null=True, blank=True)
     relative_weight = models.FloatField("relative weight", null=True, blank=True)
-    coefficient = models.PositiveSmallIntegerField(
-        "coefficient", null=True, blank=True
-    )
+    coefficient = models.PositiveSmallIntegerField("coefficient", null=True, blank=True)
 
     # --------------------------------------------------------- bookkeeping
     raw = models.JSONField(

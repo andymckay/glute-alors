@@ -39,7 +39,9 @@ BUNDLED_EXERCISE_COUNT = 1406
 
 
 def _dump(directory, filename, rows):
-    (Path(directory) / filename).write_text(json.dumps({"data": rows}), encoding="utf-8")
+    (Path(directory) / filename).write_text(
+        json.dumps({"data": rows}), encoding="utf-8"
+    )
 
 
 def _related(resource, resource_id):
@@ -53,7 +55,9 @@ def _join(resource, exercise_id, link_key, other_id):
         "type": resource,
         "relationships": {
             "exercise": _related("exercises", exercise_id),
-            link_key: _related(link_key if link_key != "muscle_group" else "muscle_groups", other_id),
+            link_key: _related(
+                link_key if link_key != "muscle_group" else "muscle_groups", other_id
+            ),
         },
     }
 
@@ -198,9 +202,13 @@ class ImportFitbodExercisesCommandTests(TestCase):
         self.assertEqual(leg_press.categories, ["weighted"])
         # CRLF is normalised so the text reads correctly wherever it is shown.
         self.assertEqual(leg_press.instructions, "Sit down.\n\nPress the sled away.")
-        self.assertEqual(leg_press.reference_url, "https://fitbod.me/exercises/leg-press")
+        self.assertEqual(
+            leg_press.reference_url, "https://fitbod.me/exercises/leg-press"
+        )
         self.assertEqual(leg_press.image_url, "https://exercise-jpgs.fitbod.me/95.jpg")
-        self.assertEqual(leg_press.animation_url, "https://exercise-gifs.fitbod.me/95.gif")
+        self.assertEqual(
+            leg_press.animation_url, "https://exercise-gifs.fitbod.me/95.gif"
+        )
         self.assertEqual(leg_press.video_url, "")
         # The untouched resource is kept.
         self.assertEqual(leg_press.raw["id"], "101")
@@ -297,9 +305,7 @@ class BundledFitbodDataTests(TestCase):
     def test_bundled_image_urls_are_local(self):
         """fetch_fitbod_images has run, so the pictures are served by us."""
         for filename in IMAGES:
-            payload = json.loads(
-                (FITBOD_DIR / filename).read_text(encoding="utf-8")
-            )
+            payload = json.loads((FITBOD_DIR / filename).read_text(encoding="utf-8"))
             urls = [
                 holder["image_url"]
                 for holder in _holders(payload)
@@ -318,9 +324,7 @@ class BundledFitbodDataTests(TestCase):
                     continue
                 self.assertTrue(url.startswith(settings.STATIC_URL), url)
                 relative = url[len(settings.STATIC_URL) :]
-                self.assertTrue(
-                    (Path(settings.STATIC_ROOT) / relative).is_file(), url
-                )
+                self.assertTrue((Path(settings.STATIC_ROOT) / relative).is_file(), url)
 
 
 class FetchFitbodImagesCommandTests(TestCase):
@@ -362,9 +366,7 @@ class FetchFitbodImagesCommandTests(TestCase):
         with self.settings(
             STATIC_ROOT=self.static_root, ALLOWED_HOSTS=list(allowed_hosts)
         ):
-            with patch.object(
-                FetchFitbodImagesCommand, "_download", side_effect=fake
-            ):
+            with patch.object(FetchFitbodImagesCommand, "_download", side_effect=fake):
                 call_command(
                     "fetch_fitbod_images", directory=str(self.directory), **options
                 )
@@ -429,9 +431,7 @@ class FetchFitbodImagesCommandTests(TestCase):
 
         self._run(download=boom)
 
-        self.assertEqual(
-            self._read(), ["https://equipment-pngs.fitbod.me/0.png"]
-        )
+        self.assertEqual(self._read(), ["https://equipment-pngs.fitbod.me/0.png"])
         self.assertFalse((self.static_root / "weights/equipment/0.png").exists())
 
     def test_an_image_on_our_own_host_is_left_alone(self):
@@ -517,9 +517,7 @@ class FetchFitbodImagesCommandTests(TestCase):
 
     @staticmethod
     def _equipment_row(image_url):
-        return [
-            {"id": "1", "attributes": {"name": "Barbells", "image_url": image_url}}
-        ]
+        return [{"id": "1", "attributes": {"name": "Barbells", "image_url": image_url}}]
 
     def test_a_throttled_download_is_retried(self):
         """Cloudflare 403s a share of requests; the retry is what saves them."""
@@ -536,9 +534,7 @@ class FetchFitbodImagesCommandTests(TestCase):
 
         with self._no_network_pauses():
             with patch.object(urllib.request, "urlopen", urlopen):
-                call_command(
-                    "fetch_fitbod_images", directory=str(self.directory)
-                )
+                call_command("fetch_fitbod_images", directory=str(self.directory))
 
         self.assertEqual(urlopen.call_count, 3)
         self.assertEqual(
@@ -553,9 +549,7 @@ class FetchFitbodImagesCommandTests(TestCase):
 
         with self._no_network_pauses():
             with patch.object(urllib.request, "urlopen", urlopen):
-                call_command(
-                    "fetch_fitbod_images", directory=str(self.directory)
-                )
+                call_command("fetch_fitbod_images", directory=str(self.directory))
 
         self.assertEqual(urlopen.call_count, 1)
         # The URL is left alone rather than broken, and nothing was written.
@@ -570,9 +564,7 @@ class FetchFitbodImagesCommandTests(TestCase):
 
         with self._no_network_pauses():
             with patch.object(urllib.request, "urlopen", urlopen):
-                call_command(
-                    "fetch_fitbod_images", directory=str(self.directory)
-                )
+                call_command("fetch_fitbod_images", directory=str(self.directory))
 
         self.assertEqual(urlopen.call_count, fetch_fitbod_images.ATTEMPTS)
         self.assertEqual(self._read(), [CDN_IMAGE])

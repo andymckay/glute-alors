@@ -109,14 +109,14 @@ def calendar(request):
 
     summaries = dateList(
         WeeklySummary.objects.filter(
-            date__gte=dates["start"], date__lte=dates["end"]
+            date__gte=dates["start"], date__lte=dates["next"]
         ).order_by("date")
     )
 
     labels = dateList(
         Label.objects.filter(
-            start_date__lte=dates["end"],
             end_date__gte=dates["start"],
+            start_date__lte=dates["next"],
         ).order_by("title")
     )
 
@@ -130,6 +130,7 @@ def calendar(request):
             current = planned_by_date.get(key)
             if current is None or planned.created_at > current.created_at:
                 planned_by_date[key] = planned
+
     for workouts in actual_workouts.values():
         for workout in workouts:
             workout.get_planned = (
@@ -148,7 +149,7 @@ def calendar(request):
 
     # If the monthly, split the data into weeks to make the template easier.
     if form.cleaned_data["r"] == "m":
-        results = [results[i:i + 7] for i in range(0, len(results), 7)]
+        results = [results[i : i + 7] for i in range(0, len(results), 7)]
 
     # The add and edit modals share one set of saved-workout choices, read
     # once so a page full of modals does not query for each form.
@@ -198,6 +199,7 @@ def calendar(request):
         else:
             response.delete_cookie(cookie)
     return response
+
 
 def _week_summary(date_value):
     """Return the stored WeeklySummary for the week containing ``date_value``."""
@@ -274,8 +276,10 @@ def edit_planned(request, pk):
                 messages.SUCCESS,
                 f"✏️ Updated {workout.get_workout_type_display().lower()} workout for {workout.workout_date}.",
             )
-            return redirect(f"/calendar/?d={workout.workout_date}#date-{workout.workout_date}")
-        
+            return redirect(
+                f"/calendar/?d={workout.workout_date}#date-{workout.workout_date}"
+            )
+
     else:
         form = PlannedWorkoutForm(instance=workout)
 
@@ -812,7 +816,7 @@ def mark_all_notifications_read(request):
             + " as read.",
         )
     return redirect("alors:notifications")
- 
+
 
 @login_required
 def email_html(request):
@@ -821,17 +825,22 @@ def email_html(request):
     for line in text.split("\n"):
         line = line.rstrip()
         lines.append(line)
-    
+
     return render(request, "email.html", {"text": "\n".join(lines)})
+
 
 def styles(request):
     return render(request, "styles.html")
 
+
 @login_required
 def error(request):
-    return 1/0
+    return 1 / 0
+
 
 from django.core.exceptions import PermissionDenied
+
+
 @login_required
 def nope(request):
     raise PermissionDenied

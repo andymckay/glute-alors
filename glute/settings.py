@@ -28,16 +28,18 @@ SECRET_KEY = os.getenv(
     "django-insecure-z#vdq369mheu9lxu%ylfcbfvba!!=5jm@^!uekvjy_yof2n752",
 )
 # Set DJANGO_DEBUG to any string to enable, set to empty to turn off.
-DEBUG = False #not not os.getenv("DJANGO_DEBUG", True)
+DEBUG = False  # not not os.getenv("DJANGO_DEBUG", True)
 
 # Local development mode (DJANGO_DEBUG is set in .env). It drives static-file
 # serving and local debug tooling, but never applies to the test suite.
 LOCAL_DEBUG = bool(os.getenv("DJANGO_DEBUG", ""))
 DEBUG_TOOLBAR = LOCAL_DEBUG and "test" not in sys.argv
 
+
 def show_debug_toolbar(request):
     """Show the toolbar whenever local debug mode is enabled."""
     return DEBUG_TOOLBAR
+
 
 ALLOWED_HOSTS = [
     "localhost",
@@ -200,10 +202,10 @@ LOGGING = {
     },
 }
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_USE_TLS = True
-EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST = "smtp.gmail.com"
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_PORT = 587
-DEFAULT_FROM_EMAIL = 'noreply@clearwind.ca'
+DEFAULT_FROM_EMAIL = "noreply@clearwind.ca"

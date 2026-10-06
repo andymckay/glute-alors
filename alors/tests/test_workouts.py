@@ -87,7 +87,9 @@ class WorkoutGetPlannedTests(TestCase):
             second = workout.get_planned
         self.assertIsNotNone(first)
         self.assertIs(first, second)
-        planned = [q for q in ctx.captured_queries if "alors_plannedworkout" in q["sql"]]
+        planned = [
+            q for q in ctx.captured_queries if "alors_plannedworkout" in q["sql"]
+        ]
         self.assertEqual(len(planned), 1)
 
     def test_get_planned_is_none_for_a_non_run(self):
@@ -356,18 +358,14 @@ class WorkoutTimezoneTests(TestCase):
 
         # 08:00 UTC is 09:00 British Summer Time.
         self.assertEqual(workout.timezone, "Europe/London")
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0))
         self.assertIsNone(workout.workout_date_for_timezone.tzinfo)
 
     def test_save_without_creator_uses_default_timezone(self):
         workout = self.create_workout()
 
         self.assertEqual(workout.timezone, settings.TIME_ZONE)
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0))
 
     def test_save_without_profile_uses_default_timezone(self):
         owner = User.objects.create_user(username="runner", password="secret")
@@ -375,9 +373,7 @@ class WorkoutTimezoneTests(TestCase):
         workout = self.create_workout(created_by=owner)
 
         self.assertEqual(workout.timezone, settings.TIME_ZONE)
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0))
 
     def test_save_with_invalid_profile_timezone_falls_back(self):
         owner = User.objects.create_user(username="runner", password="secret")
@@ -386,9 +382,7 @@ class WorkoutTimezoneTests(TestCase):
         workout = self.create_workout(created_by=owner)
 
         self.assertEqual(workout.timezone, settings.TIME_ZONE)
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0))
 
     def test_timezone_is_kept_when_the_profile_changes(self):
         owner = User.objects.create_user(username="runner", password="secret")
@@ -402,9 +396,7 @@ class WorkoutTimezoneTests(TestCase):
 
         workout.refresh_from_db()
         self.assertEqual(workout.timezone, "Europe/London")
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0))
 
 
 class WorkoutTimezoneBackfillTests(TestCase):
@@ -442,9 +434,7 @@ class WorkoutTimezoneBackfillTests(TestCase):
 
         workout.refresh_from_db()
         self.assertEqual(workout.timezone, "Europe/London")
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0))
 
     def test_defaults_to_settings_timezone_without_a_profile(self):
         owner = User.objects.create_user(username="runner", password="secret")
@@ -454,9 +444,7 @@ class WorkoutTimezoneBackfillTests(TestCase):
 
         workout.refresh_from_db()
         self.assertEqual(workout.timezone, settings.TIME_ZONE)
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0))
 
     def test_invalid_profile_timezone_falls_back_to_default(self):
         owner = User.objects.create_user(username="runner", password="secret")
@@ -467,9 +455,7 @@ class WorkoutTimezoneBackfillTests(TestCase):
 
         workout.refresh_from_db()
         self.assertEqual(workout.timezone, settings.TIME_ZONE)
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0))
 
 
 class WorkoutTimezoneFallbackBackfillTests(TestCase):
@@ -504,9 +490,7 @@ class WorkoutTimezoneFallbackBackfillTests(TestCase):
 
         workout.refresh_from_db()
         self.assertEqual(workout.timezone, settings.TIME_ZONE)
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 5, 8, 0))
 
     def test_uses_the_creator_timezone_when_available(self):
         owner = User.objects.create_user(username="runner", password="secret")
@@ -517,9 +501,7 @@ class WorkoutTimezoneFallbackBackfillTests(TestCase):
 
         workout.refresh_from_db()
         self.assertEqual(workout.timezone, "Europe/London")
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0))
 
     def test_does_not_touch_workouts_already_backfilled(self):
         owner = User.objects.create_user(username="runner", password="secret")
@@ -535,9 +517,7 @@ class WorkoutTimezoneFallbackBackfillTests(TestCase):
 
         workout.refresh_from_db()
         self.assertEqual(workout.timezone, "Europe/London")
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 5, 9, 0))
 
 
 class WorkoutLocalDateTests(TestCase):
@@ -572,9 +552,7 @@ class WorkoutLocalDateTests(TestCase):
             total_time=timedelta(minutes=30),
             workout_type="run",
         )
-        Workout.objects.filter(pk=workout.pk).update(
-            workout_date_for_timezone=None
-        )
+        Workout.objects.filter(pk=workout.pk).update(workout_date_for_timezone=None)
         workout.refresh_from_db()
 
         self.assertEqual(workout.get_date_as_str(), "2026-09-07")

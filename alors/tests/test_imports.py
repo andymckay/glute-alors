@@ -242,9 +242,7 @@ class ImportWorkoutsCommandTests(TestCase):
 
         self.assertEqual(workout.workout_date, datetime(2026, 9, 4, 8, 0))
         self.assertEqual(workout.timezone, "Europe/London")
-        self.assertEqual(
-            workout.workout_date_for_timezone, datetime(2026, 9, 4, 9, 0)
-        )
+        self.assertEqual(workout.workout_date_for_timezone, datetime(2026, 9, 4, 9, 0))
 
 
 @override_settings(INTERVALS_TOKEN="test-intervals-token")

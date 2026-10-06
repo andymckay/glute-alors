@@ -4,16 +4,18 @@ from collections import defaultdict
 import pytz
 from alors.models import UserProfile
 
+
 def today(user):
     """
     Today for the user given their timezone
     """
     profile = UserProfile.objects.get(user=user)
     if not profile:
-        timezone = 'UTC'
+        timezone = "UTC"
     else:
         timezone = pytz.timezone(profile.timezone)
     return datetime.datetime.utcnow().replace(tzinfo=timezone).date()
+
 
 def dateList(queryset):
     dates = defaultdict(list)
@@ -36,7 +38,7 @@ def combineDateLists(dates, **kwargs):
             "future": date > today,
             "past": date < today,
             "today": date == today,
-            "weekday": date.weekday()
+            "weekday": date.weekday(),
         }
         result.append(res)
         for name, queryset in kwargs.items():

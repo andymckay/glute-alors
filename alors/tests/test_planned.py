@@ -453,7 +453,9 @@ class PlannedEditModalTests(TestCase):
             )
         with CaptureQueriesContext(connection) as ctx:
             self.calendar()
-        planned = [q for q in ctx.captured_queries if "alors_plannedworkout" in q["sql"]]
+        planned = [
+            q for q in ctx.captured_queries if "alors_plannedworkout" in q["sql"]
+        ]
         saved = [q for q in ctx.captured_queries if "alors_savedworkout" in q["sql"]]
         # One query each, however many modals the page renders.
         self.assertEqual(len(planned), 1)
@@ -530,11 +532,11 @@ class CalendarWorkoutQueryTests(TestCase):
                 workout_type=WorkoutType.RUN,
             )
         with CaptureQueriesContext(connection) as ctx:
-            response = self.client.get(
-                reverse("alors:calendar"), {"d": "2026-09-05"}
-            )
+            response = self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
         self.assertEqual(response.status_code, 200)
-        planned = [q for q in ctx.captured_queries if "alors_plannedworkout" in q["sql"]]
+        planned = [
+            q for q in ctx.captured_queries if "alors_plannedworkout" in q["sql"]
+        ]
         self.assertEqual(len(planned), 1)
 
     def test_calendar_does_not_fetch_workout_data(self):
@@ -546,9 +548,7 @@ class CalendarWorkoutQueryTests(TestCase):
         )
         with CaptureQueriesContext(connection) as ctx:
             self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
-        self.assertFalse(
-            any("workout_data" in q["sql"] for q in ctx.captured_queries)
-        )
+        self.assertFalse(any("workout_data" in q["sql"] for q in ctx.captured_queries))
 
 
 class AddPlannedModalTests(TestCase):
@@ -566,18 +566,14 @@ class AddPlannedModalTests(TestCase):
         self.assertIn('id="add-planned"', content)
         self.assertIn(f'action="{reverse("alors:add_planned")}"', content)
         # The link opens the modal and carries the day it was clicked on.
-        self.assertIn(
-            'data-bs-target="#add-planned" data-date="2026-11-05"', content
-        )
+        self.assertIn('data-bs-target="#add-planned" data-date="2026-11-05"', content)
 
     def test_weekly_renders_the_add_modal(self):
         content = self.client.get(
             reverse("alors:calendar"), {"d": "2026-11-05", "r": "w"}
         ).content.decode()
         self.assertIn('id="add-planned"', content)
-        self.assertIn(
-            'data-bs-target="#add-planned" data-date="2026-11-05"', content
-        )
+        self.assertIn('data-bs-target="#add-planned" data-date="2026-11-05"', content)
 
     def test_add_modal_form_creates_a_planned_workout(self):
         response = self.client.post(
@@ -671,9 +667,7 @@ class DeletePlannedWorkoutTests(TestCase):
         )
 
     def delete(self):
-        return self.client.post(
-            reverse("alors:delete_planned", args=[self.workout.pk])
-        )
+        return self.client.post(reverse("alors:delete_planned", args=[self.workout.pk]))
 
     def test_calendar_delete_link_prompts_for_confirmation(self):
         content = self.client.get(
@@ -1009,9 +1003,7 @@ class PlannedStatusUpdateTests(TestCase):
         self.create_planned()
         self.create_planned(title="Second run")
         self.create_workout(total_distance=Decimal("10.00"))
-        self.assertEqual(
-            PlannedWorkout.objects.filter(status="done").count(), 0
-        )
+        self.assertEqual(PlannedWorkout.objects.filter(status="done").count(), 0)
 
 
 class MarkMissCommandTests(TestCase):
