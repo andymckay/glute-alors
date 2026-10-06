@@ -51,7 +51,7 @@
                 <div class="badge bg-primary">{{ workout.comment_count }} comment{{ workout.comment_count|pluralize }}</div>
             {% endif %}
             {% if not expand %}
-                <div><a href="#" class="link-underline link-underline-opacity-0 navbar-toggler-icon" data-bs-toggle="collapse" data-bs-target="#options-{{ workout.pk }}"> </a></div>
+                <div><a href="#" class="link-underline link-underline-opacity-0" data-bs-toggle="collapse" data-bs-target="#options-{{ workout.pk }}">➕</a></div>
                 <div class="collapse mt-2" id="options-{{ workout.pk }}">
                     <form method="post" action="{% url 'alors:duplicate_planned' workout.pk %}" class="d-inline js-busy-form">
                         {% csrf_token %}

@@ -343,6 +343,17 @@ function initAddPlannedModal() {
     });
 }
 
+function pickRandom() {
+    const msgs = [
+        "Performing stretches...",
+        "Lacing shoes...",
+        "Fiddling with watch...",
+        "Give me a second...",
+        "Grabbing electrolytes...",
+    ]
+    return msgs[Math.floor(Math.random() * msgs.length)];
+}
+
 function initBusyForms() {
     // Deleting, editing and duplicating a planned workout all post and then
     // load the next page. Keep a spinner up while that happens.
@@ -359,6 +370,7 @@ function initBusyForms() {
             event.preventDefault();
             return;
         }
+        document.getElementById("thinking-message").innerText = pickRandom();
         bootstrap.Modal.getOrCreateInstance(modalElement).show();
     });
 }
