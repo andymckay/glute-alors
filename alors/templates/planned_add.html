@@ -38,42 +38,6 @@
                 </form>
             {% endif %}
         </div>
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header"><b>Last</b> week summary</div>
-                <div class="card-body">
-                    <div>
-                        {% with summary=last_week_summary %}
-                            {% with planned=True %}
-                                <p>Planned so far:</p>
-                                {% include "summary_card.html" %}
-                            {% endwith %}
-                            {% with planned=False %}
-                                <p>Actual so far:</p>
-                                {% include "summary_card.html" %}
-                            {% endwith %}
-                        {% endwith %}
-                    </div>
-                </div>
-            </div>
-            <div class="card mt-4">
-                <div class="card-header"><b>This</b> week summary</div>
-                <div class="card-body">
-                    <div>
-                        {% with summary=this_week_summary %}
-                            {% with planned=True %}
-                                <p>Planned so far:</p>
-                                {% include "summary_card.html" %}
-                            {% endwith %}
-                            {% with planned=False %}
-                                <p>Actual so far:</p>
-                                {% include "summary_card.html" %}
-                            {% endwith %}
-                        {% endwith %}
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 <script>

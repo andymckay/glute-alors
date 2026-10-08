@@ -115,9 +115,9 @@ class AddPlannedWorkoutTests(TestCase):
 
     def test_user_related_name_links_back_to_workouts(self):
         self.add_workout()
-        self.assertEqual(self.user.planned_workouts.count(), 1)
+        self.assertEqual(self.user.plannedworkout_set.count(), 1)
         self.assertEqual(
-            self.user.planned_workouts.get().title,
+            self.user.plannedworkout_set.get().title,
             "Long run",
         )
 

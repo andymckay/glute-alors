@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="container-lg">
+    <div class="row">
+        <div class="col-lg-8">
+            <h2 class="mb-1">{{ page_title|default:"Create a weights workout" }}</h2>
+            <p class="text-muted mb-4">{{ page_intro|default:"Add one or more exercises and the sets you did." }}</p>
+
+            {% if actual %}
+                <div class="alert alert-secondary py-2">
+                    {% if workout.plan %}
+                        Doing
+                        <a href="{% url 'weights:workout_edit' workout.plan.pk %}">{{ workout.plan.title|default:"(No title)" }}</a>
+                        &mdash;
+                    {% endif %}
+                    {{ workout.completed_set_count }} of {{ workout.set_count }} sets done.
+                </div>
+            {% endif %}
+
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {{ timed_exercise_ids|json_script:"timed-exercise-ids" }}
+
+                <div class="mb-3">
+                    <label for="{{ form.title.id_for_label }}" class="form-label">{{ form.title.label }}</label>
+                    {{ form.title }}
+                    {% if form.title.help_text %}
+                        <div class="form-text">{{ form.title.help_text }}</div>
+                    {% endif %}
+                    {% for error in form.title.errors %}
+                        <div class="invalid-feedback d-block">{{ error }}</div>
+                    {% endfor %}
+                </div>
+
+                {{ formset.management_form }}
+
+                {% for error in formset.non_form_errors %}
+                    <div class="alert alert-danger py-2" role="alert">{{ error }}</div>
+                {% endfor %}
+
+                <div id="exercise-rows">
+                    {% for group in groups %}
+                        {% if group.letter %}
+                            {% include "weights/_superset_header.html" with letter=group.letter rest_minutes=group.rest_minutes rest_seconds=group.rest_seconds %}
+                        {% endif %}
+                        {% for row in group.rows %}
+                            {% include "weights/_exercise_row.html" with form=row.form set_formset=row.set_formset timed=row.timed letter=group.letter actual=actual %}
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+
+                <p class="text-muted small">Drag one exercise onto another to do them together as a superset.</p>
+
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="add-exercise-row">+ Add exercise</button>
+
+                <div class="mt-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Save workout</button>
+                    <a href="{% url 'weights:workout_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </form>
+
+            {% if workout %}
+                <hr class="my-4">
+                <div class="d-flex flex-wrap gap-2">
+                    {% if not actual %}
+                        <form method="post" action="{% url 'weights:workout_do' workout.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-primary">Do workout</button>
+                        </form>
+                    {% endif %}
+                    <form method="post" action="{% url 'weights:workout_duplicate' workout.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-secondary">Duplicate workout</button>
+                    </form>
+                    <form method="post" action="{% url 'weights:workout_delete' workout.pk %}"
+                          onsubmit="return confirm('Are you sure you want to delete this workout?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger">Delete workout</button>
+                    </form>
+                </div>
+            {% endif %}
+
+            <template id="empty-exercise-row">
+                {% include "weights/_exercise_row.html" with form=empty_exercise_form set_formset=empty_set_formset timed=False letter="" actual=actual %}
+            </template>
+
+            <template id="empty-superset-header">
+                {% include "weights/_superset_header.html" with letter="__letter__" rest_minutes=0 rest_seconds=default_rest_seconds %}
+            </template>
+        </div>
+    </div>
+</div>
+{% endblock %}

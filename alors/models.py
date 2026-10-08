@@ -8,6 +8,7 @@ from django.utils.functional import cached_property
 from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from core.models import CreatedByModel, TimeStampedModel
 import time
 import json
 from datetime import timedelta
@@ -45,7 +46,7 @@ class Status(models.TextChoices):
     UNDER = "under", "Under"
 
 
-class PlannedWorkout(models.Model):
+class PlannedWorkout(CreatedByModel):
     """A workout that has been planned ahead of time."""
 
     title = models.CharField(
@@ -90,17 +91,6 @@ class PlannedWorkout(models.Model):
         default=0,
         help_text="Number of comments on this workout.",
     )
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name="created by",
-        related_name="planned_workouts",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        help_text="The user who created this planned workout.",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     get_model_name_display = "Planned"
     is_planned = True
     is_actual = False
@@ -128,7 +118,7 @@ class PlannedWorkout(models.Model):
         return self.notes
 
 
-class SavedWorkout(models.Model):
+class SavedWorkout(CreatedByModel):
     """A reusable workout that can be saved and reused."""
 
     title = models.CharField(
@@ -140,18 +130,6 @@ class SavedWorkout(models.Model):
         "text",
         help_text="The workout or instructions.",
     )
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name="created by",
-        related_name="saved_workouts",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        help_text="The user who created this saved workout.",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         ordering = ["title"]
         verbose_name = "saved workout"
@@ -161,7 +139,7 @@ class SavedWorkout(models.Model):
         return self.title
 
 
-class Workout(models.Model):
+class Workout(CreatedByModel):
     """A workout that has been completed and recorded."""
 
     workout_date = models.DateTimeField("date of the workout")
@@ -267,17 +245,6 @@ class Workout(models.Model):
         blank=True,
         help_text="Issues related to this workout.",
     )
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name="created by",
-        related_name="workouts",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        help_text="The user who recorded this workout.",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     get_model_name_display = "Workout"
     is_actual = True
     is_planned = False
@@ -399,7 +366,7 @@ class Workout(models.Model):
             return NullParser()
 
 
-class Comment(models.Model):
+class Comment(CreatedByModel):
     """A Markdown comment attached to a planned or completed workout."""
 
     text = models.TextField(
@@ -424,18 +391,6 @@ class Comment(models.Model):
         blank=True,
         help_text="The completed workout this comment is about.",
     )
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name="created by",
-        related_name="comments",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        help_text="The user who wrote this comment.",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         ordering = ["created_at"]
         verbose_name = "comment"
@@ -446,7 +401,7 @@ class Comment(models.Model):
         return f"{self.created_by or 'Anonymous'}: {text}"
 
 
-class Issue(models.Model):
+class Issue(CreatedByModel):
     """A reported issue or bug to track."""
 
     title = models.CharField(
@@ -461,18 +416,6 @@ class Issue(models.Model):
         default=Colour.PRIMARY,
         help_text="A Bootstrap badge colour.",
     )
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name="created by",
-        related_name="issues",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        help_text="The user who created this issue.",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         ordering = ["title"]
         verbose_name = "issue"
@@ -515,7 +458,7 @@ class WeeklySummary(models.Model):
         return time.strftime("%H:%M:%S", time.gmtime(seconds))
 
 
-class Label(models.Model):
+class Label(CreatedByModel):
     """A named, coloured date range used to tag things."""
 
     Colour = Colour  # module-level choices shared with Issue
@@ -534,18 +477,6 @@ class Label(models.Model):
     )
     start_date = models.DateField("start date")
     end_date = models.DateField("end date")
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name="created by",
-        related_name="labels",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        help_text="The user who created this label.",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         ordering = ["start_date", "title"]
         verbose_name = "label"
@@ -605,7 +536,7 @@ class NotificationManager(models.Manager):
         ).update(read=True)
 
 
-class Notification(models.Model):
+class Notification(TimeStampedModel):
     """Record that a linked model was added or edited."""
 
     class Action(models.TextChoices):
@@ -652,8 +583,6 @@ class Notification(models.Model):
         default=False,
         help_text="Whether this notification has been read.",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     objects = NotificationManager()
 
     class Meta:
@@ -718,12 +647,16 @@ class Notification(models.Model):
         }
 
 
-class UserProfile(models.Model):
+class UserProfile(TimeStampedModel):
     """Extra per-user settings, such as their role."""
 
     class Role(models.TextChoices):
         COACH = "coach", "Coach"
         ATHLETE = "athlete", "Athlete"
+
+    class WeightUnit(models.TextChoices):
+        METRIC = "metric", "Metric (kg)"
+        IMPERIAL = "imperial", "Imperial (lb)"
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -737,6 +670,13 @@ class UserProfile(models.Model):
         choices=Role.choices,
         default=Role.ATHLETE,
         help_text="Whether this user is a coach or an athlete.",
+    )
+    units = models.CharField(
+        "units",
+        max_length=10,
+        choices=WeightUnit.choices,
+        default=WeightUnit.IMPERIAL,
+        help_text="Whether to show weights in metric or imperial units.",
     )
     timezone = models.CharField(
         "timezone",
@@ -756,9 +696,6 @@ class UserProfile(models.Model):
         default=False,
         help_text="Receive a daily email about your training.",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         verbose_name = "user profile"
         verbose_name_plural = "user profiles"

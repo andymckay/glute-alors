@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="container-lg">
+    <div class="row">
+        <div class="col-lg-8">
+            <p>
+                <a class="btn btn-primary" href="{% url 'weights:workout_add' %}">Create a weights workout</a>
+            </p>
+            <ul class="list-group">
+                {% for workout in workouts %}
+                    <li class="list-group-item">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <div>
+                                <a href="{% url 'weights:workout_edit' workout.pk %}">{% if workout.title %}{{ workout.title }}{% else %}(No title){% endif %}</a>
+                                {% if workout.is_actual %}
+                                    <span class="badge text-bg-secondary">Actual</span>
+                                    <span class="text-muted small">
+                                        {{ workout.completed_set_count }} of {{ workout.set_count }} sets done
+                                        {% if workout.plan %}
+                                            &mdash; from <a href="{% url 'weights:workout_edit' workout.plan.pk %}">{{ workout.plan.title|default:"(No title)" }}</a>
+                                        {% endif %}
+                                    </span>
+                                {% endif %}
+                                <div class="text-muted small">{{ workout.created_at|date:"j M Y, H:i" }}</div>
+                            </div>
+                            {% if not workout.is_actual %}
+                                <form method="post" action="{% url 'weights:workout_do' workout.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-primary">Do workout</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                        <ol class="mb-0 small text-muted">
+                            {% for superset, entries in workout.exercise_groups %}
+                                <li>
+                                    {% if superset %}
+                                        <span class="badge text-bg-secondary">Superset {{ superset.letter }}</span>
+                                        <ul class="list-unstyled mb-0">
+                                            {% for entry in entries %}
+                                                <li>
+                                                    {{ entry }}{% include "weights/_entry_sets.html" with entry=entry %}{% if forloop.last and superset.rest %} — {{ superset.rest }} rest at the end of each round{% endif %}
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        {% for entry in entries %}
+                                            {{ entry }}{% include "weights/_entry_sets.html" with entry=entry %}
+                                        {% endfor %}
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ol>
+                    </li>
+                {% empty %}
+                    <li class="list-group-item">No weights workouts yet. <a href="{% url 'weights:workout_add' %}">Create one</a>.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -369,9 +369,10 @@ class ProfileForm(forms.ModelForm):
 
     class Meta:
         model = UserProfile
-        fields = ["role", "timezone", "send_daily_email", "avatar"]
+        fields = ["avatar", "role", "timezone", "units", "send_daily_email"]
         widgets = {
             "role": forms.Select(attrs={"class": "form-select"}),
+            "units": forms.Select(attrs={"class": "form-select"}),
             "send_daily_email": forms.CheckboxInput(
                 attrs={"class": "form-check-input"}
             ),

@@ -1,0 +1,3 @@
+{% with sets=entry.sets.all %}{% if sets %}:
+    {% for set in sets %}{% if set.duration_seconds %}{{ set.duration }} min{% else %}{{ set.reps }} reps{% endif %}{% if set.weight %} @ {{ set.weight }} {{ weight_unit_abbr }}{% endif %}{% if set.rest %} ({{ set.rest }} rest){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}
+{% endif %}{% endwith %}

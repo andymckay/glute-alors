@@ -1,0 +1,112 @@
+<div class="exercise-row border rounded p-3 mb-3{% if letter %} superset-member{% endif %}" data-superset="{{ letter }}" data-timed="{{ timed|yesno:'true,false' }}">
+    {{ form.id }}
+    {{ form.superset }}
+    <div class="row g-2 align-items-center">
+        <div class="col-auto">
+            <button type="button" class="js-superset-handle badge bg-secondary border-0"
+                    title="Drag onto another exercise to do them as a superset">Drag</button>
+        </div>
+        <div class="col">{{ form.exercise_id }}</div>
+        <div class="col-auto">
+            <div class="form-check">
+                {{ form.DELETE }}
+                <label class="form-check-label" for="{{ form.DELETE.id_for_label }}">Remove</label>
+            </div>
+        </div>
+    </div>
+    {% for error in form.exercise_id.errors %}
+        <div class="text-danger small">{{ error }}</div>
+    {% endfor %}
+
+    {{ set_formset.management_form }}
+    <div class="sets mt-2">
+        {% for set_form in set_formset %}
+            <div class="set-row d-flex flex-wrap align-items-center gap-2 mb-1">
+                {{ set_form.id }}
+                {% if actual %}
+                    <div class="form-check m-0 d-flex align-items-center gap-1">
+                        {{ set_form.completed }}
+                        <label class="form-check-label small text-muted" for="{{ set_form.completed.id_for_label }}">done</label>
+                    </div>
+                {% endif %}
+                <span class="reps-fields d-flex align-items-center gap-2{% if timed %} d-none{% endif %}">
+                    {{ set_form.reps }}
+                    {% for error in set_form.reps.errors %}
+                        <span class="text-danger small">{{ error }}</span>
+                    {% endfor %}
+                </span>
+                <span class="timed-fields d-flex align-items-center gap-2{% if not timed %} d-none{% endif %}">
+                    {{ set_form.minutes }}<span class="text-muted small">min</span>
+                    {{ set_form.seconds }}<span class="text-muted small">sec</span>
+                    {% for error in set_form.minutes.errors %}
+                        <span class="text-danger small">{{ error }}</span>
+                    {% endfor %}
+                    {% for error in set_form.seconds.errors %}
+                        <span class="text-danger small">{{ error }}</span>
+                    {% endfor %}
+                </span>
+                <span class="d-flex align-items-center gap-2">
+                    {{ set_form.weight }}
+                    <span class="text-muted small">{{ weight_unit_abbr }}</span>
+                    {% for error in set_form.weight.errors %}
+                        <span class="text-danger small">{{ error }}</span>
+                    {% endfor %}
+                </span>
+                <span class="rest-fields d-flex align-items-center gap-2{% if letter %} d-none{% endif %}">
+                    <span class="text-muted small">rest</span>
+                    {{ set_form.rest_minutes }}<span class="text-muted small">min</span>
+                    {{ set_form.rest_seconds }}<span class="text-muted small">sec</span>
+                    {% for error in set_form.rest_minutes.errors %}
+                        <span class="text-danger small">{{ error }}</span>
+                    {% endfor %}
+                    {% for error in set_form.rest_seconds.errors %}
+                        <span class="text-danger small">{{ error }}</span>
+                    {% endfor %}
+                </span>
+                {{ set_form.DELETE }}
+                <button type="button" class="btn btn-sm btn-outline-danger js-remove-set" aria-label="Remove set">&times;</button>
+            </div>
+        {% endfor %}
+        <template class="set-template">
+            <div class="set-row d-flex flex-wrap align-items-center gap-2 mb-1">
+                <input type="hidden" name="{{ set_formset.prefix }}-__set__-id">
+                {% if actual %}
+                    <div class="form-check m-0 d-flex align-items-center gap-1">
+                        <input type="checkbox" class="form-check-input" name="{{ set_formset.prefix }}-__set__-completed">
+                        <label class="form-check-label small text-muted">done</label>
+                    </div>
+                {% endif %}
+                <span class="reps-fields d-flex align-items-center gap-2{% if timed %} d-none{% endif %}">
+                    <input type="number" min="1" class="form-control form-control-sm" style="width:6rem"
+                           name="{{ set_formset.prefix }}-__set__-reps" value="8" placeholder="reps">
+                </span>
+                <span class="timed-fields d-flex align-items-center gap-2{% if not timed %} d-none{% endif %}">
+                    <input type="number" min="0" class="form-control form-control-sm" style="width:6rem"
+                           name="{{ set_formset.prefix }}-__set__-minutes" placeholder="min">
+                    <span class="text-muted small">min</span>
+                    <input type="number" min="0" max="59" class="form-control form-control-sm" style="width:6rem"
+                           name="{{ set_formset.prefix }}-__set__-seconds" placeholder="sec">
+                    <span class="text-muted small">sec</span>
+                </span>
+                <span class="d-flex align-items-center gap-2">
+                    <input type="number" min="0" step="0.5" class="form-control form-control-sm" style="width:6rem"
+                           name="{{ set_formset.prefix }}-__set__-weight" placeholder="weight">
+                    <span class="text-muted small">{{ weight_unit_abbr }}</span>
+                </span>
+                <span class="rest-fields d-flex align-items-center gap-2{% if letter %} d-none{% endif %}">
+                    <span class="text-muted small">rest</span>
+                    <input type="number" min="0" class="form-control form-control-sm" style="width:5rem"
+                           name="{{ set_formset.prefix }}-__set__-rest_minutes" placeholder="0">
+                    <span class="text-muted small">min</span>
+                    <input type="number" min="0" max="59" class="form-control form-control-sm" style="width:5rem"
+                           name="{{ set_formset.prefix }}-__set__-rest_seconds"
+                           value="{{ default_rest_seconds }}" placeholder="0">
+                    <span class="text-muted small">sec</span>
+                </span>
+                <input type="checkbox" class="d-none" name="{{ set_formset.prefix }}-__set__-DELETE">
+                <button type="button" class="btn btn-sm btn-outline-danger js-remove-set" aria-label="Remove set">&times;</button>
+            </div>
+        </template>
+    </div>
+    <button type="button" class="btn btn-outline-secondary btn-sm js-add-set">+ Add set</button>
+</div>

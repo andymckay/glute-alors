@@ -37,6 +37,7 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'alors:calendar' %}#today">Calendar</a>
                         </li>
+                        <li><a class="nav-link" href="{% url 'health:health_list' %}">Health</a></li>
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'alors:notifications' %}">Notifications
                                 <span class="badge rounded-pill bg-danger" data-bs-toggle="tooltip" data-bs-title="Number of notifications">
@@ -52,8 +53,9 @@
                                 </span>
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="{% url 'alors:add_planned' %}">Planned Workout</a></li>
-                                <li><a class="dropdown-item" href="{% url 'alors:saved_workout_list' %}">Saved workouts</a></li>
+                                <li><a class="dropdown-item" href="{% url 'alors:add_planned' %}">Planned run</a></li>
+                                <li><a class="dropdown-item" href="{% url 'alors:saved_workout_list' %}">Saved run</a></li>
+                                <li><a class="dropdown-item" href="{% url 'weights:workout_list' %}">Planned weights</a></li>
                                 <li><a class="dropdown-item" href="{% url 'alors:issue_list' %}">Issues</a></li>
                                 <li><a class="dropdown-item" href="{% url 'alors:label_list' %}">Labels</a></li>
                                 <li><a class="dropdown-item" href="{% url 'alors:profile' %}">Profile</a></li>

@@ -211,6 +211,45 @@ dt {
   outline-offset: -2px;
 }
 
+/* Grouping exercises into supersets on a weights workout */
+.js-superset-handle {
+  cursor: grab;
+  /* Let the drag take over from the browser's own scrolling on touch. */
+  touch-action: none;
+}
+
+body.dragging-superset,
+body.dragging-superset * {
+  cursor: grabbing !important;
+}
+
+.exercise-row.dragging {
+  opacity: 0.4;
+}
+
+.exercise-row.drop-target {
+  outline: 2px dashed var(--bs-primary);
+  outline-offset: -2px;
+}
+
+.superset-header {
+  border-left: 3px solid var(--bs-primary);
+  padding-left: 0.5rem;
+}
+
+.exercise-row.superset-member {
+  border-left: 3px solid var(--bs-primary) !important;
+}
+
+/* A set ticked off while doing a workout */
+.set-row.completed input[type="number"]:not(:focus) {
+  border-color: var(--bs-success);
+}
+
+.set-row.completed {
+  opacity: 0.6;
+}
+
 .link-card-hack {
   color: var(--bs-secondary-color) !important;
 }

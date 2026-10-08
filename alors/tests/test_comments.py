@@ -52,7 +52,7 @@ class CommentModelTests(TestCase):
 
     def test_created_by_links_back_to_user(self):
         self.comment(planned_workout=self.planned)
-        self.assertEqual(self.user.comments.count(), 1)
+        self.assertEqual(self.user.comment_set.count(), 1)
 
     def test_deleting_parent_deletes_comments(self):
         comment = self.comment(planned_workout=self.planned)

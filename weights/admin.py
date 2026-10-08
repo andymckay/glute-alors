@@ -1,27 +1,18 @@
 from django.contrib import admin
 
-from .models import Exercise
+from .models import WeightsWorkout, WeightsWorkoutExercise
 
 
-@admin.register(Exercise)
-class ExerciseAdmin(admin.ModelAdmin):
-    list_display = (
-        "name",
-        "level",
-        "mobility_type",
-        "is_bodyweight",
-        "is_cardio",
-        "rating",
-    )
-    list_filter = (
-        "level",
-        "mobility_type",
-        "is_bodyweight",
-        "is_cardio",
-        "is_timed",
-        "is_distance",
-        "is_web_published",
-        "rating",
-    )
-    search_fields = ("name", "alias", "slug")
-    readonly_fields = ("raw", "imported_at")
+class WeightsWorkoutExerciseInline(admin.TabularInline):
+    model = WeightsWorkoutExercise
+    extra = 1
+
+
+@admin.register(WeightsWorkout)
+class WeightsWorkoutAdmin(admin.ModelAdmin):
+    list_display = ("created_by", "is_actual", "created_at", "updated_at")
+    list_filter = ("created_by", "is_actual")
+    search_fields = ("created_by__username", "created_by__email")
+    readonly_fields = ("created_at", "updated_at")
+    date_hierarchy = "created_at"
+    inlines = [WeightsWorkoutExerciseInline]

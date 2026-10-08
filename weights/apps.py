@@ -5,3 +5,8 @@ class WeightsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "weights"
     verbose_name = "Weights"
+
+    def ready(self):
+        from . import models
+
+        models.load()

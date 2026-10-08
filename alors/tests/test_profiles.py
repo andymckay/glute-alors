@@ -21,6 +21,18 @@ class UserProfileModelTests(TestCase):
         self.assertEqual(profile.role, "coach")
         self.assertEqual(profile.get_role_display(), "Coach")
 
+    def test_units_defaults_to_imperial(self):
+        profile = UserProfile.objects.create(user=self.user)
+        self.assertEqual(profile.units, UserProfile.WeightUnit.IMPERIAL)
+        self.assertEqual(profile.get_units_display(), "Imperial (lb)")
+
+    def test_can_choose_metric_units(self):
+        profile = UserProfile.objects.create(
+            user=self.user, units=UserProfile.WeightUnit.METRIC
+        )
+        self.assertEqual(profile.units, "metric")
+        self.assertEqual(profile.get_units_display(), "Metric (kg)")
+
     def test_profile_is_one_to_one_with_user(self):
         UserProfile.objects.create(user=self.user)
         with self.assertRaises(Exception):
@@ -73,7 +85,12 @@ class ProfileViewTests(TestCase):
         self.assertFalse(response.context["form"]["send_daily_email"].value())
 
     def test_post_can_turn_the_daily_email_on_and_off_again(self):
-        data = {"role": "athlete", "timezone": "UTC", "email": "runner@example.com"}
+        data = {
+            "role": "athlete",
+            "units": "imperial",
+            "timezone": "UTC",
+            "email": "runner@example.com",
+        }
 
         self.client.post(reverse("alors:profile"), {**data, "send_daily_email": "on"})
         self.user.profile.refresh_from_db()
@@ -89,6 +106,7 @@ class ProfileViewTests(TestCase):
             reverse("alors:profile"),
             {
                 "role": "coach",
+                "units": "imperial",
                 "timezone": "Europe/London",
                 "email": "coach@example.com",
             },
@@ -100,10 +118,35 @@ class ProfileViewTests(TestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, "coach@example.com")
 
+    def test_profile_page_shows_units(self):
+        response = self.client.get(reverse("alors:profile"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Units")
+        self.assertEqual(response.context["form"]["units"].value(), "imperial")
+
+    def test_post_updates_units(self):
+        response = self.client.post(
+            reverse("alors:profile"),
+            {
+                "role": "athlete",
+                "units": "metric",
+                "timezone": "UTC",
+                "email": "runner@example.com",
+            },
+        )
+        self.assertRedirects(response, reverse("alors:profile"))
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.units, "metric")
+
     def test_invalid_email_is_rejected(self):
         response = self.client.post(
             reverse("alors:profile"),
-            {"role": "athlete", "timezone": "UTC", "email": "not-an-email"},
+            {
+                "role": "athlete",
+                "units": "imperial",
+                "timezone": "UTC",
+                "email": "not-an-email",
+            },
         )
         self.assertEqual(response.status_code, 200)
         self.user.refresh_from_db()
@@ -124,6 +167,7 @@ class ProfileViewTests(TestCase):
                     reverse("alors:profile"),
                     {
                         "role": "athlete",
+                        "units": "imperial",
                         "timezone": "America/New_York",
                         "email": "runner@example.com",
                         "avatar": avatar,

@@ -23,6 +23,8 @@ import alors
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("health/", include("health.urls", namespace="health")),
+    path("weights/", include("weights.urls", namespace="weights")),
     path("", include("alors.urls", namespace="alors")),
 ]
 

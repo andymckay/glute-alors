@@ -539,6 +539,331 @@ function initPullToRefresh() {
     window.addEventListener("pageshow", reset);
 }
 
+function initExerciseFormset() {
+    const container = document.getElementById("exercise-rows");
+    const addButton = document.getElementById("add-exercise-row");
+    const template = document.getElementById("empty-exercise-row");
+    const totalForms = document.querySelector('input[name="exercises-TOTAL_FORMS"]');
+    const headerTemplate = document.getElementById("empty-superset-header");
+    if (!container || !addButton || !template || !totalForms) {
+        return;
+    }
+
+    // Exercises the server considers timed: those ask for a time, not reps.
+    const timedIdsElement = document.getElementById("timed-exercise-ids");
+    const timedIds = new Set(
+        timedIdsElement ? JSON.parse(timedIdsElement.textContent).map(Number) : []
+    );
+    // Supersets are labelled with these, in the order they appear.
+    const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    const rows = () => Array.from(container.querySelectorAll(".exercise-row"));
+    const letterOf = (row) => row.querySelector('input[name$="-superset"]');
+
+    const toggleFields = (root, selector, hidden) => {
+        root.querySelectorAll(selector).forEach((field) => {
+            field.classList.toggle("d-none", hidden);
+        });
+    };
+
+    // Drill into a row's set template, which querySelectorAll skips.
+    const setTemplateOf = (row) => row.querySelector(".set-template");
+
+    /** Show a set as done when its checkbox is ticked. */
+    const syncSetRow = (setRow) => {
+        const done = setRow.querySelector('input[name$="-completed"]');
+        setRow.classList.toggle("completed", Boolean(done && done.checked));
+    };
+
+    /** Bring one row's fields in line with its exercise and its superset. */
+    const syncRow = (row) => {
+        const select = row.querySelector('select[name$="-exercise_id"]');
+        const timed = Boolean(select) && timedIds.has(Number(select.value));
+        row.dataset.timed = String(timed);
+        row.querySelectorAll(".set-row").forEach((setRow) =>
+            toggleFields(setRow, ".reps-fields", timed)
+        );
+        row.querySelectorAll(".set-row").forEach((setRow) =>
+            toggleFields(setRow, ".timed-fields", !timed)
+        );
+
+        // A superset rests at the end of each round, so its exercises do not
+        // rest after their own sets.
+        const letter = letterOf(row).value;
+        row.dataset.superset = letter;
+        row.classList.toggle("superset-member", Boolean(letter));
+        toggleFields(row, ".rest-fields", Boolean(letter));
+
+        const setTemplate = setTemplateOf(row);
+        if (setTemplate) {
+            toggleFields(setTemplate.content, ".reps-fields", timed);
+            toggleFields(setTemplate.content, ".timed-fields", !timed);
+            toggleFields(setTemplate.content, ".rest-fields", Boolean(letter));
+        }
+    };
+
+    // Row i owns the "exercises-<i>-…" fields and the "sets<i>-…" ones, so
+    // moving a row means rewriting both.
+    const renumber = (root, index) =>
+        root.querySelectorAll("input, select, label").forEach((element) => {
+            ["name", "id", "for"].forEach((attribute) => {
+                const value = element.getAttribute(attribute);
+                if (!value) {
+                    return;
+                }
+                element.setAttribute(
+                    attribute,
+                    value
+                        .replace(/(^|_)exercises-\d+-/g, `$1exercises-${index}-`)
+                        .replace(/(^|_)sets\d+-/g, `$1sets${index}-`)
+                );
+            });
+        });
+
+    /** Renumber every prefix so the formset order matches the order on screen. */
+    const renumberAll = () =>
+        rows().forEach((row, index) => {
+            renumber(row, index);
+            const setTemplate = setTemplateOf(row);
+            if (setTemplate) {
+                renumber(setTemplate.content, index);
+            }
+        });
+
+    const makeHeader = () =>
+        headerTemplate
+            ? document
+                  .createRange()
+                  .createContextualFragment(headerTemplate.innerHTML)
+                  .firstElementChild
+            : null;
+
+    const renameHeader = (header, letter) => {
+        header.dataset.superset = letter;
+        header.querySelector(".js-superset-letter").textContent = letter;
+        header.querySelectorAll("input").forEach((input) => {
+            input.name = `superset-${letter}-${input.name.split("-").pop()}`;
+        });
+    };
+
+    /**
+     * Label the runs of grouped rows A, B, C… and put a header on each one.
+     *
+     * The header moves with its group, so a rest already entered stays with
+     * the exercises it was entered for.
+     */
+    const syncGroups = () => {
+        const headers = new Map(
+            Array.from(container.querySelectorAll(".superset-header")).map(
+                (header) => [header.dataset.superset, header]
+            )
+        );
+        let labels = 0;
+        let seen = "";
+        let run = [];
+
+        const close = () => {
+            if (!run.length) {
+                return;
+            }
+            // One exercise on its own is not a superset, and only so many
+            // letters are available to label them with.
+            const letter =
+                run.length > 1 && labels < LETTERS.length ? LETTERS[labels++] : "";
+            const header = headers.get(seen);
+            headers.delete(seen);
+            run.forEach((row) => {
+                letterOf(row).value = letter;
+                row.dataset.superset = letter;
+                row.classList.toggle("superset-member", Boolean(letter));
+            });
+            if (letter && headerTemplate) {
+                const element = header || makeHeader();
+                renameHeader(element, letter);
+                run[0].parentElement.insertBefore(element, run[0]);
+            } else if (header) {
+                header.remove();
+            }
+            run = [];
+        };
+
+        rows().forEach((row) => {
+            const letter = letterOf(row).value;
+            if (letter && letter === seen) {
+                run.push(row);
+                return;
+            }
+            close();
+            seen = letter;
+            if (letter) {
+                run.push(row);
+            }
+        });
+        close();
+        headers.forEach((header) => header.remove());
+    };
+
+    /** Everything that has to follow a row being added, moved or regrouped. */
+    const sync = () => {
+        renumberAll();
+        syncGroups();
+        rows().forEach(syncRow);
+        container.querySelectorAll(".set-row").forEach(syncSetRow);
+    };
+
+    const freeLetter = () => {
+        const used = new Set(rows().map((row) => letterOf(row).value));
+        return LETTERS.split("").find((letter) => !used.has(letter)) || LETTERS[0];
+    };
+
+    /** Drop ``row`` onto ``target``, so the two are done as a superset. */
+    const groupWith = (row, target) => {
+        const letter = letterOf(target).value;
+        if (letter && letter === letterOf(row).value) {
+            return;
+        }
+        // Land at the end of the target's group, to keep a group a run of rows.
+        let last = target;
+        rows().forEach((other) => {
+            if (other === target || (letter && letterOf(other).value === letter)) {
+                last = other;
+            }
+        });
+        last.after(row);
+        const grouped = letter || freeLetter();
+        letterOf(target).value = grouped;
+        letterOf(row).value = grouped;
+        sync();
+    };
+
+    const dropTargetAt = (x, y, dragged) => {
+        const element = document.elementFromPoint(x, y);
+        if (!element || !element.closest) {
+            return null;
+        }
+        const row = element.closest(".exercise-row");
+        return row && row !== dragged ? row : null;
+    };
+
+    const startDrag = (event, row) => {
+        if (event.pointerType === "mouse" && event.button !== 0) {
+            return;
+        }
+        event.preventDefault();
+        row.classList.add("dragging");
+        document.body.classList.add("dragging-superset");
+
+        let target = null;
+        const highlight = (found) => {
+            if (found === target) {
+                return;
+            }
+            if (target) {
+                target.classList.remove("drop-target");
+            }
+            target = found;
+            if (target) {
+                target.classList.add("drop-target");
+            }
+        };
+
+        // Follow the pointer anywhere on the page, not just over the handle.
+        const onMove = (moveEvent) =>
+            highlight(dropTargetAt(moveEvent.clientX, moveEvent.clientY, row));
+
+        const onEnd = (endEvent) => {
+            document.removeEventListener("pointermove", onMove);
+            document.removeEventListener("pointerup", onEnd);
+            document.removeEventListener("pointercancel", onEnd);
+            row.classList.remove("dragging");
+            document.body.classList.remove("dragging-superset");
+            highlight(target || dropTargetAt(endEvent.clientX, endEvent.clientY, row));
+            const found = target;
+            if (target) {
+                target.classList.remove("drop-target");
+                target = null;
+            }
+            if (found) {
+                groupWith(row, found);
+            }
+        };
+
+        document.addEventListener("pointermove", onMove);
+        document.addEventListener("pointerup", onEnd);
+        document.addEventListener("pointercancel", onEnd);
+    };
+
+    sync();
+
+    // Switching exercise swaps the reps field for a time (or back).
+    container.addEventListener("change", (event) => {
+        const select = event.target.closest('select[name$="-exercise_id"]');
+        if (select) {
+            syncRow(select.closest(".exercise-row"));
+            return;
+        }
+        const completed = event.target.closest('input[name$="-completed"]');
+        if (completed) {
+            syncSetRow(completed.closest(".set-row"));
+        }
+    });
+
+    container.addEventListener("pointerdown", (event) => {
+        const handle = event.target.closest(".js-superset-handle");
+        if (handle) {
+            startDrag(event, handle.closest(".exercise-row"));
+        }
+    });
+
+    addButton.addEventListener("click", () => {
+        const index = parseInt(totalForms.value, 10);
+        const html = template.innerHTML
+            .replace(/__exercise__/g, index)
+            .replace(/__prefix__/g, index);
+        const row = document.createRange().createContextualFragment(html).firstElementChild;
+        container.appendChild(row);
+        totalForms.value = index + 1;
+        sync();
+    });
+
+    container.addEventListener("click", (event) => {
+        const ungroup = event.target.closest(".js-ungroup");
+        if (ungroup) {
+            const header = ungroup.closest(".superset-header");
+            rows().forEach((row) => {
+                if (letterOf(row).value === header.dataset.superset) {
+                    letterOf(row).value = "";
+                }
+            });
+            sync();
+            return;
+        }
+        const addSet = event.target.closest(".js-add-set");
+        if (addSet) {
+            const row = addSet.closest(".exercise-row");
+            const setTotal = row.querySelector('input[name$="-TOTAL_FORMS"]');
+            const setTemplate = setTemplateOf(row);
+            const index = parseInt(setTotal.value, 10);
+            const html = setTemplate.innerHTML.replace(/__set__/g, index);
+            const setRow = document.createRange().createContextualFragment(html).firstElementChild;
+            setTemplate.parentElement.insertBefore(setRow, setTemplate);
+            setTotal.value = index + 1;
+            syncRow(row);
+            syncSetRow(setRow);
+            return;
+        }
+        const removeSet = event.target.closest(".js-remove-set");
+        if (removeSet) {
+            const setRow = removeSet.closest(".set-row");
+            const checkbox = setRow.querySelector('input[type="checkbox"]');
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+            setRow.classList.add("d-none");
+        }
+    });
+}
+
 window.addEventListener("DOMContentLoaded", initTheme);
 window.addEventListener("DOMContentLoaded", initCalendarDragAndDrop);
 window.addEventListener("DOMContentLoaded", initSavedWorkoutPicker);
@@ -546,5 +871,6 @@ window.addEventListener("DOMContentLoaded", initBusyForms);
 window.addEventListener("DOMContentLoaded", initAddPlannedModal);
 window.addEventListener("DOMContentLoaded", initCalendarStickyHeader);
 window.addEventListener("DOMContentLoaded", initPullToRefresh);
+window.addEventListener("DOMContentLoaded", initExerciseFormset);
 window.addEventListener("load", initHeartRateCharts);
 window.addEventListener("load", initSite);

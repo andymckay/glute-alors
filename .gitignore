@@ -15,4 +15,6 @@ wheels/
 # Other
 .intervals
 db.sqlite3
+error.log
+data
 media

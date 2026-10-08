@@ -76,6 +76,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "alors",
+    "core",
+    "health",
     "weights",
 ]
 

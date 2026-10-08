@@ -1,0 +1,13 @@
+<div class="superset-header d-flex flex-wrap align-items-center gap-2 mb-2" data-superset="{{ letter }}">
+    <span class="badge text-bg-secondary">Superset <span class="js-superset-letter">{{ letter }}</span></span>
+    <span class="d-flex flex-wrap align-items-center gap-2">
+        <span class="text-muted small">rest</span>
+        <input type="number" min="0" class="form-control form-control-sm" style="width:5rem"
+               name="superset-{{ letter }}-rest_minutes" value="{{ rest_minutes|default_if_none:'' }}" placeholder="0">
+        <span class="text-muted small">min</span>
+        <input type="number" min="0" max="59" class="form-control form-control-sm" style="width:5rem"
+               name="superset-{{ letter }}-rest_seconds" value="{{ rest_seconds|default_if_none:'' }}" placeholder="0">
+        <span class="text-muted small">sec at the end of each round</span>
+    </span>
+    <button type="button" class="btn btn-sm btn-outline-secondary js-ungroup">Ungroup</button>
+</div>
