@@ -1,0 +1,59 @@
+<div class="exercise-row card mb-2{% if letter %} superset-member{% endif %}" data-superset="{{ letter }}" data-timed="{{ timed|yesno:'true,false' }}">
+    {{ form.id }}
+    {{ form.superset }}
+    <div class="card-header">
+        <div class="col">{{ form.exercise_id }}</div>
+        {% for error in form.exercise_id.errors %}
+            <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+    </div>
+
+    <div class="card-body">
+        <div class="exercise-detail d-none" data-exercise-detail>
+            <div class="d-flex flex-wrap gap-2">
+                <p>Exercise <a class="js-toggle-detail" 
+                        data-detail="description">description</a>
+                or <a class="js-toggle-detail"
+                        data-detail="image">image</a>
+                </p>
+            </div>
+            <div class="card card-body mt-2 d-none" data-detail-panel="description">
+                <h3>Description</h3>
+                <p class="mb-0 exercise-instructions"></p>
+                <p class="mb-0 text-muted d-none" data-detail-missing>No description for this exercise.</p>
+            </div>
+            <div class="card card-body mt-2 d-none" data-detail-panel="image">
+                <img class="img-fluid d-none" alt="">
+                <p class="mb-0 text-muted d-none" data-detail-missing>No image for this exercise.</p>
+            </div>
+        </div>
+
+        {{ set_formset.management_form }}
+        <div class="sets mt-2">
+            <div class="set-row row">
+                {% if actual %}<div class="col-2">&nbsp;</div>{% endif %}
+                <div class="col-2 reps-fields{% if timed %} d-none{% endif %}">Reps</div>
+                <div class="col-2 timed-fields{% if not timed %} d-none{% endif %}">Duration</div>
+                <div class="col-2">Weight <span class="text-muted small">{{ weight_unit_abbr }}</span></div>
+                <div class="col-2 rest-fields{% if letter %} d-none{% endif %}">Rest</div>
+            </div>
+
+            {% for set_form in set_formset %}
+                {% include "_set_template.html" %}
+            {% endfor %}
+
+            <template class="set-template">
+                {% include "_set_template.html" with set_form=set_formset.empty_form %}
+            </template>
+        </div>
+    </div>
+    <div class="card-footer">
+        <button type="button" class="btn btn-primary js-add-set btn-sm">Add set</button>
+
+        <button type="button" class="js-superset-handle btn bg-warning btn-sm"
+                title="Drag onto another exercise to do them as a superset">Drag</button>
+        {{ form.DELETE }}
+        <button type="button" class="js-remove-exercise btn bg-danger btn-sm"
+                title="Remove exercise">Remove</button>    
+    </div>
+</div>

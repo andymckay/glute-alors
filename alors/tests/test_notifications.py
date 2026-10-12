@@ -228,6 +228,31 @@ class NotificationPageTests(TestCase):
             created_by=self.athlete,
         )
 
+    def _notification_for(self, user, target):
+        """The one notification a user has about ``target``.
+
+        Object ids are only unique per model, so the type has to be matched
+        too: a comment and the workout it sits on can share an id.
+        """
+        return Notification.objects.get(
+            recipient=user,
+            content_type=ContentType.objects.get_for_model(target),
+            object_id=target.pk,
+        )
+
+    def _workout(self):
+        """A workout of the athlete's, with the coach as the actor."""
+        workout = Workout.objects.create(
+            workout_date=datetime(2026, 9, 4, 8, 30),
+            total_time=timedelta(minutes=50),
+            workout_type=WorkoutType.RUN,
+            created_by=self.athlete,
+        )
+        workout._notification_actor = self.coach
+        workout.notes = "Updated by coach."
+        workout.save()
+        return workout
+
     def test_empty_page_shows_no_notifications_message(self):
         response = self.client.get(reverse("alors:notifications"))
         self.assertEqual(response.status_code, 200)
@@ -244,9 +269,10 @@ class NotificationPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "<b>coach</b>")
         self.assertContains(response, "added a <b>comment</b>")
+        # Comment notifications link to the plan's comments.
         self.assertContains(
             response,
-            reverse("alors:planned_detail", args=[self.planned.pk]),
+            f"{reverse('alors:edit_planned', args=[self.planned.pk])}#comments",
         )
         # The plan's creation only notified the coach, so it is not shown.
         self.assertNotContains(response, "planned run")
@@ -273,48 +299,48 @@ class NotificationPageTests(TestCase):
     def test_viewing_planned_workout_marks_comment_notifications_read(self):
         comment = Comment.objects.create(
             planned_workout=self.planned,
+            text="Nice plan!",
+            created_by=self.coach,
+        )
+        notification = self._notification_for(self.athlete, comment)
+        self.assertFalse(notification.read)
+        self.client.get(reverse("alors:edit_planned", args=[self.planned.pk]))
+        notification.refresh_from_db()
+        self.assertTrue(notification.read)
+
+    def test_viewing_workout_marks_comment_notifications_read(self):
+        workout = self._workout()
+        comment = Comment.objects.create(
+            workout=workout,
             text="Nice session!",
             created_by=self.coach,
         )
-        notification = Notification.objects.get(
-            recipient=self.athlete, object_id=comment.pk
-        )
+        notification = self._notification_for(self.athlete, comment)
         self.assertFalse(notification.read)
-        self.client.get(reverse("alors:planned_detail", args=[self.planned.pk]))
+        self.client.get(reverse("alors:workout_detail", args=[workout.pk]))
         notification.refresh_from_db()
         self.assertTrue(notification.read)
-        # The coach's own notification (about the plan being added) stays unread.
-        coach_notification = Notification.objects.get(
-            recipient=self.coach, object_id=self.planned.pk
-        )
+        # The coach's own notification (about the workout being added) stays unread.
+        coach_notification = self._notification_for(self.coach, workout)
         coach_notification.refresh_from_db()
         self.assertFalse(coach_notification.read)
 
     def test_viewing_workout_marks_direct_notifications_read(self):
-        workout = Workout.objects.create(
-            workout_date=datetime(2026, 9, 4, 8, 30),
-            total_time=timedelta(minutes=50),
-            workout_type=WorkoutType.RUN,
-            created_by=self.athlete,
-        )
-        workout._notification_actor = self.coach
-        workout.notes = "Updated by coach."
-        workout.save()
-        notification = Notification.objects.get(
-            recipient=self.athlete, object_id=workout.pk
-        )
+        workout = self._workout()
+        notification = self._notification_for(self.athlete, workout)
         self.assertFalse(notification.read)
         self.client.get(reverse("alors:workout_detail", args=[workout.pk]))
         notification.refresh_from_db()
         self.assertTrue(notification.read)
 
     def test_viewing_object_removes_notification_from_unread_list(self):
+        workout = self._workout()
         Comment.objects.create(
-            planned_workout=self.planned,
+            workout=workout,
             text="Nice session!",
             created_by=self.coach,
         )
-        self.client.get(reverse("alors:planned_detail", args=[self.planned.pk]))
+        self.client.get(reverse("alors:workout_detail", args=[workout.pk]))
         response = self.client.get(reverse("alors:notifications"))
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "added a comment")

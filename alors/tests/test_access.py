@@ -53,10 +53,6 @@ class LoggedOutViewTests(TestCase):
         url = reverse("alors:add_planned")
         self.assert_login_required("get", url)
 
-    def test_planned_workout_detail_requires_login(self):
-        url = reverse("alors:planned_detail", args=[self.workout.pk])
-        self.assert_login_required("get", url)
-
     def test_edit_planned_workout_requires_login(self):
         url = reverse("alors:edit_planned", args=[self.workout.pk])
         self.assert_login_required("get", url)

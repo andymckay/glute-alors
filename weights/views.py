@@ -2,14 +2,18 @@ from collections import Counter
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from .forms import (
     DEFAULT_REST_SECONDS,
     DefaultWeightsWorkoutSetFormSet,
     WeightsWorkoutExerciseFormSet,
     WeightsWorkoutForm,
+    WeightsWorkoutSetForm,
     WeightsWorkoutSetFormSet,
+    parse_seconds,
 )
 from alors.models import UserProfile
 
@@ -19,6 +23,7 @@ from .models import (
     WeightsWorkoutExercise,
     WeightsWorkoutSet,
     WeightsWorkoutSuperset,
+    format_seconds,
 )
 
 # How the profile's weight units are shown next to a weight input.
@@ -36,14 +41,6 @@ def _is_timed(exercise_id):
         return False
 
 
-def _as_int(value):
-    """``value`` as an int, or ``None`` when it is not a whole number."""
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
 def _superset_letter(form):
     """The superset letter a row is showing, from the data or its instance."""
     return (form["superset"].value() or "").strip().upper()
@@ -51,18 +48,10 @@ def _superset_letter(form):
 
 def _superset_rest(data, letter):
     """The rest posted for a superset, in seconds, or ``None``."""
-    minutes = _as_int(data.get(f"superset-{letter}-rest_minutes")) or 0
-    seconds = _as_int(data.get(f"superset-{letter}-rest_seconds")) or 0
-    if minutes < 0 or seconds < 0 or not (minutes or seconds):
+    try:
+        return parse_seconds(data.get(f"superset-{letter}-rest")) or None
+    except ValueError:
         return None
-    return minutes * 60 + seconds
-
-
-def _rest_parts(seconds):
-    """Minutes and seconds to show for a rest, each ``None`` when there is none."""
-    if not seconds:
-        return None, None
-    return divmod(seconds, 60)
 
 
 def _weight_unit_abbr(request):
@@ -104,7 +93,7 @@ def _set_formsets(exercise_forms, data=None, actual=False):
     return formsets
 
 
-def _form_context(formset, set_formsets, data=None, supersets=None):
+def _form_context(formset, set_formsets, data=None, supersets=None, actual=False):
     """Template context for the nested exercise/set rows.
 
     Rows are gathered into superset groups in render order; a group's rest is
@@ -142,22 +131,22 @@ def _form_context(formset, set_formsets, data=None, supersets=None):
             saved = superset.rest_seconds
         else:
             saved = None
-        minutes, seconds = _rest_parts(saved)
         if saved is None and superset is None:
             # A group the JS just made: start it off with the default rest.
-            minutes, seconds = _rest_parts(DEFAULT_REST_SECONDS)
-        group["rest_minutes"] = minutes
-        group["rest_seconds"] = seconds
+            saved = DEFAULT_REST_SECONDS
+        group["rest"] = format_seconds(saved)
 
     return {
         "groups": ordered,
         "empty_exercise_form": formset.empty_form,
         # A placeholder formset whose prefix the JS swaps for a real index.
         "empty_set_formset": DefaultWeightsWorkoutSetFormSet(
-            prefix="sets__exercise__", instance=WeightsWorkoutExercise()
+            prefix="sets__exercise__",
+            instance=WeightsWorkoutExercise(),
+            form_kwargs={"timed": False, "actual": actual},
         ),
-        # Prefilled into the set rows the JS clones.
-        "default_rest_seconds": DEFAULT_REST_SECONDS,
+        # Prefilled into the superset header the JS clones.
+        "default_rest": format_seconds(DEFAULT_REST_SECONDS),
     }
 
 
@@ -270,6 +259,27 @@ def _copy_workout(workout, created_by, title, plan=None, is_actual=False):
     return copy
 
 
+def _exercise_detail_url():
+    """The exercise details URL as a template the rows can fill an id into."""
+    return reverse("weights:exercise_detail", args=[0]).replace("/0/", "/__id__/")
+
+
+@login_required
+def exercise_detail(request, exercise_id):
+    """The catalogue's description and picture for one exercise."""
+    exercise = Exercise.get(exercise_id)
+    if exercise is None:
+        raise Http404("No such exercise.")
+    return JsonResponse(
+        {
+            "id": exercise.id,
+            "name": exercise.name,
+            "description": exercise.instructions,
+            "image": exercise.image_url,
+        }
+    )
+
+
 @login_required
 def workout_list(request):
     workouts = WeightsWorkout.objects.prefetch_related(
@@ -277,7 +287,7 @@ def workout_list(request):
     )
     return render(
         request,
-        "weights/workout_list.html",
+        "weights_list.html",
         {
             "workouts": workouts,
             "weight_unit_abbr": _weight_unit_abbr(request),
@@ -319,10 +329,11 @@ def workout_add(request):
             "page_intro": "Add one or more exercises and the sets you did.",
             "weight_unit_abbr": _weight_unit_abbr(request),
             "timed_exercise_ids": sorted(Exercise.timed_ids()),
+            "exercise_detail_url": _exercise_detail_url(),
             "actual": False,
         }
     )
-    return render(request, "weights/workout_form.html", context)
+    return render(request, "weights_form.html", context)
 
 
 @login_required
@@ -352,7 +363,7 @@ def workout_edit(request, pk):
         formset = WeightsWorkoutExerciseFormSet(instance=workout)
         set_formsets = _set_formsets(formset.forms, actual=workout.is_actual)
 
-    context = _form_context(formset, set_formsets, data, supersets)
+    context = _form_context(formset, set_formsets, data, supersets, workout.is_actual)
     context.update(
         {
             "form": form,
@@ -362,10 +373,11 @@ def workout_edit(request, pk):
             "page_intro": "Update this workout's title, exercises and sets.",
             "weight_unit_abbr": _weight_unit_abbr(request),
             "timed_exercise_ids": sorted(Exercise.timed_ids()),
+            "exercise_detail_url": _exercise_detail_url(),
             "actual": workout.is_actual,
         }
     )
-    return render(request, "weights/workout_form.html", context)
+    return render(request, "weights_form.html", context)
 
 
 @login_required
@@ -381,8 +393,80 @@ def workout_do(request, pk):
             is_actual=True,
         )
         messages.add_message(request, messages.SUCCESS, "💪 Started workout.")
-        return redirect("weights:workout_edit", actual.pk)
+        return redirect("weights:workout_perform", actual.pk)
     return redirect("weights:workout_edit", workout.pk)
+
+
+@login_required
+def workout_perform(request, pk):
+    """Do a workout: one set at a time, resting between them.
+
+    Each action posts back here, so the page works without JavaScript as a
+    plain form; with JavaScript the ticks are sent in the background and the
+    rest is counted down.
+    """
+    workout = get_object_or_404(WeightsWorkout, pk=pk)
+    if not workout.is_actual:
+        # A plan is a blueprint; doing one starts an actual workout.
+        return redirect("weights:workout_edit", workout.pk)
+    if request.method == "POST":
+        return _perform_action(request, workout)
+
+    steps = workout.steps()
+    return render(
+        request,
+        "weights_perform.html",
+        {
+            "workout": workout,
+            "steps": steps,
+            # The set to open on: the first one still to do.
+            "current_index": next(
+                (index for index, step in enumerate(steps) if not step.done), 0
+            ),
+            "done_count": sum(1 for step in steps if step.done),
+            "total_count": len(steps),
+            "weight_unit_abbr": _weight_unit_abbr(request),
+        },
+    )
+
+
+def _perform_action(request, workout):
+    """Handle one change made while doing a workout."""
+    model_set = get_object_or_404(
+        WeightsWorkoutSet, pk=request.POST.get("set"), entry__workout=workout
+    )
+    action = request.POST.get("action")
+    form = None
+    if action == "delete":
+        model_set.delete()
+    elif action == "save":
+        # Leave the set's done flag alone: this only edits the target.
+        form = WeightsWorkoutSetForm(
+            request.POST,
+            instance=model_set,
+            timed=_is_timed(model_set.entry.exercise_id),
+        )
+        if form.is_valid():
+            form.save()
+    else:
+        model_set.completed = action == "complete"
+        model_set.save(update_fields=["completed"])
+
+    if request.headers.get("x-requested-with") != "XMLHttpRequest":
+        return redirect("weights:workout_perform", workout.pk)
+
+    steps = workout.steps()
+    return JsonResponse(
+        {
+            "ok": action != "save" or form.is_valid(),
+            "action": action,
+            "deleted": action == "delete",
+            "completed": getattr(model_set, "completed", False),
+            "done_count": sum(1 for step in steps if step.done),
+            "total_count": len(steps),
+            "errors": form.errors if form is not None else {},
+        }
+    )
 
 
 @login_required
@@ -392,7 +476,7 @@ def workout_duplicate(request, pk):
         duplicate = _copy_workout(
             workout,
             created_by=request.user,
-            title=f"{workout.title} (copy)" if workout.title else "Copy",
+            title=workout.title,
         )
         messages.add_message(request, messages.SUCCESS, "📋 Duplicated weights workout.")
         return redirect("weights:workout_edit", duplicate.pk)

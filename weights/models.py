@@ -150,7 +150,7 @@ def load():
     _catalogue()
 
 
-def _mmss(total_seconds):
+def format_seconds(total_seconds):
     """A number of seconds as ``m:ss``, or ``None`` when unset."""
     if total_seconds is None:
         return None
@@ -209,6 +209,23 @@ class Exercise:
         """Whether this exercise is measured in time rather than reps."""
         return bool(self.attributes.get("is_timed"))
 
+    @property
+    def instructions(self):
+        """How to do the exercise, from the bundled instructions."""
+        return self._metadata().get("instructions")
+
+    @property
+    def image_url(self):
+        """The picture of the exercise, from the bundled instructions."""
+        return self._metadata().get("image_url")
+
+    def _metadata(self):
+        """The attributes of this exercise's instructions, if it has any."""
+        resolved = _catalogue().get(self.id) or {}
+        relationships = resolved.get("relationships") or {}
+        resources = (relationships.get("instructions") or {}).get("data") or []
+        return resources[0].get("attributes", {}) if resources else {}
+
     @classmethod
     def timed_ids(cls):
         """The ids of every timed exercise in the catalogue."""
@@ -243,6 +260,53 @@ class Exercise:
         """This exercise as JSON, with relationships resolved in place."""
         resolved = _catalogue().get(self.id)
         return copy.deepcopy(resolved if resolved is not None else _resolve(self.row))
+
+
+class WorkoutStep:
+    """One set to do, in the order the workout is done in.
+
+    A superset is done in rounds: one set of each of its exercises, then a
+    single rest at the end of the round. That rest therefore sits on the last
+    set of the round, and the sets before it follow straight on.
+    """
+
+    def __init__(
+        self,
+        entry,
+        model_set,
+        number,
+        of,
+        timed=False,
+        rest_seconds=None,
+        round=None,
+        rounds=None,
+    ):
+        self.entry = entry
+        self.set = model_set
+        self.number = number
+        self.of = of
+        self.timed = timed
+        self.rest_seconds = rest_seconds
+        self.round = round
+        self.rounds = rounds
+
+    def __repr__(self):
+        return f"<WorkoutStep {self.entry} set {self.number} of {self.of}>"
+
+    @property
+    def superset(self):
+        """The superset this step is part of, if any."""
+        return self.entry.superset
+
+    @property
+    def rest(self):
+        """The rest to take after this step as ``m:ss``, or ``None``."""
+        return format_seconds(self.rest_seconds)
+
+    @property
+    def done(self):
+        """Whether this set has been done."""
+        return self.set.completed
 
 
 class WeightsWorkout(CreatedByModel):
@@ -297,6 +361,60 @@ class WeightsWorkout(CreatedByModel):
         """How many sets the workout holds."""
         return sum(len(entry.sets.all()) for entry in self.exercises.all())
 
+    def steps(self):
+        """Every set to do, in the order the workout is done in.
+
+        Sets with nothing to do (no reps and no time) are left out.
+        """
+        steps = []
+        for superset, entries in self.exercise_groups():
+            sets_of = [list(entry.sets.all()) for entry in entries]
+            if superset is None:
+                for entry, model_sets in zip(entries, sets_of):
+                    steps.extend(self._sets_of(entry, model_sets))
+                continue
+            rounds = max((len(model_sets) for model_sets in sets_of), default=0)
+            for index in range(rounds):
+                doing = [
+                    (entry, model_sets[index], len(model_sets))
+                    for entry, model_sets in zip(entries, sets_of)
+                    if index < len(model_sets)
+                ]
+                for position, (entry, model_set, of) in enumerate(doing):
+                    steps.append(
+                        WorkoutStep(
+                            entry=entry,
+                            model_set=model_set,
+                            number=index + 1,
+                            of=of,
+                            timed=entry.exercise.is_timed if entry.exercise else False,
+                            # Only the last set of the round is followed by a rest.
+                            rest_seconds=(
+                                superset.rest_seconds
+                                if position == len(doing) - 1
+                                else None
+                            ),
+                            round=index + 1,
+                            rounds=rounds,
+                        )
+                    )
+        return steps
+
+    def _sets_of(self, entry, model_sets):
+        """One exercise's sets as steps, each followed by its own rest."""
+        return [
+            WorkoutStep(
+                entry=entry,
+                model_set=model_set,
+                number=number,
+                of=len(model_sets),
+                timed=entry.exercise.is_timed if entry.exercise else False,
+                rest_seconds=model_set.rest_seconds,
+            )
+            for number, model_set in enumerate(model_sets, start=1)
+            if model_set.reps is not None or model_set.duration_seconds is not None
+        ]
+
     def completed_set_count(self):
         """How many of the workout's sets have been done."""
         return sum(
@@ -345,7 +463,7 @@ class WeightsWorkoutSuperset(models.Model):
     @property
     def rest(self):
         """The superset's rest as ``m:ss``, or ``None``."""
-        return _mmss(self.rest_seconds)
+        return format_seconds(self.rest_seconds)
 
 
 class WeightsWorkoutExercise(models.Model):
@@ -453,9 +571,9 @@ class WeightsWorkoutSet(models.Model):
     @property
     def duration(self):
         """The set's duration as ``m:ss``, or ``None``."""
-        return _mmss(self.duration_seconds)
+        return format_seconds(self.duration_seconds)
 
     @property
     def rest(self):
         """The set's rest as ``m:ss``, or ``None``."""
-        return _mmss(self.rest_seconds)
+        return format_seconds(self.rest_seconds)

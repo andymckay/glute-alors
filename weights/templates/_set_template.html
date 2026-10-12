@@ -1,0 +1,37 @@
+<div class="set-row row mb-2">
+    {{ set_form.id }}
+    {% if actual %}
+        <div class="col-2 form-check">
+            {{ set_form.completed }}
+            <label class="form-check-label small text-muted" for="{{ set_form.completed.id_for_label }}">done</label>
+        </div>
+    {% endif %}
+    <div class="col-2 reps-fields{% if timed %} d-none{% endif %}">
+        {{ set_form.reps }}
+        {% for error in set_form.reps.errors %}
+            <span class="text-danger small">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div class="col-2 timed-fields{% if not timed %} d-none{% endif %}">
+        {{ set_form.duration }}
+        {% for error in set_form.duration.errors %}
+            <span class="text-danger small">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div class="col-2">
+        {{ set_form.weight }}
+        {% for error in set_form.weight.errors %}
+            <span class="text-danger small">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div class="col-2 rest-fields{% if letter %} d-none{% endif %}">
+        {{ set_form.rest }}
+        {% for error in set_form.rest.errors %}
+            <span class="text-danger small">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div class="col-2">
+        {{ set_form.DELETE }}
+        <button type="button" class="btn btn-sm btn-outline-danger js-remove-set" aria-label="Remove set">Remove</button>
+    </div>
+</div>

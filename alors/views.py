@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 from .forms import (
     CalendarForm,
@@ -266,6 +267,7 @@ def planned_weekly_summary(request):
 @login_required
 def edit_planned(request, pk):
     workout = get_object_or_404(PlannedWorkout, pk=pk)
+    Notification.objects.mark_read_for(request.user, workout)
     if request.method == "POST":
         form = PlannedWorkoutForm(request.POST, instance=workout)
         if form.is_valid():
@@ -293,6 +295,9 @@ def edit_planned(request, pk):
             "page_title": "Edit workout",
             "page_intro": f"Update your planned {workout.get_workout_type_display().lower()} workout for {workout.workout_date}.",
             "summary": summary,
+            "comments": workout.comments.all(),
+            "comment_form": CommentForm(),
+            "comment_action": "alors:add_planned_comment",
         },
     )
 
@@ -416,22 +421,6 @@ def move_planned_workout(request, pk):
 
 
 @login_required
-def planned_detail(request, pk):
-    workout = get_object_or_404(PlannedWorkout, pk=pk)
-    Notification.objects.mark_read_for(request.user, workout)
-    return render(
-        request,
-        "detail.html",
-        {
-            "workout": workout,
-            "comments": workout.comments.all(),
-            "comment_form": CommentForm(),
-            "comment_action": "alors:add_planned_comment",
-        },
-    )
-
-
-@login_required
 def workout_detail(request, pk):
     workout = get_object_or_404(Workout, pk=pk)
     Notification.objects.mark_read_for(request.user, workout)
@@ -468,7 +457,7 @@ def add_planned_comment(request, pk):
             comment.created_by = request.user
             comment.save()
             messages.add_message(request, messages.SUCCESS, "💬 Comment added.")
-    return redirect("alors:planned_detail", pk=workout.pk)
+    return redirect(f"{reverse('alors:edit_planned', args=[workout.pk])}#comments")
 
 
 @login_required

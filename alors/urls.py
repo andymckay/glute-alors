@@ -22,11 +22,6 @@ urlpatterns = [
         name="planned_weekly_summary",
     ),
     path(
-        "planned/<int:pk>/",
-        views.planned_detail,
-        name="planned_detail",
-    ),
-    path(
         "planned/<int:pk>/edit/",
         views.edit_planned,
         name="edit_planned",

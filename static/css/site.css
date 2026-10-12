@@ -241,6 +241,11 @@ body.dragging-superset * {
   border-left: 3px solid var(--bs-primary) !important;
 }
 
+/* The exercise's own description, which is written in paragraphs */
+.exercise-instructions {
+  white-space: pre-line;
+}
+
 /* A set ticked off while doing a workout */
 .set-row.completed input[type="number"]:not(:focus) {
   border-color: var(--bs-success);
@@ -324,4 +329,217 @@ thead.day-header {
 
 thead.day-header.scrolling {
   opacity: 1;
+}
+/* Doing a workout: one set at a time, sized for a phone */
+.perform {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0 0.75rem calc(2.5rem + env(safe-area-inset-bottom));
+}
+
+.perform-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+  background: var(--bs-body-bg);
+  padding: 0.5rem 0.25rem 0.6rem;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.perform-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.perform-count {
+  color: var(--bs-secondary-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.perform-progress {
+  height: 0.5rem;
+  margin-top: 0.45rem;
+}
+
+.perform-done-panel {
+  border: 1px solid var(--bs-success-border-subtle);
+  background: var(--bs-success-bg-subtle);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin-top: 0.75rem;
+}
+
+.perform-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.perform-step {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  margin-top: 0.6rem;
+  scroll-margin-top: 5.5rem;
+}
+
+.perform-step.current {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 2px rgba(var(--bs-primary-rgb), 0.2);
+}
+
+.perform-step.done {
+  opacity: 0.65;
+}
+
+/* Only the current set is opened up; the rest stay compact to tap. */
+.perform-step:not(.current) .perform-nav,
+.perform-step:not(.current) .perform-edit,
+.perform-step:not(.current) .perform-rest-note,
+.perform-step:not(.current) .js-perform-edit {
+  display: none !important;
+}
+
+.perform-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.1rem 0.5rem;
+}
+
+.perform-exercise {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.perform-step-where {
+  color: var(--bs-secondary-color);
+  font-size: 0.85rem;
+}
+
+.perform-target {
+  font-size: 1.35rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.perform-step:not(.current) .perform-target {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.perform-actions,
+.perform-nav {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.perform-nav {
+  margin-top: 0.5rem;
+}
+
+.perform-nav .btn {
+  flex: 1 1 0;
+}
+
+.perform-tick {
+  flex: 1 1 auto;
+}
+
+.perform-tick-button {
+  width: 100%;
+  min-height: 3.5rem;
+  border: 2px solid var(--bs-primary);
+  background: var(--bs-primary);
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+.perform-tick-mini {
+  display: none;
+}
+
+.perform-step:not(.current) .perform-tick-button {
+  min-height: 2.75rem;
+  background: transparent;
+  color: var(--bs-primary);
+  font-size: 1.15rem;
+}
+
+.perform-step:not(.current) .perform-tick-big {
+  display: none;
+}
+
+.perform-step:not(.current) .perform-tick-mini {
+  display: inline;
+}
+
+.perform-step.done .perform-tick-button {
+  border-color: var(--bs-success);
+  background: var(--bs-success);
+}
+
+.perform-step.done:not(.current) .perform-tick-button {
+  background: transparent;
+  color: var(--bs-success);
+}
+
+.perform-edit {
+  border-top: 1px solid var(--bs-border-color);
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+.perform-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+
+/* The countdown between sets takes over the screen. */
+.perform-rest {
+  position: fixed;
+  inset: 0;
+  z-index: 1085;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(18, 18, 18, 0.95);
+  color: #fff;
+  text-align: center;
+}
+
+.perform-rest-label {
+  font-size: 0.8rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.perform-rest-time {
+  font-size: 4.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.perform-rest.finished .perform-rest-time {
+  color: var(--bs-success);
+}
+
+@media (min-width: 576px) {
+  .perform-target {
+    font-size: 1.5rem;
+  }
+
+  .perform-rest-time {
+    font-size: 5.5rem;
+  }
 }

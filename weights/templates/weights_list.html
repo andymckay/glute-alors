@@ -23,7 +23,9 @@
                                 {% endif %}
                                 <div class="text-muted small">{{ workout.created_at|date:"j M Y, H:i" }}</div>
                             </div>
-                            {% if not workout.is_actual %}
+                            {% if workout.is_actual %}
+                                <a class="btn btn-sm btn-primary" href="{% url 'weights:workout_perform' workout.pk %}">Continue workout</a>
+                            {% else %}
                                 <form method="post" action="{% url 'weights:workout_do' workout.pk %}">
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-sm btn-primary">Do workout</button>
@@ -38,13 +40,13 @@
                                         <ul class="list-unstyled mb-0">
                                             {% for entry in entries %}
                                                 <li>
-                                                    {{ entry }}{% include "weights/_entry_sets.html" with entry=entry %}{% if forloop.last and superset.rest %} — {{ superset.rest }} rest at the end of each round{% endif %}
+                                                    {{ entry }}{% include "_entry_sets.html" with entry=entry %}{% if forloop.last and superset.rest %} — {{ superset.rest }} rest at the end of each round{% endif %}
                                                 </li>
                                             {% endfor %}
                                         </ul>
                                     {% else %}
                                         {% for entry in entries %}
-                                            {{ entry }}{% include "weights/_entry_sets.html" with entry=entry %}
+                                            {{ entry }}{% include "_entry_sets.html" with entry=entry %}
                                         {% endfor %}
                                     {% endif %}
                                 </li>

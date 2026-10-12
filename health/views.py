@@ -15,7 +15,7 @@ def health_list(request):
     page_obj = paginator.get_page(request.GET.get("page"))
     return render(
         request,
-        "health/health_list.html",
+        "health_list.html",
         {"records": page_obj, "page_obj": page_obj},
     )
 
@@ -35,7 +35,7 @@ def health_add(request):
 
     return render(
         request,
-        "health/health_form.html",
+        "health_form.html",
         {
             "form": form,
             "page_title": "Add a health entry",
@@ -58,7 +58,7 @@ def health_edit(request, pk):
 
     return render(
         request,
-        "health/health_form.html",
+        "health_form.html",
         {
             "form": form,
             "health": health,

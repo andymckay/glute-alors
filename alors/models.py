@@ -107,7 +107,7 @@ class PlannedWorkout(CreatedByModel):
         return f"{self.get_workout_type_display()} on {self.workout_date}"
 
     def get_absolute_url(self):
-        return reverse("alors:planned_detail", args=[str(self.pk)])
+        return reverse("alors:edit_planned", args=[str(self.pk)])
 
     def get_date_as_str(self):
         return self.workout_date.strftime("%Y-%m-%d")
@@ -619,7 +619,7 @@ class Notification(TimeStampedModel):
     def get_absolute_url(self):
         target = self.target()
         if isinstance(target, PlannedWorkout):
-            return reverse("alors:planned_detail", args=[str(target.pk)])
+            return reverse("alors:edit_planned", args=[str(target.pk)])
         if isinstance(target, Workout):
             return reverse("alors:workout_detail", args=[str(target.pk)])
 

@@ -3,7 +3,9 @@ from django.template import Context, Template
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from ..models import PlannedWorkout, WorkoutType
+from datetime import datetime, timedelta
+
+from ..models import Workout, WorkoutType
 
 
 class MarkdownFilterTests(SimpleTestCase):
@@ -38,17 +40,16 @@ class WorkoutDetailMarkdownTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="runner", password="secret123")
         self.client.force_login(self.user)
-        self.workout = PlannedWorkout.objects.create(
-            title="Long run",
+        self.workout = Workout.objects.create(
             workout_type=WorkoutType.RUN,
-            workout_date="2026-09-05",
-            total_distance="21.10",
+            workout_date=datetime(2026, 9, 5, 8, 30),
+            total_time=timedelta(minutes=90),
             notes="# Notes\n\nRuns with **pace**.",
         )
 
     def test_detail_renders_notes_as_markdown(self):
         response = self.client.get(
-            reverse("alors:planned_detail", args=[self.workout.pk])
+            reverse("alors:workout_detail", args=[self.workout.pk])
         )
         self.assertContains(response, "<h1>Notes</h1>")
         self.assertContains(response, "<strong>pace</strong>")

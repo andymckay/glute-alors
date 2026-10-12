@@ -557,7 +557,13 @@ function initExerciseFormset() {
     // Supersets are labelled with these, in the order they appear.
     const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+    // Where the description and picture of a chosen exercise come from.
+    const detailUrlElement = document.getElementById("exercise-detail-url");
+    const detailUrlTemplate = detailUrlElement ? JSON.parse(detailUrlElement.textContent) : null;
+
     const rows = () => Array.from(container.querySelectorAll(".exercise-row"));
+    // Removed rows are left in place, hidden, so the formset still sees them.
+    const liveRows = () => rows().filter((row) => !row.classList.contains("d-none"));
     const letterOf = (row) => row.querySelector('input[name$="-superset"]');
 
     const toggleFields = (root, selector, hidden) => {
@@ -568,6 +574,105 @@ function initExerciseFormset() {
 
     // Drill into a row's set template, which querySelectorAll skips.
     const setTemplateOf = (row) => row.querySelector(".set-template");
+
+    // The values a set repeats from one set to the next.
+    const SET_FIELDS = ["reps", "duration", "weight", "rest"];
+
+    // A row's sets, leaving out any that have been removed.
+    const liveSetRows = (row) =>
+        Array.from(row.querySelectorAll(".set-row")).filter(
+            (setRow) => !setRow.classList.contains("d-none")
+        );
+
+    /** Give every field of a new set the value the previous set has. */
+    const repeatPreviousSet = (setRow, previous) => {
+        if (!previous) {
+            return;
+        }
+        SET_FIELDS.forEach((field) => {
+            const source = previous.querySelector(`input[name$="-${field}"]`);
+            const target = setRow.querySelector(`input[name$="-${field}"]`);
+            if (source && target) {
+                target.value = source.value;
+            }
+        });
+    };
+
+    /** Fill in the exercise's description and picture. */
+    const fillDetail = (block, details) => {
+        const description = block.querySelector('[data-detail-panel="description"]');
+        const text = description.querySelector(".exercise-instructions");
+        const imagePanel = block.querySelector('[data-detail-panel="image"]');
+        const image = imagePanel.querySelector("img");
+
+        const hasText = Boolean(details.description);
+        text.textContent = details.description || "";
+        text.classList.toggle("d-none", !hasText);
+        description
+            .querySelector("[data-detail-missing]")
+            .classList.toggle("d-none", hasText);
+
+        const hasImage = Boolean(details.image);
+        if (hasImage) {
+            image.src = details.image;
+            image.alt = details.name || "";
+        } else {
+            image.removeAttribute("src");
+        }
+        image.classList.toggle("d-none", !hasImage);
+        imagePanel.querySelector("[data-detail-missing]").classList.toggle("d-none", hasImage);
+    };
+
+    const clearDetail = (row) => {
+        const block = row.querySelector("[data-exercise-detail]");
+        if (!block) {
+            return;
+        }
+        delete block.dataset.exerciseId;
+        block.querySelectorAll("[data-detail-panel]").forEach((panel) => {
+            panel.classList.add("d-none");
+        });
+        block.querySelectorAll(".js-toggle-detail").forEach((button) => {
+            button.setAttribute("aria-expanded", "false");
+        });
+        block.querySelectorAll(".exercise-instructions").forEach((text) => {
+            text.textContent = "";
+        });
+        const image = block.querySelector("img");
+        if (image) {
+            image.removeAttribute("src");
+        }
+    };
+
+    /** Fetch an exercise's details, once per exercise chosen in a row. */
+    const loadDetail = (row) => {
+        const block = row.querySelector("[data-exercise-detail]");
+        const select = row.querySelector('select[name$="-exercise_id"]');
+        const exerciseId = select.value;
+        if (!block || !exerciseId || !detailUrlTemplate) {
+            return Promise.resolve();
+        }
+        if (block.dataset.exerciseId === exerciseId) {
+            return Promise.resolve();
+        }
+        const url = detailUrlTemplate.replace("__id__", exerciseId);
+        return fetch(url)
+            .then((response) => (response.ok ? response.json() : null))
+            .then((details) => {
+                if (!details) {
+                    throw new Error("no details");
+                }
+                fillDetail(block, details);
+                block.dataset.exerciseId = exerciseId;
+            })
+            .catch(() => {
+                fillDetail(block, {
+                    name: "",
+                    description: "Could not load the details for this exercise.",
+                    image: null,
+                });
+            });
+    };
 
     /** Show a set as done when its checkbox is ticked. */
     const syncSetRow = (setRow) => {
@@ -599,6 +704,11 @@ function initExerciseFormset() {
             toggleFields(setTemplate.content, ".reps-fields", timed);
             toggleFields(setTemplate.content, ".timed-fields", !timed);
             toggleFields(setTemplate.content, ".rest-fields", Boolean(letter));
+        }
+
+        const detail = row.querySelector("[data-exercise-detail]");
+        if (detail) {
+            detail.classList.toggle("d-none", !select || !select.value);
         }
     };
 
@@ -687,7 +797,7 @@ function initExerciseFormset() {
             run = [];
         };
 
-        rows().forEach((row) => {
+        liveRows().forEach((row) => {
             const letter = letterOf(row).value;
             if (letter && letter === seen) {
                 run.push(row);
@@ -712,7 +822,7 @@ function initExerciseFormset() {
     };
 
     const freeLetter = () => {
-        const used = new Set(rows().map((row) => letterOf(row).value));
+        const used = new Set(liveRows().map((row) => letterOf(row).value));
         return LETTERS.split("").find((letter) => !used.has(letter)) || LETTERS[0];
     };
 
@@ -724,7 +834,7 @@ function initExerciseFormset() {
         }
         // Land at the end of the target's group, to keep a group a run of rows.
         let last = target;
-        rows().forEach((other) => {
+        liveRows().forEach((other) => {
             if (other === target || (letter && letterOf(other).value === letter)) {
                 last = other;
             }
@@ -742,7 +852,7 @@ function initExerciseFormset() {
             return null;
         }
         const row = element.closest(".exercise-row");
-        return row && row !== dragged ? row : null;
+        return row && row !== dragged && !row.classList.contains("d-none") ? row : null;
     };
 
     const startDrag = (event, row) => {
@@ -799,13 +909,37 @@ function initExerciseFormset() {
     container.addEventListener("change", (event) => {
         const select = event.target.closest('select[name$="-exercise_id"]');
         if (select) {
-            syncRow(select.closest(".exercise-row"));
+            const row = select.closest(".exercise-row");
+            clearDetail(row);
+            syncRow(row);
             return;
         }
         const completed = event.target.closest('input[name$="-completed"]');
         if (completed) {
             syncSetRow(completed.closest(".set-row"));
         }
+    });
+
+    // Sets of an exercise tend to repeat each other, so a field that is set on
+    // one set is carried into the sets that follow it.
+    container.addEventListener("input", (event) => {
+        const input = event.target.closest(".set-row input");
+        const setRow = input && input.closest(".set-row");
+        const field = input && SET_FIELDS.find((name) => input.name.endsWith(`-${name}`));
+        if (!setRow || !field) {
+            return;
+        }
+        const sets = liveSetRows(setRow.closest(".exercise-row"));
+        const from = sets.indexOf(setRow);
+        if (from < 0) {
+            return;
+        }
+        sets.slice(from + 1).forEach((later) => {
+            const sameField = later.querySelector(`input[name$="-${field}"]`);
+            if (sameField) {
+                sameField.value = input.value;
+            }
+        });
     });
 
     container.addEventListener("pointerdown", (event) => {
@@ -817,9 +951,11 @@ function initExerciseFormset() {
 
     addButton.addEventListener("click", () => {
         const index = parseInt(totalForms.value, 10);
+        // Django's placeholder names the new row's own fields; the sets inside
+        // it keep theirs, for the "+ Add set" button to fill in later.
         const html = template.innerHTML
             .replace(/__exercise__/g, index)
-            .replace(/__prefix__/g, index);
+            .replace(/exercises-__prefix__-/g, `exercises-${index}-`);
         const row = document.createRange().createContextualFragment(html).firstElementChild;
         container.appendChild(row);
         totalForms.value = index + 1;
@@ -827,10 +963,26 @@ function initExerciseFormset() {
     });
 
     container.addEventListener("click", (event) => {
+        const toggle = event.target.closest(".js-toggle-detail");
+        if (toggle) {
+            const row = toggle.closest(".exercise-row");
+            const block = toggle.closest("[data-exercise-detail]");
+            const panel = block.querySelector(
+                `[data-detail-panel="${toggle.dataset.detail}"]`
+            );
+            const opening = panel.classList.contains("d-none");
+            toggle.setAttribute("aria-expanded", String(opening));
+            if (opening) {
+                loadDetail(row).then(() => panel.classList.remove("d-none"));
+            } else {
+                panel.classList.add("d-none");
+            }
+            return;
+        }
         const ungroup = event.target.closest(".js-ungroup");
         if (ungroup) {
             const header = ungroup.closest(".superset-header");
-            rows().forEach((row) => {
+            liveRows().forEach((row) => {
                 if (letterOf(row).value === header.dataset.superset) {
                     letterOf(row).value = "";
                 }
@@ -843,25 +995,268 @@ function initExerciseFormset() {
             const row = addSet.closest(".exercise-row");
             const setTotal = row.querySelector('input[name$="-TOTAL_FORMS"]');
             const setTemplate = setTemplateOf(row);
+            const previous = liveSetRows(row).pop();
             const index = parseInt(setTotal.value, 10);
-            const html = setTemplate.innerHTML.replace(/__set__/g, index);
+            // The set row on screen and the one the JS clones are the same
+            // partial; the clone is named with Django's placeholder.
+            const html = setTemplate.innerHTML.replace(/__prefix__/g, index);
             const setRow = document.createRange().createContextualFragment(html).firstElementChild;
+            repeatPreviousSet(setRow, previous);
             setTemplate.parentElement.insertBefore(setRow, setTemplate);
             setTotal.value = index + 1;
             syncRow(row);
             syncSetRow(setRow);
             return;
         }
+        const removeExercise = event.target.closest(".js-remove-exercise");
+        if (removeExercise) {
+            const row = removeExercise.closest(".exercise-row");
+            const deleted = row.querySelector('input[name$="-DELETE"]');
+            if (deleted) {
+                deleted.checked = true;
+            }
+            row.classList.add("d-none");
+            sync();
+            return;
+        }
         const removeSet = event.target.closest(".js-remove-set");
         if (removeSet) {
             const setRow = removeSet.closest(".set-row");
-            const checkbox = setRow.querySelector('input[type="checkbox"]');
-            if (checkbox) {
-                checkbox.checked = true;
+            const deleted = setRow.querySelector('input[name$="-DELETE"]');
+            if (deleted) {
+                deleted.checked = true;
             }
             setRow.classList.add("d-none");
         }
     });
+}
+
+/**
+ * Doing a workout: one set at a time, with the rest counted down.
+ *
+ * Each step is a plain form that works on its own; this only takes over the
+ * ticking, the moving between sets and the countdown.
+ */
+function initWorkoutRunner() {
+    const runner = document.querySelector("[data-perform]");
+    if (!runner) {
+        return;
+    }
+
+    const steps = Array.from(runner.querySelectorAll(".perform-step"));
+    const restPanel = runner.querySelector("[data-rest-panel]");
+    const restTime = runner.querySelector("[data-rest-time]");
+    const restNext = runner.querySelector("[data-rest-next]");
+    const doneCount = runner.querySelector("[data-done-count]");
+    const progress = runner.querySelector("[data-progress]");
+    const completePanel = runner.querySelector("[data-complete]");
+    const total = steps.length;
+    const csrf = runner.querySelector("[name=csrfmiddlewaretoken]");
+    const stepsUrl = window.location.href;
+    let restTimer = null;
+    let restLeft = 0;
+
+    const isDone = (step) => step.dataset.done === "true";
+
+    const formatTime = (seconds) => {
+        const minutes = Math.floor(Math.max(0, seconds) / 60);
+        const secs = Math.max(0, seconds) % 60;
+        return `${minutes}:${String(secs).padStart(2, "0")}`;
+    };
+
+    /** The set being done: the first that is not ticked off, else the last. */
+    const currentIndex = () => {
+        const found = steps.findIndex((step) => !isDone(step));
+        return found === -1 ? Math.max(steps.length - 1, 0) : found;
+    };
+
+    const showCurrent = () => {
+        const current = currentIndex();
+        steps.forEach((step, index) => {
+            step.classList.toggle("current", index === current);
+        });
+        if (steps[current]) {
+            steps[current].scrollIntoView({ block: "center" });
+        }
+        updateProgress();
+    };
+
+    const updateProgress = () => {
+        const done = steps.filter(isDone).length;
+        if (doneCount) {
+            doneCount.textContent = String(done);
+        }
+        if (progress) {
+            progress.style.width = total ? `${(done / total) * 100}%` : "0%";
+        }
+        if (completePanel) {
+            completePanel.classList.toggle("d-none", !total || done < total);
+        }
+    };
+
+    const setDone = (step, done) => {
+        step.dataset.done = String(done);
+        step.classList.toggle("done", done);
+        const button = step.querySelector(".perform-tick-button");
+        const big = step.querySelector(".perform-tick-big");
+        const mini = step.querySelector(".perform-tick-mini");
+        const action = step.querySelector('input[name="action"]');
+        if (action) {
+            action.value = done ? "undo" : "complete";
+        }
+        if (big) {
+            big.textContent = done ? "Undo this set" : "Complete set";
+        }
+        if (mini) {
+            mini.textContent = done ? "↺" : "✓";
+        }
+        if (button) {
+            button.classList.toggle("btn-success", done);
+        }
+        updateProgress();
+    };
+
+    const hideRest = () => {
+        window.clearInterval(restTimer);
+        restTimer = null;
+        if (restPanel) {
+            restPanel.classList.add("d-none");
+            restPanel.classList.remove("finished");
+        }
+    };
+
+    const tickRest = () => {
+        restLeft -= 1;
+        if (restLeft > 0) {
+            restTime.textContent = formatTime(restLeft);
+            return;
+        }
+        restPanel.classList.add("finished");
+        restTime.textContent = "Go";
+        if (navigator.vibrate) {
+            navigator.vibrate(300);
+        }
+        window.setTimeout(() => {
+            hideRest();
+            showCurrent();
+        }, 800);
+    };
+
+    /** Count the rest down, then move on to the next set. */
+    const startRest = (seconds, message) => {
+        if (!restPanel || seconds <= 0) {
+            showCurrent();
+            return;
+        }
+        restLeft = seconds;
+        restTime.textContent = formatTime(restLeft);
+        restNext.textContent = message || "";
+        restPanel.classList.remove("d-none");
+        window.clearInterval(restTimer);
+        restTimer = window.setInterval(tickRest, 1000);
+    };
+
+    /** Send one change to the server; a plain post if the fetch does not land. */
+    const send = (form) => {
+        const body = new URLSearchParams(new FormData(form));
+        return fetch(stepsUrl.toString(), {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrf ? csrf.value : "",
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body,
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(`Could not save that (${response.status}).`);
+            }
+            return response.json();
+        });
+    };
+
+    runner.addEventListener("submit", (event) => {
+        const form = event.target.closest(".perform-tick");
+        if (!form) {
+            return;
+        }
+        event.preventDefault();
+        const step = form.closest(".perform-step");
+        const completing = form.querySelector('input[name="action"]').value === "complete";
+        send(form)
+            .then((data) => {
+                setDone(step, data.completed);
+                if (completing) {
+                    const next = steps.find((other) => !isDone(other));
+                    if (next) {
+                        startRest(Number(step.dataset.stepRest) || 0, `Next: ${next.querySelector(".perform-exercise").textContent.trim()}`);
+                    } else {
+                        showCurrent();
+                    }
+                }
+            })
+            .catch((error) => {
+                window.alert(error.message);
+            });
+    });
+
+    runner.addEventListener("click", (event) => {
+        const step = event.target.closest(".perform-step");
+        const edit = event.target.closest(".js-perform-edit");
+        const prev = event.target.closest(".js-perform-prev");
+        const next = event.target.closest(".js-perform-next");
+        if (edit) {
+            event.preventDefault();
+            const panel = step.querySelector(".perform-edit");
+            if (panel) {
+                panel.classList.toggle("d-none");
+            }
+            return;
+        }
+        if (prev || next) {
+            const index = Math.min(Math.max(currentIndex() + (next ? 1 : -1), 0), steps.length - 1);
+            const target = steps[index];
+            steps.forEach((other) => other.classList.remove("current"));
+            target.classList.add("current");
+            target.scrollIntoView({ block: "center" });
+            return;
+        }
+        if (event.target.closest(".js-rest-skip")) {
+            hideRest();
+            showCurrent();
+            return;
+        }
+        if (event.target.closest(".js-rest-more")) {
+            restLeft += 15;
+            restPanel.classList.remove("finished");
+            restTime.textContent = formatTime(restLeft);
+        }
+    });
+
+    // Tapping a closed row opens it; the tick button still does its own thing.
+    runner.addEventListener("click", (event) => {
+        const step = event.target.closest(".perform-step");
+        if (!step || event.target.closest("button, form, a, input, label")) {
+            return;
+        }
+        steps.forEach((other) => other.classList.remove("current"));
+        step.classList.add("current");
+        updateProgress();
+    });
+
+    steps.forEach((step) => {
+        const nav = step.querySelector(".perform-nav");
+        if (nav) {
+            nav.classList.remove("d-none");
+        }
+    });
+    hideRest();
+    showCurrent();
+
+    // Keep the screen on while a workout is being done.
+    if (navigator.wakeLock) {
+        navigator.wakeLock.request("screen").catch(() => {});
+    }
 }
 
 window.addEventListener("DOMContentLoaded", initTheme);
@@ -872,5 +1267,6 @@ window.addEventListener("DOMContentLoaded", initAddPlannedModal);
 window.addEventListener("DOMContentLoaded", initCalendarStickyHeader);
 window.addEventListener("DOMContentLoaded", initPullToRefresh);
 window.addEventListener("DOMContentLoaded", initExerciseFormset);
+window.addEventListener("DOMContentLoaded", initWorkoutRunner);
 window.addEventListener("load", initHeartRateCharts);
 window.addEventListener("load", initSite);

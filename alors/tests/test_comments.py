@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from ..models import Comment, PlannedWorkout, Workout, WorkoutType
+from ..models import Comment, PlannedWorkout, UserProfile, Workout, WorkoutType
 
 
 class CommentModelTests(TestCase):
@@ -85,6 +85,8 @@ class CommentModelTests(TestCase):
 class CommentViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="commenter", password="secret123")
+        # The plan edit page renders the calendar, which reads the user's profile.
+        UserProfile.objects.create(user=self.user)
         self.client.force_login(self.user)
         self.planned = PlannedWorkout.objects.create(
             workout_type=WorkoutType.RUN,
@@ -104,7 +106,8 @@ class CommentViewTests(TestCase):
             {"text": "Looking **good**!"},
         )
         self.assertRedirects(
-            response, reverse("alors:planned_detail", args=[self.planned.pk])
+            response,
+            f"{reverse('alors:edit_planned', args=[self.planned.pk])}#comments",
         )
         comment = Comment.objects.get(planned_workout=self.planned)
         self.assertEqual(comment.text, "Looking **good**!")
@@ -128,26 +131,30 @@ class CommentViewTests(TestCase):
             {"text": ""},
         )
         self.assertRedirects(
-            response, reverse("alors:planned_detail", args=[self.planned.pk])
+            response,
+            f"{reverse('alors:edit_planned', args=[self.planned.pk])}#comments",
         )
         self.assertFalse(Comment.objects.filter(planned_workout=self.planned).exists())
 
-    def test_planned_detail_page_shows_comments_and_form(self):
+    def test_planned_edit_page_shows_comments_and_form(self):
         Comment.objects.create(
-            planned_workout=self.planned,
-            text="**great** run",
-            created_by=self.user,
+            planned_workout=self.planned, text="Good luck", created_by=self.user
         )
         response = self.client.get(
-            reverse("alors:planned_detail", args=[self.planned.pk])
+            reverse("alors:edit_planned", args=[self.planned.pk])
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "<strong>great</strong>")
+        self.assertContains(response, "Good luck")
         self.assertContains(response, "Add a comment")
         self.assertContains(
             response,
             reverse("alors:add_planned_comment", args=[self.planned.pk]),
         )
+
+    def test_add_page_hides_comments(self):
+        response = self.client.get(reverse("alors:add_planned"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Add a comment")
 
     def test_workout_detail_page_shows_comments_and_form(self):
         Comment.objects.create(

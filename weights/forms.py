@@ -1,15 +1,59 @@
 from functools import lru_cache
 
 from django import forms
+from django.forms.formsets import DELETION_FIELD_NAME
 from django.forms.models import BaseInlineFormSet, inlineformset_factory
 
-from .models import Exercise, WeightsWorkout, WeightsWorkoutExercise, WeightsWorkoutSet
+from .models import (
+    Exercise,
+    WeightsWorkout,
+    WeightsWorkoutExercise,
+    WeightsWorkoutSet,
+    format_seconds,
+)
 
-# A freshly added exercise starts with this many sets, each prefilled.
+# A new workout starts with one exercise row, and a freshly added exercise
+# with this many sets, each prefilled.
+DEFAULT_EXERCISE_COUNT = 1
 DEFAULT_SET_COUNT = 3
 DEFAULT_REPS = 8
 # New sets are prefilled with this rest, which can be cleared to record none.
 DEFAULT_REST_SECONDS = 45
+
+# Times are typed into a single box as "m:ss", e.g. "1:30" for ninety seconds.
+TIME_ERROR = "Enter a time as minutes and seconds, for example 1:30."
+
+
+def parse_seconds(value):
+    """A "m:ss" or plain seconds entry as a number of seconds, or ``None``.
+
+    Raises ``ValueError`` for anything else, e.g. "1:75" or "later".
+    """
+    value = (value or "").strip()
+    if not value:
+        return None
+    parts = value.split(":")
+    if len(parts) > 2 or not all(part.strip().isdigit() for part in parts):
+        raise ValueError(value)
+    if len(parts) == 1:
+        return int(parts[0])
+    minutes, seconds = (int(part) for part in parts)
+    if seconds > 59:
+        raise ValueError(value)
+    return minutes * 60 + seconds
+
+
+class MinuteSecondField(forms.CharField):
+    """A time typed as "m:ss", kept as typed and read with `parse_seconds`."""
+
+    def clean(self, value):
+        value = super().clean(value)
+        if value:
+            try:
+                parse_seconds(value)
+            except ValueError:
+                raise forms.ValidationError(TIME_ERROR)
+        return value
 
 
 @lru_cache(maxsize=1)
@@ -56,9 +100,7 @@ class WeightsWorkoutExerciseForm(forms.ModelForm):
         if self.instance.superset_id and not self.is_bound:
             self.initial["superset"] = self.instance.superset.letter
         for name, field in self.fields.items():
-            if name == "DELETE":
-                field.widget.attrs["class"] = "form-check-input"
-            elif name not in ("id", "superset"):
+            if name not in ("id", "superset"):
                 field.widget.attrs["class"] = "form-select"
 
     def clean_superset(self):
@@ -66,7 +108,22 @@ class WeightsWorkoutExerciseForm(forms.ModelForm):
         return (self.cleaned_data["superset"] or "").strip().upper()
 
 
-class BaseWeightsWorkoutExerciseFormSet(BaseInlineFormSet):
+class HideDeleteCheckbox:
+    """Keep the row's removal checkbox out of sight behind its remove button.
+
+    The checkbox is added to the form by the formset, after the form's own
+    ``__init__`` has run, so it has to be styled from here instead.
+    """
+
+    def add_fields(self, form, index):
+        super().add_fields(form, index)
+        if DELETION_FIELD_NAME in form.fields:
+            form.fields[DELETION_FIELD_NAME].widget.attrs["class"] = "d-none"
+
+
+class BaseWeightsWorkoutExerciseFormSet(HideDeleteCheckbox, BaseInlineFormSet):
+    """The workout's exercises, at least one of which has to be kept."""
+
     def clean(self):
         super().clean()
         if any(self.errors):
@@ -84,7 +141,7 @@ WeightsWorkoutExerciseFormSet = inlineformset_factory(
     WeightsWorkoutExercise,
     form=WeightsWorkoutExerciseForm,
     formset=BaseWeightsWorkoutExerciseFormSet,
-    extra=3,
+    extra=DEFAULT_EXERCISE_COUNT,
     can_delete=True,
 )
 
@@ -92,55 +149,25 @@ WeightsWorkoutExerciseFormSet = inlineformset_factory(
 class WeightsWorkoutSetForm(forms.ModelForm):
     """One set of an exercise: reps (or a time for timed exercises) and weight."""
 
-    minutes = forms.IntegerField(
+    duration = MinuteSecondField(
         required=False,
-        min_value=0,
-        label="Minutes",
-        widget=forms.NumberInput(
+        label="Time",
+        widget=forms.TextInput(
             attrs={
                 "class": "form-control form-control-sm",
-                "min": "0",
-                "placeholder": "min",
+                "style": "width:5rem",
+                "placeholder": "m:ss",
+                "title": "minutes:seconds",
             }
         ),
     )
-    seconds = forms.IntegerField(
+    rest = MinuteSecondField(
         required=False,
-        min_value=0,
-        max_value=59,
-        label="Seconds",
-        widget=forms.NumberInput(
+        label="Rest",
+        widget=forms.TextInput(
             attrs={
                 "class": "form-control form-control-sm",
-                "min": "0",
-                "max": "59",
-                "placeholder": "sec",
-            }
-        ),
-    )
-    rest_minutes = forms.IntegerField(
-        required=False,
-        min_value=0,
-        label="Rest minutes",
-        widget=forms.NumberInput(
-            attrs={
-                "class": "form-control form-control-sm",
-                "min": "0",
-                "placeholder": "0",
-            }
-        ),
-    )
-    rest_seconds = forms.IntegerField(
-        required=False,
-        min_value=0,
-        max_value=59,
-        label="Rest seconds",
-        widget=forms.NumberInput(
-            attrs={
-                "class": "form-control form-control-sm",
-                "min": "0",
-                "max": "59",
-                "placeholder": "0",
+                "style": "width:5rem",
             }
         ),
     )
@@ -153,7 +180,7 @@ class WeightsWorkoutSetForm(forms.ModelForm):
                 attrs={
                     "class": "form-control form-control-sm",
                     "min": "1",
-                    "placeholder": "reps",
+                    "style": "width:5rem",
                 }
             ),
             "weight": forms.NumberInput(
@@ -161,7 +188,7 @@ class WeightsWorkoutSetForm(forms.ModelForm):
                     "class": "form-control form-control-sm",
                     "min": "0",
                     "step": "0.5",
-                    "placeholder": "weight",
+                    "style": "width:5rem",
                 }
             ),
             "completed": forms.CheckboxInput(attrs={"class": "form-check-input"}),
@@ -175,36 +202,25 @@ class WeightsWorkoutSetForm(forms.ModelForm):
         # field out elsewhere keeps whatever was saved on the plan alone.
         if not actual:
             self.fields.pop("completed", None)
-        # The "remove" button toggles this checkbox; keep it out of the way.
-        if "DELETE" in self.fields:
-            self.fields["DELETE"].widget.attrs["class"] = "d-none"
         # A timed set records a time instead of reps, so don't prefill reps.
         if self.instance.pk is None and not self.is_bound and not timed:
             self.initial["reps"] = DEFAULT_REPS
         if self.instance.duration_seconds is not None:
-            minutes, seconds = divmod(self.instance.duration_seconds, 60)
-            self.initial["minutes"] = minutes
-            self.initial["seconds"] = seconds
+            self.initial["duration"] = format_seconds(self.instance.duration_seconds)
         if self.instance.rest_seconds is not None:
-            minutes, seconds = divmod(self.instance.rest_seconds, 60)
-            self.initial["rest_minutes"] = minutes
-            self.initial["rest_seconds"] = seconds
+            self.initial["rest"] = format_seconds(self.instance.rest_seconds)
         elif self.instance.pk is None and not self.is_bound:
-            self.initial["rest_seconds"] = DEFAULT_REST_SECONDS
+            self.initial["rest"] = format_seconds(DEFAULT_REST_SECONDS)
 
     def total_duration(self):
-        """The entered minutes and seconds as a single number of seconds."""
+        """The entered time as a single number of seconds."""
         cleaned = getattr(self, "cleaned_data", None) or {}
-        return (cleaned.get("minutes") or 0) * 60 + (cleaned.get("seconds") or 0)
+        return parse_seconds(cleaned.get("duration")) or 0
 
     def total_rest(self):
         """The entered rest in seconds, or ``None`` when it was left blank."""
         cleaned = getattr(self, "cleaned_data", None) or {}
-        minutes = cleaned.get("rest_minutes") or 0
-        seconds = cleaned.get("rest_seconds") or 0
-        if not minutes and not seconds:
-            return None
-        return minutes * 60 + seconds
+        return parse_seconds(cleaned.get("rest")) or None
 
     def save(self, commit=True):
         instance = super().save(commit=False)
@@ -220,11 +236,16 @@ class WeightsWorkoutSetForm(forms.ModelForm):
         return instance
 
 
+class BaseWeightsWorkoutSetFormSet(HideDeleteCheckbox, BaseInlineFormSet):
+    """An exercise's sets, each removable with the button on its row."""
+
+
 # Sets of an existing exercise: only the saved rows.
 WeightsWorkoutSetFormSet = inlineformset_factory(
     WeightsWorkoutExercise,
     WeightsWorkoutSet,
     form=WeightsWorkoutSetForm,
+    formset=BaseWeightsWorkoutSetFormSet,
     extra=0,
     can_delete=True,
 )
@@ -234,6 +255,7 @@ DefaultWeightsWorkoutSetFormSet = inlineformset_factory(
     WeightsWorkoutExercise,
     WeightsWorkoutSet,
     form=WeightsWorkoutSetForm,
+    formset=BaseWeightsWorkoutSetFormSet,
     extra=DEFAULT_SET_COUNT,
     can_delete=True,
 )
