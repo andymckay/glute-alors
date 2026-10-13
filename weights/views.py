@@ -400,6 +400,39 @@ def workout_do(request, pk):
     return redirect("weights:workout_edit", workout.pk)
 
 
+def _number(value):
+    """A weight as it was written down: 50.00 as 50, 52.50 as 52.5."""
+    return f"{float(value):g}"
+
+
+def _set_summary(step, unit):
+    """One logged set as it was written down: ``8 @ 50 lb``, or ``1:30``."""
+    if step.timed:
+        written = format_seconds(step.set.duration_seconds) or ""
+    else:
+        written = str(step.set.reps) if step.set.reps is not None else ""
+    weight = (
+        f"{_number(step.set.weight)} {unit}" if step.set.weight is not None else ""
+    )
+    if written and weight:
+        return f"{written} @ {weight}"
+    return written or weight
+
+
+def _performed_summary(steps, unit):
+    """What has been logged of one exercise, as the full list shows it back.
+
+    The same line is built again in ``site.js`` as sets are logged, so the two
+    have to agree on how a set is written down.
+    """
+    written = [
+        text
+        for text in (_set_summary(step, unit) for step in steps if step.done)
+        if text
+    ]
+    return ", ".join(written)
+
+
 @login_required
 def workout_perform(request, pk):
     """Do a workout: one set at a time, resting between them.
@@ -424,6 +457,7 @@ def workout_perform(request, pk):
         (index for index, step in enumerate(steps) if not step.done), 0
     )
     current_entry_pk = steps[current_index].entry.pk if steps else None
+    unit = _weight_unit_abbr(request)
     return render(
         request,
         "weights_perform.html",
@@ -440,6 +474,7 @@ def workout_perform(request, pk):
                     # exercise's sets.
                     "done": sum(1 for step in group if step.done),
                     "total": len(group),
+                    "performed": _performed_summary(group, unit),
                     "current": entry.pk == current_entry_pk,
                 }
                 for entry, group in workout.step_groups()
@@ -448,7 +483,7 @@ def workout_perform(request, pk):
             "current_set_pk": steps[current_index].set.pk if steps else None,
             "done_count": sum(1 for step in steps if step.done),
             "total_count": len(steps),
-            "weight_unit_abbr": _weight_unit_abbr(request),
+            "weight_unit_abbr": unit,
         },
     )
 

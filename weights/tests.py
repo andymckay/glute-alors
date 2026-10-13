@@ -1662,6 +1662,27 @@ class PerformWorkoutTests(TestCase):
         )
         self.assertContains(response, 'value="1:30"')
 
+    def test_a_timed_set_offers_a_timer(self):
+        entry = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=61, position=1
+        )
+        timed = WeightsWorkoutSet.objects.create(
+            entry=entry, duration_seconds=90, position=0
+        )
+
+        response = self.client.get(self.url())
+
+        # The set's own time is what the timer counts down.
+        self.assertContains(response, f'data-timer="{timed.duration_seconds}"')
+        self.assertContains(response, "data-timer-panel")
+        for label in ("Start", "Stop", "Cancel"):
+            self.assertContains(response, f">{label}</button>")
+
+    def test_a_set_counted_in_reps_has_no_timer_to_press(self):
+        response = self.client.get(self.url())
+
+        self.assertNotContains(response, 'data-timer="')
+
     def test_logging_a_set_saves_the_values_typed_in(self):
         response = self.post(
             "log",
@@ -1789,6 +1810,30 @@ class PerformWorkoutTests(TestCase):
         self.assertContains(response, "0 of 1 sets done")
         self.assertEqual(content.count('class="card-footer"'), 2)
         self.assertContains(response, "Update this exercise")
+
+    def test_the_full_list_says_what_was_done_for_an_exercise(self):
+        WeightsWorkoutSet.objects.filter(pk=self.first.pk).update(completed=True)
+        WeightsWorkoutSet.objects.filter(pk=self.second.pk).update(
+            completed=True, weight=Decimal("52.50")
+        )
+
+        response = self.client.get(self.url())
+
+        # Each logged set is written back the way it was done.
+        self.assertContains(response, "data-performed>8 @ 50 lb, 10 @ 52.5 lb</p>")
+
+    def test_the_full_list_says_what_was_done_for_a_timed_exercise(self):
+        entry = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=61, position=1
+        )
+        timed = WeightsWorkoutSet.objects.create(
+            entry=entry, duration_seconds=90, weight=Decimal("20.00"), position=0
+        )
+        WeightsWorkoutSet.objects.filter(pk=timed.pk).update(completed=True)
+
+        response = self.client.get(self.url())
+
+        self.assertContains(response, "data-performed>1:30 @ 20 lb</p>")
 
     def test_the_page_offers_a_way_back_to_the_calendar_when_an_exercise_is_done(
         self,

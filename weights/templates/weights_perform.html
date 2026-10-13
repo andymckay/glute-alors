@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load markdown_extras %}
 {% block main %}
-<div class="perform container-lg" data-perform data-finished="{{ workout.completed|yesno:'true,false' }}">
+<div class="perform container-lg" data-perform data-finished="{{ workout.completed|yesno:'true,false' }}" data-weight-unit="{{ weight_unit_abbr }}">
     <p><a href="/calendar#date-{{ workout.started_at|date:'Y-m-d' }}" class="text-muted link-underline link-underline-opacity-0">👈 Back to the calendar</a></p>
     <div class="perform-bar">
         <div class="d-flex align-items-baseline justify-content-between gap-2">
@@ -54,7 +54,8 @@
                         <img class="img-fluid" src="{{ exercise.image_url }}">
                     </div>
 
-                    {% if group.done != group.total %}<p class="perform-summary card-text text-muted" data-summary>{{ group.done }} of {{ group.total }} sets done</p>{% endif %}
+                    <p class="perform-summary card-text text-muted{% if group.done == group.total %} d-none{% endif %}" data-summary>{{ group.done }} of {{ group.total }} sets done</p>
+                    <p class="perform-done card-text text-muted{% if not group.performed %} d-none{% endif %}" data-performed>{{ group.performed }}</p>
 
                     <table class="table perform-sets">
                         <thead>
@@ -74,9 +75,12 @@
                                         data-done="{{ step.done|yesno:'true,false' }}">
                                     <td>
                                         {% if step.timed %}
-                                            <input type="text" class="form-control form-control-sm" inputmode="numeric"
-                                                    name="set-{{ step.set.pk }}-duration" form="log-set"
-                                                    placeholder="m:ss" value="{{ step.set.duration|default_if_none:'' }}">
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" class="form-control form-control-sm" inputmode="numeric"
+                                                        name="set-{{ step.set.pk }}-duration" form="log-set"
+                                                        placeholder="m:ss" value="{{ step.set.duration|default_if_none:'' }}">
+                                                <button type="button" class="btn btn-outline-secondary" data-timer="{{ step.set.duration_seconds|default_if_none:'' }}">⏱</button>
+                                            </div>
                                         {% else %}
                                             <input type="number" class="form-control form-control-sm" inputmode="numeric" min="1"
                                                     name="set-{{ step.set.pk }}-reps" form="log-set"
@@ -143,6 +147,23 @@
                     <div class="d-flex gap-2 justify-content-center">
                         <button type="button" class="btn btn-lg btn-outline-secondary js-rest-more">+15s</button>
                         <button type="button" class="btn btn-lg btn-primary js-rest-skip">Skip rest</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade perform-timer" id="set-timer" data-timer-panel tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <p class="perform-timer-label mb-0">Time</p>
+                    <p class="display-4 mb-1" data-timer-time>0:00</p>
+                    <p class="perform-timer-exercise text-muted mb-4" data-timer-exercise></p>
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <button type="button" class="btn btn-primary" data-timer-start>Start</button>
+                        <button type="button" class="btn btn-outline-secondary" data-timer-stop>Stop</button>
+                        <button type="button" class="btn btn-outline-secondary" data-timer-cancel>Cancel</button>
                     </div>
                 </div>
             </div>

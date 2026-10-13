@@ -265,11 +265,13 @@ body.dragging-superset * {
 /* Browsing the whole workout: a line per exercise instead of its sets, and
    nothing to log from here. Doing one exercise: the other way round, with the
    workout left to be finished off from the full list. */
-.perform-summary {
+.perform-summary,
+.perform-done {
   display: none;
 }
 
-.perform.showing-all .perform-summary {
+.perform.showing-all .perform-summary,
+.perform.showing-all .perform-done {
   display: block;
 }
 

@@ -934,6 +934,18 @@ function initWorkoutRunner() {
         : null;
     const restTime = runner.querySelector("[data-rest-time]");
     const restNext = runner.querySelector("[data-rest-next]");
+    // The timer a timed set counts down with, started by hand from its row.
+    const timerPanel = runner.querySelector("[data-timer-panel]");
+    const timerModal = timerPanel
+        ? new bootstrap.Modal(timerPanel, {
+              backdrop: "static",
+              keyboard: false,
+          })
+        : null;
+    const timerTime = runner.querySelector("[data-timer-time]");
+    const timerExercise = runner.querySelector("[data-timer-exercise]");
+    const timerStart = runner.querySelector("[data-timer-start]");
+    const timerStop = runner.querySelector("[data-timer-stop]");
     const doneCount = runner.querySelector("[data-done-count]");
     const elapsed = runner.querySelector("[data-elapsed]");
     const showAll = runner.querySelector("[data-show-all]");
@@ -951,6 +963,17 @@ function initWorkoutRunner() {
     let finished = runner.dataset.finished === "true";
     let restTimer = null;
     let restLeft = 0;
+    // The set the timer belongs to, how long it has left, and what it started
+    // from, so the same set can be counted down again.
+    let timerStep = null;
+    let timerLeft = 0;
+    let timerPlanned = 0;
+    let timerInterval = null;
+    // Pressing start gives the set this long to get you into position before
+    // its own time begins.
+    const TIMER_LEAD_IN = 3;
+    let timerLead = 0;
+    let audio = null;
     // How long the workout had been going when the page was drawn, turned into
     // a start time on the browser's own clock so the timer keeps up from here.
     // A finished workout's clock is left where it stopped.
@@ -1097,14 +1120,44 @@ function initWorkoutRunner() {
         }
     };
 
+    /**
+     * One logged set as it was written down: ``8 @ 50 lb``, or ``1:30``. The
+     * server writes the same line out for the page as it arrives, so the two
+     * have to agree on how a set reads.
+     */
+    const setSummary = (step) => {
+        const field = (name) => step.querySelector(`[name$="-${name}"]`);
+        const counted = field("reps") || field("duration");
+        const weight = field("weight");
+        const written = counted && counted.value.trim();
+        const load = weight && weight.value.trim();
+        const unit = runner.dataset.weightUnit || "";
+        const loaded = load ? `${Number(load)} ${unit}`.trim() : "";
+        if (written && loaded) {
+            return `${written} @ ${loaded}`;
+        }
+        return written || loaded;
+    };
+
     /** How far along each exercise is, on its card and in the full list. */
     const paintSummaries = () => {
         exerciseGroups.forEach((group) => {
             const rows = Array.from(group.querySelectorAll(".perform-step"));
             const done = rows.filter(isDone).length;
+            const written = rows
+                .filter(isDone)
+                .map(setSummary)
+                .filter((text) => text);
+            // How far along the exercise is, and what has been logged of it.
             const summary = group.querySelector("[data-summary]");
             if (summary) {
                 summary.textContent = `${done} of ${rows.length} sets done`;
+                summary.classList.toggle("d-none", done === rows.length);
+            }
+            const performed = group.querySelector("[data-performed]");
+            if (performed) {
+                performed.textContent = written.join(", ");
+                performed.classList.toggle("d-none", !written.length);
             }
             // Every set logged: the exercise is done with.
             const badge = group.querySelector("[data-done-badge]");
@@ -1193,6 +1246,169 @@ function initWorkoutRunner() {
         restTimer = window.setInterval(tickRest, 1000);
     };
 
+    /**
+     * Browsers only give a page sound while something is being pressed, which
+     * is the moment the timer is started, so the audio is opened up then and
+     * kept for the beeps that follow.
+     */
+    const primeAudio = () => {
+        const Context = window.AudioContext || window.webkitAudioContext;
+        if (!Context) {
+            return null;
+        }
+        audio = audio || new Context();
+        if (audio.state === "suspended") {
+            audio.resume();
+        }
+        return audio;
+    };
+
+    /**
+     * A beep, made here rather than fetched, so there is nothing to download
+     * and it works with the page offline. Sound is a nicety here, and no
+     * browser gives it on the same terms, so it never gets in the way of the
+     * workout.
+     */
+    const beep = (pitch, seconds, delay = 0) => {
+        try {
+            const context = primeAudio();
+            if (!context) {
+                return;
+            }
+            const starts = context.currentTime + delay;
+            const tone = context.createOscillator();
+            const volume = context.createGain();
+            tone.type = "sine";
+            tone.frequency.value = pitch;
+            // Ramped in and out, or the beep starts and ends with a click.
+            volume.gain.setValueAtTime(0, starts);
+            volume.gain.linearRampToValueAtTime(0.2, starts + 0.01);
+            volume.gain.setValueAtTime(0.2, starts + seconds - 0.03);
+            volume.gain.linearRampToValueAtTime(0, starts + seconds);
+            tone.connect(volume).connect(context.destination);
+            tone.start(starts);
+            tone.stop(starts + seconds);
+        } catch (error) {
+            // A browser that will not play ball still gets the countdown.
+        }
+    };
+
+    /**
+     * The time a timed set counts down. What is written in its row is what the
+     * set will be logged as, so that goes first; an empty or odd entry falls
+     * back to the time the set was built with.
+     */
+    const timerSeconds = (step, planned) => {
+        const input = step && step.querySelector('[name$="-duration"]');
+        const typed = input ? input.value.trim() : "";
+        const parts = typed.split(":");
+        const seconds =
+            parts.length === 2
+                ? Number(parts[0]) * 60 + Number(parts[1])
+                : Number(typed);
+        return Number.isFinite(seconds) && seconds > 0
+            ? Math.round(seconds)
+            : Number(planned) || 0;
+    };
+
+    /** Show what the countdown is up to, and which buttons can be pressed. */
+    const paintTimer = () => {
+        if (timerTime) {
+            timerTime.textContent = formatTime(
+                Math.max(0, timerLead > 0 ? timerLead : timerLeft)
+            );
+        }
+        if (timerStart) {
+            timerStart.disabled = timerInterval !== null;
+        }
+        if (timerStop) {
+            timerStop.disabled = timerInterval === null;
+        }
+    };
+
+    const stopCountdown = () => {
+        if (timerInterval !== null) {
+            window.clearInterval(timerInterval);
+            timerInterval = null;
+        }
+        paintTimer();
+    };
+
+    const tickTimer = () => {
+        // The set's own time waits until the lead-in has been counted off, a
+        // second at a time, counted in.
+        if (timerLead > 0) {
+            timerLead -= 1;
+            paintTimer();
+            beep(660, 0.08);
+            return;
+        }
+        timerLeft -= 1;
+        if (timerLeft > 0) {
+            paintTimer();
+            return;
+        }
+        stopCountdown();
+        timerTime.textContent = "Done";
+        // A different sound for the end of the set, so it is not mistaken for
+        // another second going by.
+        beep(880, 0.12);
+        beep(1320, 0.3, 0.16);
+        if (navigator.vibrate) {
+            navigator.vibrate(300);
+        }
+        // The set's time is up: the modal goes, and the rep is ticked off the
+        // same way logging it by hand does.
+        const set = timerStep && timerStep.dataset.set;
+        const form = set ? runner.querySelector(`#set-details-${set} form`) : null;
+        if (timerModal) {
+            timerModal.hide();
+        }
+        if (form) {
+            sendThen(form, { action: "complete" });
+        }
+    };
+
+    /**
+     * Start the countdown: a few seconds to get into position first, then the
+     * set's own time, from where it is or from the top again.
+     */
+    const startCountdown = () => {
+        if (!timerModal || !timerStep) {
+            return;
+        }
+        if (timerLeft <= 0) {
+            timerLeft = timerPlanned;
+        }
+        if (timerLeft <= 0) {
+            return;
+        }
+        timerLead = TIMER_LEAD_IN;
+        primeAudio();
+        window.clearInterval(timerInterval);
+        timerInterval = window.setInterval(tickTimer, 1000);
+        paintTimer();
+    };
+
+    /** Open the timer on a set, held at its own time until it is started. */
+    const openTimer = (step, planned) => {
+        if (!timerModal || !step) {
+            return;
+        }
+        stopCountdown();
+        timerStep = step;
+        timerPlanned = timerSeconds(step, planned);
+        timerLeft = timerPlanned;
+        timerLead = 0;
+        const card = groupOf(step);
+        const title = card && card.querySelector(".card-title");
+        if (timerExercise) {
+            timerExercise.textContent = title ? title.textContent.trim() : "";
+        }
+        paintTimer();
+        timerModal.show();
+    };
+
     /** What the server refused, said the same way wherever it is refused. */
     const showErrors = (errors) => {
         window.alert(Object.values(errors || {}).flat().join(" "));
@@ -1220,42 +1436,53 @@ function initWorkoutRunner() {
         });
     };
 
+    /**
+     * A set has been logged or ticked off on the server: tick its row off here
+     * too and move the page on the way it still does without JavaScript.
+     */
+    const afterLogged = (data) => {
+        const logged = steps.find((step) => step.dataset.set === String(data.set));
+        if (logged) {
+            setDone(logged);
+        }
+        setFinished(data.finished);
+        // An exercise that has done its set for the round hands the page on to
+        // the next one in the superset.
+        releasePick();
+        updateProgress();
+        const next = steps.find((other) => !isDone(other));
+        const rest = logged ? Number(logged.dataset.stepRest) || 0 : 0;
+        if (next) {
+            startRest(rest, "Next set");
+        } else {
+            showCurrent();
+        }
+    };
+
+    /** Send one change and put the page in step with what came back. */
+    const sendThen = (form, extra) => {
+        send(form, extra)
+            .then((data) => {
+                if (!data.ok) {
+                    showErrors(data.errors);
+                    return;
+                }
+                afterLogged(data);
+            })
+            .catch((error) => {
+                window.alert(error.message);
+            });
+    };
+
     runner.addEventListener("submit", (event) => {
         const form = event.target.closest(".perform-log");
         if (!form) {
             return;
         }
         event.preventDefault();
-        send(form)
-            .then((data) => {
-                if (!data.ok) {
-                    showErrors(data.errors);
-                    return;
-                }
-                // The server logs the first set still to do, not the row the
-                // button was tapped on, so tick off whichever set came back.
-                const logged = steps.find(
-                    (step) => step.dataset.set === String(data.set)
-                );
-                if (logged) {
-                    setDone(logged);
-                }
-                setFinished(data.finished);
-                // The set is logged: an exercise that has done its set for the
-                // round hands the page on to the next one in the superset.
-                releasePick();
-                updateProgress();
-                const next = steps.find((other) => !isDone(other));
-                const rest = logged ? Number(logged.dataset.stepRest) || 0 : 0;
-                if (next) {
-                    startRest(rest, "Next set");
-                } else {
-                    showCurrent();
-                }
-            })
-            .catch((error) => {
-                window.alert(error.message);
-            });
+        // The server logs the first set still to do, not the row the button was
+        // tapped on, so tick off whichever set came back.
+        sendThen(form);
     });
 
     /** The link that opens every exercise, and the names that pick one. */
@@ -1326,6 +1553,36 @@ function initWorkoutRunner() {
             restLeft += 15;
             restPanel.classList.remove("finished");
             restTime.textContent = formatTime(restLeft);
+        }
+    });
+
+    /**
+     * The timer for a timed set: its row opens it, and the modal either counts
+     * the set's time down, stops where it is, or leaves it alone.
+     */
+    runner.addEventListener("click", (event) => {
+        const trigger = event.target.closest("[data-timer]");
+        if (trigger) {
+            event.preventDefault();
+            openTimer(
+                trigger.closest(".perform-step"),
+                trigger.getAttribute("data-timer")
+            );
+            return;
+        }
+        if (event.target.closest("[data-timer-start]")) {
+            startCountdown();
+            return;
+        }
+        if (event.target.closest("[data-timer-stop]")) {
+            stopCountdown();
+            return;
+        }
+        if (event.target.closest("[data-timer-cancel]")) {
+            stopCountdown();
+            if (timerModal) {
+                timerModal.hide();
+            }
         }
     });
 
