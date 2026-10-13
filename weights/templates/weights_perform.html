@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% load markdown_extras %}
+{% block main %}
+<div class="perform container-lg" data-perform data-finished="{{ workout.completed|yesno:'true,false' }}">
+    <p><a href="/calendar#date-{{ workout.started_at|date:'Y-m-d' }}" class="text-muted link-underline link-underline-opacity-0">👈 Back to the calendar</a></p>
+    <div class="perform-bar">
+        <div class="d-flex align-items-baseline justify-content-between gap-2">
+            <span class="perform-title">
+                {% if workout.title %}{{ workout.title }}{% else %}Weights workout{% endif %}
+            </span>
+            <span class="perform-count">
+                <span data-done-count>{{ done_count }}</span> of {{ total_count }} sets
+            </span>
+        </div>
+        <div class="d-flex align-items-baseline justify-content-between gap-2">
+            <span class="perform-elapsed"
+                 data-elapsed="{{ workout.elapsed_seconds|default:0 }}"
+                 {% if workout.completed and workout.finished_at %}data-finished="true"{% endif %}>{{ workout.elapsed|default:"0:00" }}</span>
+            <a class="perform-show-all" href="#" data-show-all>Show all exercises</a>
+        </div>
+    </div>
+    <hr>
+
+
+    {% if not steps %}
+        <div class="container-lg">
+            <p class="text-muted">This workout has no sets to do.</p>
+        </div>
+    {% endif %}
+
+    {% for group in step_groups %}
+        <div class="card perform-exercise{% if not group.current %} d-none{% endif %} mb-2" data-exercise-group="{{ group.entry.pk }}">
+            {% with exercise=group.entry.exercise %}
+                <div class="card-body">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <h3 class="card-title mb-0">{{ exercise.name }}</h3>
+                        {% if group.entry.superset %}
+                            <span class="badge bg-secondary superset-badge">Superset {{ group.entry.superset.letter }}</span>
+                        {% endif %}
+                        <span class="badge bg-success{% if group.done != group.total %} d-none{% endif %}" data-done-badge>Completed</span>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <p>Exercise <a class="" href="#exercise-description-{{ forloop.counter }}"
+                                data-bs-toggle="collapse">description</a>
+                        or <a class="" href="#exercise-image-{{ forloop.counter }}"
+                                data-bs-toggle="collapse">image</a>.
+                        </p>
+                    </div>
+                    <div class="mt-2 collapse" id="exercise-description-{{ forloop.counter }}">
+                        <h3>Description</h3>
+                        <p class="mb-0">{{ exercise.instructions|markdown }}</p>
+                    </div>
+                    <div class="mt-2 collapse" id="exercise-image-{{ forloop.counter }}">
+                        <img class="img-fluid" src="{{ exercise.image_url }}">
+                    </div>
+
+                    {% if group.done != group.total %}<p class="perform-summary card-text text-muted" data-summary>{{ group.done }} of {{ group.total }} sets done</p>{% endif %}
+
+                    <table class="table perform-sets">
+                        <thead>
+                            <tr>
+                                <th scope="col">{% if group.timed %}Time{% else %}Reps{% endif %}</th>
+                                <th scope="col">Weight ({{ weight_unit_abbr }})</th>
+                                <th scope="col"><span class="visually-hidden">Set actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for step in group.steps %}
+                                <tr class="perform-step{% if step.done %} done{% endif %}{% if step.set.pk == current_set_pk %} current{% endif %}"
+                                        data-step="{{ step.order }}"
+                                        data-set="{{ step.set.pk }}"
+                                        data-round="{{ step.round|default_if_none:'' }}"
+                                        data-step-rest="{{ step.rest_seconds|default_if_none:'' }}"
+                                        data-done="{{ step.done|yesno:'true,false' }}">
+                                    <td>
+                                        {% if step.timed %}
+                                            <input type="text" class="form-control form-control-sm" inputmode="numeric"
+                                                    name="set-{{ step.set.pk }}-duration" form="log-set"
+                                                    placeholder="m:ss" value="{{ step.set.duration|default_if_none:'' }}">
+                                        {% else %}
+                                            <input type="number" class="form-control form-control-sm" inputmode="numeric" min="1"
+                                                    name="set-{{ step.set.pk }}-reps" form="log-set"
+                                                    value="{{ step.set.reps|default_if_none:'' }}">
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm" inputmode="decimal"
+                                                min="0" step="0.5" name="set-{{ step.set.pk }}-weight" form="log-set"
+                                                value="{{ step.set.weight|default_if_none:'' }}">
+                                    </td>
+                                    <td>
+                                            <a class="link-underline link-underline-opacity-0" data-bs-toggle="collapse" href="#set-details-{{ step.set.pk }}">➕</a>
+                                    </td>
+                                </tr>
+                                <tr id="set-details-{{ step.set.pk }}" class="collapse">
+                                    <td colspan="3">
+                                        <form method="post" class="d-flex flex-wrap gap-1 mt-1">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="set" value="{{ step.set.pk }}">
+                                            <a class="badge bg-danger link-underline link-underline-opacity-0" name="action" value="delete">Delete</a>
+                                            <a class="badge bg-secondary link-underline link-underline-opacity-0" name="action" value="undo">Reopen</a>
+                                            <a class="badge bg-primary link-underline link-underline-opacity-0" name="action" value="add">Add another</a>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer">
+                    <a href="#" data-pick>Update this exercise</a>
+                </div>
+            {% endwith %}
+        </div>
+    {% endfor %}
+
+    {% if steps %}
+        <div class="perform-actions">
+            <form method="post" class="perform-log" id="log-set">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="log">
+                <input type="hidden" name="entry" value="">
+                <button type="submit" class="btn btn-primary perform-log-button">Log set</button>
+            </form>
+            <a class="btn btn-success perform-complete-exercise"
+               href="{% url 'alors:calendar' %}?d={{ workout.get_date_as_str }}">Complete exercise</a>
+            <form method="post" action="{% url 'weights:workout_complete' workout.pk %}" data-finish-workout>
+                {% csrf_token %}
+                <button type="submit" class="btn {% if workout.completed %}btn-outline-secondary{% else %}btn-success{% endif %}">
+                    <span data-finish-label>{% if workout.completed %}Reopen workout{% else %}Complete workout{% endif %}</span>
+                </button>
+            </form>
+        </div>
+    {% endif %}
+
+    <div class="modal fade perform-rest" id="rest" data-rest-panel tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <p class="perform-rest-label mb-0">Rest</p>
+                    <p class="display-4 mb-1" data-rest-time>0:00</p>
+                    <p class="perform-rest-next text-muted mb-4" data-rest-next></p>
+                    <div class="d-flex gap-2 justify-content-center">
+                        <button type="button" class="btn btn-lg btn-outline-secondary js-rest-more">+15s</button>
+                        <button type="button" class="btn btn-lg btn-primary js-rest-skip">Skip rest</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -4,7 +4,7 @@
     <div class="row">
         <div class="col-lg-8">
             <p>
-                <a class="btn btn-primary" href="{% url 'weights:workout_add' %}">Create a weights workout</a>
+                <a class="btn btn-primary" href="{% url 'weights:workout_add' %}">Create a planned weights workout</a>
             </p>
             <ul class="list-group">
                 {% for workout in workouts %}
@@ -14,11 +14,18 @@
                                 <a href="{% url 'weights:workout_edit' workout.pk %}">{% if workout.title %}{{ workout.title }}{% else %}(No title){% endif %}</a>
                                 {% if workout.is_actual %}
                                     <span class="badge text-bg-secondary">Actual</span>
+                                    {% if workout.completed %}
+                                        <span class="badge text-bg-success">Completed</span>
+                                    {% endif %}
                                     <span class="text-muted small">
                                         {{ workout.completed_set_count }} of {{ workout.set_count }} sets done
                                         {% if workout.plan %}
                                             &mdash; from <a href="{% url 'weights:workout_edit' workout.plan.pk %}">{{ workout.plan.title|default:"(No title)" }}</a>
                                         {% endif %}
+                                    </span>
+                                    <span class="text-muted small">
+                                        {% if workout.started_at %}Started {{ workout.started_at|date:"j M Y, H:i" }}{% elif not workout.completed and not workout.finished_at %}Not started yet{% endif %}
+                                        {% if workout.finished_at %}{% if workout.started_at %}&mdash; {% endif %}finished {{ workout.finished_at|date:"j M Y, H:i" }}{% endif %}
                                     </span>
                                 {% endif %}
                                 <div class="text-muted small">{{ workout.created_at|date:"j M Y, H:i" }}</div>

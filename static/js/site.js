@@ -413,132 +413,6 @@ function initCalendarStickyHeader() {
     );
 }
 
-function initPullToRefresh() {
-    // A touch gesture: at the very top of a page, drag down to reload it. This
-    // is an enhancement only - reloading the page the usual way still works.
-    const DRAG_START = 6; // ignore jitter until the finger has really moved
-    const THRESHOLD = 70; // pull this far and releasing reloads
-    const DAMPING = 0.5; // the content follows the finger at half speed
-    const MAX_PULL = 120; // the furthest the content can be dragged
-    const TARGET_CLASS = "pull-to-refresh-target";
-    // Things that pan on touch themselves, where a downward drag means
-    // something else entirely.
-    const IGNORES_PULL = ".leaflet-container";
-
-    const indicator = document.createElement("div");
-    indicator.className = "pull-to-refresh";
-    indicator.setAttribute("aria-hidden", "true");
-    document.body.appendChild(indicator);
-
-    let startX = 0;
-    let startY = 0;
-    let distance = 0;
-    let active = false;
-    let reloading = false;
-
-    function content() {
-        // Everything the page is made of, minus the indicator. Read fresh each
-        // time so anything added to the page since is included.
-        return [...document.body.children].filter((el) => el !== indicator);
-    }
-
-    function dragged() {
-        return document.querySelectorAll(`.${TARGET_CLASS}`);
-    }
-
-    function paint() {
-        dragged().forEach((el) => {
-            el.style.transform = `translateY(${distance}px)`;
-        });
-        // Half the pull, so the indicator sits in the gap the content leaves.
-        indicator.style.opacity = String(Math.min(1, distance / THRESHOLD));
-        indicator.style.transform = `translate(-50%, ${distance / 2}px)`;
-        indicator.classList.toggle("armed", distance >= THRESHOLD);
-    }
-
-    function reset() {
-        active = false;
-        distance = 0;
-        dragged().forEach((el) => {
-            // Dropping the inline transition restores the one on the class, so
-            // the content eases back instead of snapping.
-            el.style.transition = "";
-            el.style.transform = "";
-        });
-        indicator.style.opacity = "";
-        indicator.style.transform = "";
-        indicator.classList.remove("armed", "loading");
-    }
-
-    function onTouchStart(event) {
-        if (reloading || window.scrollY > 0 || event.touches.length !== 1) {
-            return;
-        }
-        const target = event.target;
-        if (target instanceof Element && target.closest(IGNORES_PULL)) {
-            return;
-        }
-        content().forEach((el) => {
-            el.classList.add(TARGET_CLASS);
-            // Follow the finger exactly; the class only transitions the release.
-            el.style.transition = "none";
-        });
-        startX = event.touches[0].clientX;
-        startY = event.touches[0].clientY;
-        active = true;
-    }
-
-    function onTouchMove(event) {
-        if (!active) {
-            return;
-        }
-        if (event.touches.length !== 1) {
-            reset();
-            return;
-        }
-        const delta = event.touches[0].clientY - startY;
-        const sideways = Math.abs(event.touches[0].clientX - startX);
-        // A sideways gesture, or one that started after scrolling, belongs to
-        // the browser.
-        if (delta < DRAG_START || sideways > delta || window.scrollY > 0) {
-            if (distance > 0) {
-                reset();
-            }
-            return;
-        }
-        // Ours now: stop the browser's own overscroll fighting the drag.
-        event.preventDefault();
-        distance = Math.min(MAX_PULL, delta * DAMPING);
-        paint();
-    }
-
-    function onTouchEnd() {
-        if (!active) {
-            return;
-        }
-        if (distance >= THRESHOLD) {
-            reloading = true;
-            active = false;
-            indicator.classList.remove("armed");
-            indicator.classList.add("loading");
-            indicator.style.opacity = "1";
-            // Leave the page pulled down; it is about to be replaced. The
-            // delay lets the spinner paint first.
-            window.setTimeout(() => window.location.reload(), 80);
-            return;
-        }
-        reset();
-    }
-
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    // Not passive: the whole point is to cancel the browser's own overscroll.
-    document.addEventListener("touchmove", onTouchMove, { passive: false });
-    document.addEventListener("touchend", onTouchEnd);
-    document.addEventListener("touchcancel", reset);
-    // A back/forward restore can bring the page back mid-pull.
-    window.addEventListener("pageshow", reset);
-}
-
 function initExerciseFormset() {
     const container = document.getElementById("exercise-rows");
     const addButton = document.getElementById("add-exercise-row");
@@ -1043,20 +917,118 @@ function initWorkoutRunner() {
         return;
     }
 
-    const steps = Array.from(runner.querySelectorAll(".perform-step"));
+    // The sets in the order they are done in, which is not the order the page
+    // holds them in: a superset's sets sit under their own exercises, while it
+    // is done a round at a time. The server numbers them as it goes.
+    const steps = Array.from(runner.querySelectorAll(".perform-step")).sort(
+        (one, other) => Number(one.dataset.step) - Number(other.dataset.step)
+    );
     const restPanel = runner.querySelector("[data-rest-panel]");
+    // The rest is a modal: it takes the screen until the countdown is done,
+    // and only the buttons on it get you out of it.
+    const restModal = restPanel
+        ? new bootstrap.Modal(restPanel, {
+              backdrop: "static",
+              keyboard: false,
+          })
+        : null;
     const restTime = runner.querySelector("[data-rest-time]");
     const restNext = runner.querySelector("[data-rest-next]");
     const doneCount = runner.querySelector("[data-done-count]");
-    const progress = runner.querySelector("[data-progress]");
-    const completePanel = runner.querySelector("[data-complete]");
+    const elapsed = runner.querySelector("[data-elapsed]");
+    const showAll = runner.querySelector("[data-show-all]");
+    const pickedInput = runner.querySelector("[name='entry']");
+    const doneSummary = runner.querySelector("[data-done-summary]");
+    const exerciseGroups = Array.from(
+        runner.querySelectorAll("[data-exercise-group]")
+    );
+    const finishForm = runner.querySelector("[data-finish-workout]");
+    const finishLabel = finishForm && finishForm.querySelector("[data-finish-label]");
+    const finishButton = finishForm && finishForm.querySelector("button");
     const total = steps.length;
     const csrf = runner.querySelector("[name=csrfmiddlewaretoken]");
     const stepsUrl = window.location.href;
+    let finished = runner.dataset.finished === "true";
     let restTimer = null;
     let restLeft = 0;
+    // How long the workout had been going when the page was drawn, turned into
+    // a start time on the browser's own clock so the timer keeps up from here.
+    // A finished workout's clock is left where it stopped.
+    const startedAt = elapsed
+        ? Date.now() - (Number(elapsed.dataset.elapsed) || 0) * 1000
+        : null;
+    let stoppedAt =
+        elapsed && elapsed.dataset.finished === "true" ? Date.now() : null;
 
     const isDone = (step) => step.dataset.done === "true";
+
+    /**
+     * The round a set belongs to: a superset is done one round at a time, while
+     * an exercise on its own has no round to speak of.
+     */
+    const roundOf = (step) => step.dataset.round || "";
+
+    const groupOf = (step) => (step ? step.closest("[data-exercise-group]") : null);
+
+    // Which exercise is being logged: the one picked from the full list, or the
+    // one holding the first set still to do. `showEveryGroup` opens the lot,
+    // which is where the page starts when it is linked to as #all.
+    let pickedGroup = null;
+    let showEveryGroup = window.location.hash === "#all";
+
+    /** The link says what pressing it will do. */
+    const paintShowAll = () => {
+        if (showAll) {
+            showAll.textContent = showEveryGroup
+                ? "Show one exercise"
+                : "Show all exercises";
+        }
+    };
+
+    /**
+     * The group to put in front of the user: the exercise they picked, which
+     * stays put until the workout's own order has reason to move on, or the one
+     * holding the first set still to do.
+     */
+    const groupToShow = () => {
+        if (pickedGroup) {
+            return pickedGroup;
+        }
+        const next = steps.find((step) => !isDone(step));
+        return next ? groupOf(next) : groupOf(steps[steps.length - 1]);
+    };
+
+    /**
+     * Whether a picked exercise is still the one to be doing: it keeps its place
+     * while it has a set to do in the round being worked through, and once it
+     * has nothing left to log at all — the page then offers the way back to the
+     * calendar in place of another set. An exercise on its own has no round to
+     * give way on, so only its last set moves the page on.
+     */
+    const holdsItsPlace = (next) => {
+        const left = Array.from(
+            pickedGroup.querySelectorAll(".perform-step")
+        ).filter((step) => !isDone(step));
+        return (
+            !left.length ||
+            left.some(
+                (step) => !roundOf(step) || roundOf(step) === roundOf(next)
+            )
+        );
+    };
+
+    /**
+     * Let the workout's own order back in once a set is logged: an exercise that
+     * has done its set for the round hands the page to the next one in the
+     * superset, which brings the first back round for the next round.
+     */
+    const releasePick = () => {
+        const next = steps.find((step) => !isDone(step));
+        if (!next || !pickedGroup || holdsItsPlace(next)) {
+            return;
+        }
+        pickedGroup = null;
+    };
 
     const formatTime = (seconds) => {
         const minutes = Math.floor(Math.max(0, seconds) / 60);
@@ -1064,10 +1036,23 @@ function initWorkoutRunner() {
         return `${minutes}:${String(secs).padStart(2, "0")}`;
     };
 
-    /** The set being done: the first that is not ticked off, else the last. */
+    /** How long the workout has been going, which stops when it is finished. */
+    const paintElapsed = () => {
+        if (!elapsed || startedAt === null) {
+            return;
+        }
+        const until = stoppedAt === null ? Date.now() : stoppedAt;
+        elapsed.textContent = formatTime(Math.floor((until - startedAt) / 1000));
+    };
+
+    /** The set being done: the next one of the exercise on show. */
     const currentIndex = () => {
-        const found = steps.findIndex((step) => !isDone(step));
-        return found === -1 ? Math.max(steps.length - 1, 0) : found;
+        const shown = steps.filter((step) => groupOf(step) === groupToShow());
+        const found = shown.findIndex((step) => !isDone(step));
+        // Nothing left in it: the last set of the exercise is the one it ends
+        // on.
+        const step = shown[found === -1 ? shown.length - 1 : found];
+        return step ? steps.indexOf(step) : 0;
     };
 
     const showCurrent = () => {
@@ -1075,10 +1060,58 @@ function initWorkoutRunner() {
         steps.forEach((step, index) => {
             step.classList.toggle("current", index === current);
         });
+        // The exercise goes on show before the scroll, or the row it scrolls
+        // to would still be hidden.
+        updateProgress();
         if (steps[current]) {
             steps[current].scrollIntoView({ block: "center" });
         }
-        updateProgress();
+    };
+
+    /**
+     * Show one exercise at a time: the group holding the first set still to do,
+     * so finishing an exercise brings the next one on.
+     */
+    const showCurrentGroup = () => {
+        const shown = showEveryGroup ? null : groupToShow();
+        exerciseGroups.forEach((group) => {
+            group.classList.toggle("d-none", shown !== null && group !== shown);
+        });
+        // The whole workout on show: a summary per exercise instead of its
+        // sets, and the workout's own button rather than the log.
+        runner.classList.toggle("showing-all", showEveryGroup);
+        // An exercise with nothing left to log is done with: the page offers
+        // the way back to the calendar instead of another set to log.
+        const left = shown
+            ? Array.from(shown.querySelectorAll(".perform-step")).some(
+                  (step) => !isDone(step)
+              )
+            : true;
+        runner.classList.toggle("exercise-done", !showEveryGroup && !left);
+        // Logging follows the exercise on show, so tell the form which it is.
+        // An exercise with nothing left to log hands the log to whichever one
+        // is next, so the form and the page never disagree.
+        if (pickedInput) {
+            const aim = shown && left ? shown : groupOf(steps.find((step) => !isDone(step)));
+            pickedInput.value = aim ? aim.dataset.exerciseGroup : "";
+        }
+    };
+
+    /** How far along each exercise is, on its card and in the full list. */
+    const paintSummaries = () => {
+        exerciseGroups.forEach((group) => {
+            const rows = Array.from(group.querySelectorAll(".perform-step"));
+            const done = rows.filter(isDone).length;
+            const summary = group.querySelector("[data-summary]");
+            if (summary) {
+                summary.textContent = `${done} of ${rows.length} sets done`;
+            }
+            // Every set logged: the exercise is done with.
+            const badge = group.querySelector("[data-done-badge]");
+            if (badge) {
+                badge.classList.toggle("d-none", done < rows.length);
+            }
+        });
     };
 
     const updateProgress = () => {
@@ -1086,42 +1119,45 @@ function initWorkoutRunner() {
         if (doneCount) {
             doneCount.textContent = String(done);
         }
-        if (progress) {
-            progress.style.width = total ? `${(done / total) * 100}%` : "0%";
+        if (doneSummary) {
+            doneSummary.textContent = `${done} of ${total} sets done.`;
         }
-        if (completePanel) {
-            completePanel.classList.toggle("d-none", !total || done < total);
-        }
+        showCurrentGroup();
+        paintSummaries();
     };
 
-    const setDone = (step, done) => {
-        step.dataset.done = String(done);
-        step.classList.toggle("done", done);
-        const button = step.querySelector(".perform-tick-button");
-        const big = step.querySelector(".perform-tick-big");
-        const mini = step.querySelector(".perform-tick-mini");
-        const action = step.querySelector('input[name="action"]');
-        if (action) {
-            action.value = done ? "undo" : "complete";
+    /** Tick a set off; its row carries the state the rest of the page reads. */
+    const setDone = (step) => {
+        step.dataset.done = "true";
+        step.classList.add("done");
+        updateProgress();
+    };
+
+    /**
+     * Show whether the workout itself has been finished. Ticking the last set
+     * off finishes it on the server, so the button has to follow along.
+     */
+    const setFinished = (completed) => {
+        finished = completed;
+        // The clock stops with the workout, and picks up again if it is
+        // reopened.
+        stoppedAt = completed ? Date.now() : null;
+        if (finishLabel) {
+            finishLabel.textContent = completed ? "Reopen workout" : "Complete workout";
         }
-        if (big) {
-            big.textContent = done ? "Undo this set" : "Complete set";
-        }
-        if (mini) {
-            mini.textContent = done ? "↺" : "✓";
-        }
-        if (button) {
-            button.classList.toggle("btn-success", done);
+        if (finishButton) {
+            finishButton.classList.toggle("btn-success", !completed);
+            finishButton.classList.toggle("btn-outline-secondary", completed);
         }
         updateProgress();
+        paintElapsed();
     };
 
     const hideRest = () => {
         window.clearInterval(restTimer);
         restTimer = null;
-        if (restPanel) {
-            restPanel.classList.add("d-none");
-            restPanel.classList.remove("finished");
+        if (restModal) {
+            restModal.hide();
         }
     };
 
@@ -1144,21 +1180,30 @@ function initWorkoutRunner() {
 
     /** Count the rest down, then move on to the next set. */
     const startRest = (seconds, message) => {
-        if (!restPanel || seconds <= 0) {
+        if (!restModal || seconds <= 0) {
             showCurrent();
             return;
         }
         restLeft = seconds;
         restTime.textContent = formatTime(restLeft);
         restNext.textContent = message || "";
-        restPanel.classList.remove("d-none");
+        restPanel.classList.remove("finished");
+        restModal.show();
         window.clearInterval(restTimer);
         restTimer = window.setInterval(tickRest, 1000);
     };
 
+    /** What the server refused, said the same way wherever it is refused. */
+    const showErrors = (errors) => {
+        window.alert(Object.values(errors || {}).flat().join(" "));
+    };
+
     /** Send one change to the server; a plain post if the fetch does not land. */
-    const send = (form) => {
+    const send = (form, extra = {}) => {
         const body = new URLSearchParams(new FormData(form));
+        Object.entries(extra).forEach(([name, value]) => {
+            body.set(name, value);
+        });
         return fetch(stepsUrl.toString(), {
             method: "POST",
             headers: {
@@ -1176,24 +1221,84 @@ function initWorkoutRunner() {
     };
 
     runner.addEventListener("submit", (event) => {
-        const form = event.target.closest(".perform-tick");
+        const form = event.target.closest(".perform-log");
         if (!form) {
             return;
         }
         event.preventDefault();
-        const step = form.closest(".perform-step");
-        const completing = form.querySelector('input[name="action"]').value === "complete";
         send(form)
             .then((data) => {
-                setDone(step, data.completed);
-                if (completing) {
-                    const next = steps.find((other) => !isDone(other));
-                    if (next) {
-                        startRest(Number(step.dataset.stepRest) || 0, `Next: ${next.querySelector(".perform-exercise").textContent.trim()}`);
-                    } else {
-                        showCurrent();
-                    }
+                if (!data.ok) {
+                    showErrors(data.errors);
+                    return;
                 }
+                // The server logs the first set still to do, not the row the
+                // button was tapped on, so tick off whichever set came back.
+                const logged = steps.find(
+                    (step) => step.dataset.set === String(data.set)
+                );
+                if (logged) {
+                    setDone(logged);
+                }
+                setFinished(data.finished);
+                // The set is logged: an exercise that has done its set for the
+                // round hands the page on to the next one in the superset.
+                releasePick();
+                updateProgress();
+                const next = steps.find((other) => !isDone(other));
+                const rest = logged ? Number(logged.dataset.stepRest) || 0 : 0;
+                if (next) {
+                    startRest(rest, "Next set");
+                } else {
+                    showCurrent();
+                }
+            })
+            .catch((error) => {
+                window.alert(error.message);
+            });
+    });
+
+    /** The link that opens every exercise, and the names that pick one. */
+    if (showAll) {
+        showAll.addEventListener("click", (event) => {
+            event.preventDefault();
+            showEveryGroup = !showEveryGroup;
+            paintShowAll();
+            showCurrentGroup();
+        });
+    }
+
+    runner.addEventListener("click", (event) => {
+        const pick = event.target.closest("[data-pick]");
+        if (!pick) {
+            return;
+        }
+        event.preventDefault();
+        pickedGroup = pick.closest("[data-exercise-group]");
+        showEveryGroup = false;
+        paintShowAll();
+        showCurrent();
+    });
+
+    /**
+     * A set's own menu: delete it, put it back to do, or add another like it.
+     * Each one changes the table's shape, so the page comes back from the
+     * server showing the change rather than being patched up here.
+     */
+    runner.addEventListener("click", (event) => {
+        const action = event.target.closest("[name='action'][value]");
+        const form = action && action.closest("form");
+        if (!form) {
+            return;
+        }
+        event.preventDefault();
+        send(form, { action: action.getAttribute("value") })
+            .then((data) => {
+                if (!data.ok) {
+                    showErrors(data.errors);
+                    return;
+                }
+                window.location.reload();
             })
             .catch((error) => {
                 window.alert(error.message);
@@ -1202,17 +1307,8 @@ function initWorkoutRunner() {
 
     runner.addEventListener("click", (event) => {
         const step = event.target.closest(".perform-step");
-        const edit = event.target.closest(".js-perform-edit");
         const prev = event.target.closest(".js-perform-prev");
         const next = event.target.closest(".js-perform-next");
-        if (edit) {
-            event.preventDefault();
-            const panel = step.querySelector(".perform-edit");
-            if (panel) {
-                panel.classList.toggle("d-none");
-            }
-            return;
-        }
         if (prev || next) {
             const index = Math.min(Math.max(currentIndex() + (next ? 1 : -1), 0), steps.length - 1);
             const target = steps[index];
@@ -1236,7 +1332,10 @@ function initWorkoutRunner() {
     // Tapping a closed row opens it; the tick button still does its own thing.
     runner.addEventListener("click", (event) => {
         const step = event.target.closest(".perform-step");
-        if (!step || event.target.closest("button, form, a, input, label")) {
+        if (
+            !step ||
+            event.target.closest("button, form, a, input, label, summary")
+        ) {
             return;
         }
         steps.forEach((other) => other.classList.remove("current"));
@@ -1252,6 +1351,13 @@ function initWorkoutRunner() {
     });
     hideRest();
     showCurrent();
+    paintShowAll();
+
+    // The workout's clock, ticking while it is going on.
+    if (elapsed && startedAt !== null) {
+        paintElapsed();
+        window.setInterval(paintElapsed, 1000);
+    }
 
     // Keep the screen on while a workout is being done.
     if (navigator.wakeLock) {
@@ -1265,7 +1371,6 @@ window.addEventListener("DOMContentLoaded", initSavedWorkoutPicker);
 window.addEventListener("DOMContentLoaded", initBusyForms);
 window.addEventListener("DOMContentLoaded", initAddPlannedModal);
 window.addEventListener("DOMContentLoaded", initCalendarStickyHeader);
-window.addEventListener("DOMContentLoaded", initPullToRefresh);
 window.addEventListener("DOMContentLoaded", initExerciseFormset);
 window.addEventListener("DOMContentLoaded", initWorkoutRunner);
 window.addEventListener("load", initHeartRateCharts);

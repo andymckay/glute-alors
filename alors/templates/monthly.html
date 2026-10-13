@@ -47,6 +47,10 @@
                     {% include "workout_card.html" %}
                     {% if entry.actual|length > 1 and not forloop.last %}<div class="mb-2"></div>{% endif %}
                 {% endfor %}
+                {% for workout in entry.weight %}
+                    {% include "weights_card.html" %}
+                    {% if entry.weight|length > 1 and not forloop.last %}<div class="mb-2"></div>{% endif %}
+                {% endfor %}
             </td>
             {% if forloop.last %}
             <td class="border-start">

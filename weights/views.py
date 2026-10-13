@@ -282,7 +282,7 @@ def exercise_detail(request, exercise_id):
 
 @login_required
 def workout_list(request):
-    workouts = WeightsWorkout.objects.prefetch_related(
+    workouts = WeightsWorkout.objects.filter(is_actual=False).prefetch_related(
         "exercises__sets", "exercises__superset"
     )
     return render(
@@ -352,6 +352,9 @@ def workout_edit(request, pk):
         ):
             form.save()
             _save_exercises(formset, set_formsets, workout, data)
+            if workout.is_actual:
+                # Ticking the last set off here finishes the workout too.
+                workout.mark_finished()
             messages.add_message(
                 request, messages.SUCCESS, "✏️ Updated weights workout."
             )
@@ -392,7 +395,7 @@ def workout_do(request, pk):
             plan=workout.plan or workout,
             is_actual=True,
         )
-        messages.add_message(request, messages.SUCCESS, "💪 Started workout.")
+        actual.mark_started()
         return redirect("weights:workout_perform", actual.pk)
     return redirect("weights:workout_edit", workout.pk)
 
@@ -409,20 +412,40 @@ def workout_perform(request, pk):
     if not workout.is_actual:
         # A plan is a blueprint; doing one starts an actual workout.
         return redirect("weights:workout_edit", workout.pk)
+    # An actual workout that has no start yet (one made by hand, say) is
+    # started now that it is being done.
+    workout.mark_started()
     if request.method == "POST":
         return _perform_action(request, workout)
 
     steps = workout.steps()
+    # The set to open on: the first one still to do.
+    current_index = next(
+        (index for index, step in enumerate(steps) if not step.done), 0
+    )
+    current_entry_pk = steps[current_index].entry.pk if steps else None
     return render(
         request,
         "weights_perform.html",
         {
             "workout": workout,
             "steps": steps,
-            # The set to open on: the first one still to do.
-            "current_index": next(
-                (index for index, step in enumerate(steps) if not step.done), 0
-            ),
+            # One exercise at a time: the exercises not being done are hidden.
+            "step_groups": [
+                {
+                    "entry": entry,
+                    "steps": group,
+                    "timed": group[0].timed,
+                    # Shown when the whole workout is on show, in place of the
+                    # exercise's sets.
+                    "done": sum(1 for step in group if step.done),
+                    "total": len(group),
+                    "current": entry.pk == current_entry_pk,
+                }
+                for entry, group in workout.step_groups()
+            ],
+            "current_index": current_index,
+            "current_set_pk": steps[current_index].set.pk if steps else None,
             "done_count": sum(1 for step in steps if step.done),
             "total_count": len(steps),
             "weight_unit_abbr": _weight_unit_abbr(request),
@@ -430,12 +453,52 @@ def workout_perform(request, pk):
     )
 
 
+def _logged_values(request, model_set):
+    """What to save for a set being logged, as the set form expects it.
+
+    The page sends the reps, weight or time as they were entered; a field it did
+    not send, and the rest it does not show, keep the set's own values.
+    """
+    values = {
+        "reps": model_set.reps,
+        "weight": model_set.weight,
+        "duration": format_seconds(model_set.duration_seconds),
+        "rest": format_seconds(model_set.rest_seconds),
+    }
+    for name in ("reps", "weight", "duration"):
+        posted = request.POST.get(f"set-{model_set.pk}-{name}")
+        if posted is not None:
+            values[name] = posted
+    return values
+
+
+def _next_set_to_log(workout, entry_id=None):
+    """The first set still to do, of one exercise when the page picked one."""
+    steps = workout.steps()
+    if entry_id:
+        steps = [step for step in steps if str(step.entry.pk) == str(entry_id)]
+    step = next((step for step in steps if not step.done), None)
+    return step.set if step else None
+
+
+def _next_set_position(entry):
+    """Where a set added from the page goes: after the exercise's last one."""
+    last = entry.sets.order_by("-position").first()
+    return last.position + 1 if last else 0
+
+
 def _perform_action(request, workout):
     """Handle one change made while doing a workout."""
-    model_set = get_object_or_404(
-        WeightsWorkoutSet, pk=request.POST.get("set"), entry__workout=workout
-    )
     action = request.POST.get("action")
+    # A log counts the first set still to do, of the exercise the page picked
+    # if it picked one, whatever row it was posted from.
+    model_set = (
+        _next_set_to_log(workout, request.POST.get("entry"))
+        if action == "log"
+        else get_object_or_404(
+            WeightsWorkoutSet, pk=request.POST.get("set"), entry__workout=workout
+        )
+    )
     form = None
     if action == "delete":
         model_set.delete()
@@ -448,9 +511,33 @@ def _perform_action(request, workout):
         )
         if form.is_valid():
             form.save()
-    else:
+    elif action == "log":
+        if model_set is not None:
+            # What the page entered for this set is what gets logged.
+            form = WeightsWorkoutSetForm(
+                _logged_values(request, model_set),
+                instance=model_set,
+                timed=_is_timed(model_set.entry.exercise_id),
+            )
+            if form.is_valid():
+                form.save()
+                model_set.completed = True
+                model_set.save(update_fields=["completed"])
+    elif action == "add":
+        # Another set like this one, left to do, at the end of its exercise.
+        form = WeightsWorkoutSetForm(
+            _logged_values(request, model_set),
+            timed=_is_timed(model_set.entry.exercise_id),
+        )
+        if form.is_valid():
+            added = form.save(commit=False)
+            added.entry = model_set.entry
+            added.position = _next_set_position(model_set.entry)
+            added.save()
+    elif model_set is not None:
         model_set.completed = action == "complete"
         model_set.save(update_fields=["completed"])
+    workout.mark_finished()
 
     if request.headers.get("x-requested-with") != "XMLHttpRequest":
         return redirect("weights:workout_perform", workout.pk)
@@ -458,15 +545,42 @@ def _perform_action(request, workout):
     steps = workout.steps()
     return JsonResponse(
         {
-            "ok": action != "save" or form.is_valid(),
+            "ok": form is None or form.is_valid(),
             "action": action,
             "deleted": action == "delete",
             "completed": getattr(model_set, "completed", False),
+            # The set the action landed on, so the page can tick its row off.
+            "set": model_set.pk if model_set is not None else None,
             "done_count": sum(1 for step in steps if step.done),
             "total_count": len(steps),
+            # Whether the workout itself is finished, not the set.
+            "finished": workout.completed,
             "errors": form.errors if form is not None else {},
         }
     )
+
+
+@login_required
+def workout_complete(request, pk):
+    """Finish an actual workout by hand, or reopen one that was finished."""
+    workout = get_object_or_404(WeightsWorkout, pk=pk)
+    if request.method == "POST" and workout.is_actual:
+        if workout.completed:
+            workout.reopen()
+            messages.add_message(
+                request, messages.SUCCESS, "↩️ Reopened weights workout."
+            )
+        else:
+            workout.complete()
+            messages.add_message(
+                request, messages.SUCCESS, "🏁 Completed weights workout."
+            )
+            # A finished workout is over: go and look at the day it landed on.
+            # It was finished just now, so that day is today: the calendar's
+            # "Today" link, with any stored date cleared so it cannot open on
+            # some other week.
+            return redirect(f"{reverse('alors:calendar')}?d=#today")
+    return redirect("weights:workout_perform", workout.pk)
 
 
 @login_required

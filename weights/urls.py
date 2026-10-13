@@ -15,6 +15,7 @@ urlpatterns = [
     path("<int:pk>/edit/", views.workout_edit, name="workout_edit"),
     path("<int:pk>/do/", views.workout_do, name="workout_do"),
     path("<int:pk>/perform/", views.workout_perform, name="workout_perform"),
+    path("<int:pk>/complete/", views.workout_complete, name="workout_complete"),
     path("<int:pk>/duplicate/", views.workout_duplicate, name="workout_duplicate"),
     path("<int:pk>/delete/", views.workout_delete, name="workout_delete"),
 ]

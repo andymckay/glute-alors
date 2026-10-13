@@ -5,6 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from django.db import models
+from django.utils import timezone
 
 from core.models import CreatedByModel
 
@@ -280,6 +281,7 @@ class WorkoutStep:
         rest_seconds=None,
         round=None,
         rounds=None,
+        order=None,
     ):
         self.entry = entry
         self.set = model_set
@@ -289,6 +291,10 @@ class WorkoutStep:
         self.rest_seconds = rest_seconds
         self.round = round
         self.rounds = rounds
+        # Where the set comes in the workout as a whole, set by ``steps``: a
+        # superset's sets are not grouped by exercise in the order they are
+        # done in.
+        self.order = order
 
     def __repr__(self):
         return f"<WorkoutStep {self.entry} set {self.number} of {self.of}>"
@@ -331,11 +337,33 @@ class WeightsWorkout(CreatedByModel):
         default=False,
         help_text="Whether this workout has been done, rather than planned.",
     )
+    started_at = models.DateTimeField(
+        "started at",
+        null=True,
+        blank=True,
+        help_text="When the workout was started.",
+    )
+    finished_at = models.DateTimeField(
+        "finished at",
+        null=True,
+        blank=True,
+        help_text="When the workout's last set was done.",
+    )
+    completed = models.BooleanField(
+        "completed",
+        default=False,
+        help_text="Whether the workout has been finished.",
+    )
 
     class Meta:
         ordering = ["-created_at"]
         verbose_name = "weights workout"
         verbose_name_plural = "weights workouts"
+        indexes = [
+            models.Index(fields=["is_actual"], name="weights_actual_idx"),
+            models.Index(fields=["completed"], name="weights_completed_idx"),
+            models.Index(fields=["started_at"], name="weights_started_idx"),
+        ]
 
     def __str__(self):
         created = (
@@ -398,7 +426,26 @@ class WeightsWorkout(CreatedByModel):
                             rounds=rounds,
                         )
                     )
+        for order, step in enumerate(steps):
+            step.order = order
         return steps
+
+    def step_groups(self):
+        """Every set to do, grouped by the exercise it belongs to, in order.
+
+        This is what the perform page shows, one exercise at a time; a
+        superset's exercises each come back as their own group, in the order
+        their first set is met.
+        """
+        groups = {}
+        ordered = []
+        for step in self.steps():
+            if step.entry.pk in groups:
+                groups[step.entry.pk].append(step)
+            else:
+                groups[step.entry.pk] = [step]
+                ordered.append((step.entry, groups[step.entry.pk]))
+        return ordered
 
     def _sets_of(self, entry, model_sets):
         """One exercise's sets as steps, each followed by its own rest."""
@@ -423,6 +470,61 @@ class WeightsWorkout(CreatedByModel):
             for model_set in entry.sets.all()
             if model_set.completed
         )
+
+    def mark_started(self):
+        """Stamp the moment the workout was started, once."""
+        if self.started_at is None:
+            self.started_at = timezone.now()
+            self.save(update_fields=["started_at"])
+
+    def mark_finished(self):
+        """Complete the workout once every set has been ticked off.
+
+        Finishing by hand is :meth:`complete`; this only picks up a workout
+        whose last set was ticked off as it was done.
+        """
+        steps = self.steps()
+        if not self.completed and steps and all(step.done for step in steps):
+            self.complete()
+
+    def elapsed_seconds(self):
+        """How long the workout has been going, or how long it took.
+
+        A finished workout stops at the time it was finished, and a workout
+        that was never started has no time to show.
+        """
+        if self.started_at is None:
+            return None
+        stopped = (
+            self.finished_at
+            if self.completed and self.finished_at
+            else timezone.now()
+        )
+        return max(0, int((stopped - self.started_at).total_seconds()))
+
+    @property
+    def elapsed(self):
+        """The workout's time so far as ``m:ss``, or ``None``."""
+        return format_seconds(self.elapsed_seconds())
+
+    def complete(self):
+        """Mark the workout finished, recording when it was."""
+        self.completed = True
+        self.finished_at = timezone.now()
+        self.save(update_fields=["completed", "finished_at"])
+
+    def reopen(self):
+        """Put a finished workout back in progress."""
+        self.completed = False
+        self.finished_at = None
+        self.save(update_fields=["completed", "finished_at"])
+
+    def get_date_as_str(self):
+        return self.started_at.strftime("%Y-%m-%d")
+
+    @property
+    def workout_type(self):
+        return "strength"
 
 
 class WeightsWorkoutSuperset(models.Model):

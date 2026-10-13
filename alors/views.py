@@ -40,6 +40,7 @@ from .utils import dateList, combineDateLists
 from .emails import email_as_text
 import json
 
+from weights.models import WeightsWorkout
 
 def index(request):
     if request.user.is_authenticated:
@@ -114,6 +115,13 @@ def calendar(request):
         ).order_by("date")
     )
 
+    weight_workouts = dateList(
+        WeightsWorkout.objects.filter(
+            is_actual=True, 
+            started_at__gte=dates["start"], 
+            started_at__lte=dates["next"]).order_by("started_at")
+    )
+
     labels = dateList(
         Label.objects.filter(
             end_date__gte=dates["start"],
@@ -146,6 +154,7 @@ def calendar(request):
         actual=actual_workouts,
         summaries=summaries,
         labels=labels,
+        weight=weight_workouts,
     )
 
     # If the monthly, split the data into weeks to make the template easier.

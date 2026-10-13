@@ -1,9 +1,11 @@
 import re
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from alors.models import UserProfile
 
@@ -125,6 +127,26 @@ class WeightsWorkoutTests(TestCase):
         self.assertEqual(self.workout.created_by, self.user)
         self.assertIsNotNone(self.workout.created_at)
         self.assertIsNotNone(self.workout.updated_at)
+
+    def test_a_workout_that_has_not_started_has_no_time(self):
+        self.assertIsNone(self.workout.elapsed_seconds())
+        self.assertIsNone(self.workout.elapsed)
+
+    def test_the_time_counts_from_the_start(self):
+        self.workout.started_at = timezone.now() - timedelta(minutes=5, seconds=30)
+        self.workout.save()
+
+        self.assertEqual(self.workout.elapsed_seconds(), 330)
+        self.assertEqual(self.workout.elapsed, "5:30")
+
+    def test_a_finished_workout_stops_at_its_finish_time(self):
+        self.workout.started_at = timezone.now() - timedelta(hours=1)
+        self.workout.finished_at = self.workout.started_at + timedelta(minutes=42)
+        self.workout.completed = True
+        self.workout.save()
+
+        self.assertEqual(self.workout.elapsed_seconds(), 42 * 60)
+        self.assertEqual(self.workout.elapsed, "42:00")
 
     def test_holds_multiple_exercises_in_position_order(self):
         second = WeightsWorkoutExercise.objects.create(
@@ -1265,6 +1287,9 @@ class WorkoutStepTests(TestCase):
         self.assertEqual([step.rest_seconds for step in steps], [None, 90, None, 90, 90])
         self.assertEqual(steps[1].rest, "1:30")
         self.assertEqual(steps[1].superset, group)
+        # Each set knows where it comes in the workout, rounds and all, so the
+        # page can follow the order it is done in rather than its own layout.
+        self.assertEqual([step.order for step in steps], [0, 1, 2, 3, 4])
 
     def test_sets_with_nothing_to_do_are_left_out(self):
         self._entry(1, 0, [{"reps": None}, {"reps": 8}])
@@ -1273,6 +1298,35 @@ class WorkoutStepTests(TestCase):
 
         self.assertEqual([step.set.reps for step in steps], [8])
         self.assertEqual(steps[0].number, 2)
+
+    def test_step_groups_hold_the_sets_of_one_exercise_each(self):
+        first = self._entry(1, 0, [{"reps": 8}, {"reps": 8}])
+        second = self._entry(2, 1, [{"reps": 10}])
+
+        groups = self.workout.step_groups()
+
+        self.assertEqual(
+            [
+                (entry, [step.set.reps for step in group])
+                for entry, group in groups
+            ],
+            [(first, [8, 8]), (second, [10])],
+        )
+
+    def test_a_superset_comes_back_as_a_group_for_each_exercise(self):
+        superset = WeightsWorkoutSuperset.objects.create(
+            workout=self.workout, letter="A", rest_seconds=90
+        )
+        first = self._entry(1, 0, [{"reps": 8}, {"reps": 8}], superset=superset)
+        second = self._entry(2, 1, [{"reps": 10}, {"reps": 10}], superset=superset)
+
+        groups = self.workout.step_groups()
+
+        self.assertEqual([entry for entry, group in groups], [first, second])
+        self.assertEqual([len(group) for entry, group in groups], [2, 2])
+
+    def test_a_workout_with_nothing_to_do_has_no_groups(self):
+        self.assertEqual(self.workout.step_groups(), [])
 
     def test_timed_sets_are_marked_as_timed(self):
         self._entry(61, 0, [{"duration_seconds": 90}])
@@ -1393,13 +1447,420 @@ class PerformWorkoutTests(TestCase):
                 "action": "complete",
                 "deleted": False,
                 "completed": True,
+                "set": self.first.pk,
                 "done_count": 1,
                 "total_count": 2,
+                "finished": False,
                 "errors": {},
             },
         )
         self.first.refresh_from_db()
         self.assertTrue(self.first.completed)
+
+    def test_the_page_shows_the_time_spent_so_far_instead_of_a_bar(self):
+        self.workout.started_at = timezone.now() - timedelta(minutes=2)
+        self.workout.save()
+
+        response = self.client.get(self.url())
+
+        self.assertContains(response, 'data-elapsed="120"')
+        self.assertContains(response, ">2:00</span>")
+        self.assertNotContains(response, "progress-bar")
+
+    def test_a_finished_workout_shows_the_time_it_took(self):
+        self.workout.started_at = timezone.now() - timedelta(hours=1)
+        self.workout.finished_at = self.workout.started_at + timedelta(minutes=7)
+        self.workout.completed = True
+        self.workout.save()
+
+        response = self.client.get(self.url())
+
+        self.assertContains(response, 'data-elapsed="420"')
+        self.assertContains(response, 'data-finished="true"')
+        self.assertContains(response, ">7:00</span>")
+
+    def test_the_page_offers_one_log_set_button(self):
+        response = self.client.get(self.url())
+
+        self.assertContains(response, "Log set")
+        self.assertContains(response, 'name="action" value="log"')
+        self.assertEqual(response.content.decode().count("Log set"), 1)
+        self.assertNotContains(response, "Complete set")
+        self.assertNotContains(response, "Undo this set")
+
+    def test_only_the_exercise_being_done_is_on_show(self):
+        other = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=2, position=1
+        )
+        WeightsWorkoutSet.objects.create(entry=other, reps=10, position=0)
+
+        response = self.client.get(self.url())
+
+        content = response.content.decode()
+        # One exercise on show, the other parked until it comes on.
+        self.assertEqual(content.count("data-exercise-group"), 2)
+        self.assertEqual(content.count("perform-exercise d-none"), 1)
+
+    def _on_show(self, response):
+        """The exercises the page puts in front of the user."""
+        return re.findall(
+            r'<div class="card perform-exercise mb-2" data-exercise-group="(\d+)"',
+            response.content.decode(),
+        )
+
+    def test_a_superset_works_its_way_round_its_exercises(self):
+        group = WeightsWorkoutSuperset.objects.create(
+            workout=self.workout, letter="A", rest_seconds=90
+        )
+        self.entry.superset = group
+        self.entry.save()
+        other = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=2, position=1, superset=group
+        )
+        other_set = WeightsWorkoutSet.objects.create(entry=other, reps=12, position=0)
+
+        response = self.client.get(self.url())
+
+        # The sets are numbered as they are done: one from each exercise, then
+        # back to the first for the next round.
+        self.assertEqual(
+            [step.set.pk for step in self.workout.steps()],
+            [self.first.pk, other_set.pk, self.second.pk],
+        )
+        for line in ('data-step="1"', 'data-round="1"', 'data-round="2"'):
+            self.assertContains(response, line)
+        # The round is done a set at a time, starting with the first exercise.
+        self.assertEqual(self._on_show(response), [str(self.entry.pk)])
+
+        self.post("log", self.first)
+
+        # The first exercise's set is logged, so the next one in the superset
+        # comes on; the first comes back for the next round.
+        self.assertEqual(self._on_show(self.client.get(self.url())), [str(other.pk)])
+
+    def test_the_page_badges_an_exercise_in_a_superset(self):
+        group = WeightsWorkoutSuperset.objects.create(
+            workout=self.workout, letter="A", rest_seconds=90
+        )
+        self.entry.superset = group
+        self.entry.save()
+        other = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=2, position=1
+        )
+        WeightsWorkoutSet.objects.create(entry=other, reps=12, position=0)
+
+        response = self.client.get(self.url())
+
+        # The exercise in the superset says which one it is; the exercise on its
+        # own has nothing to say.
+        content = response.content.decode()
+        self.assertContains(response, "Superset A")
+        self.assertEqual(content.count("superset-badge"), 1)
+
+    def test_an_exercise_with_every_set_logged_is_badged_as_completed(self):
+        response = self.client.get(self.url())
+
+        # The badge is on the card, but says nothing until the sets are done.
+        self.assertContains(
+            response,
+            '<span class="badge bg-success d-none" data-done-badge>Completed</span>',
+        )
+
+        WeightsWorkoutSet.objects.filter(entry=self.entry).update(completed=True)
+
+        response = self.client.get(self.url())
+
+        self.assertContains(
+            response,
+            '<span class="badge bg-success" data-done-badge>Completed</span>',
+        )
+
+    def test_the_sets_are_laid_out_as_a_table(self):
+        response = self.client.get(self.url())
+
+        self.assertContains(response, 'class="table perform-sets"')
+        self.assertContains(response, '<th scope="col">Reps</th>')
+        self.assertContains(response, '<th scope="col">Weight (lb)</th>')
+        # The set's values are inputs the log takes as it goes.
+        self.assertContains(
+            response, f'name="set-{self.first.pk}-reps" form="log-set"'
+        )
+        self.assertContains(
+            response, f'name="set-{self.first.pk}-weight" form="log-set"'
+        )
+        self.assertContains(response, 'value="8"')
+        self.assertContains(response, 'value="50.00"')
+
+    def test_each_set_has_a_plus_holding_its_own_actions(self):
+        response = self.client.get(self.url())
+
+        content = response.content.decode()
+        # One "+" per set, each opening the actions under its own row.
+        self.assertEqual(
+            content.count('data-bs-toggle="collapse" href="#set-details-'), 2
+        )
+        for step in (self.first, self.second):
+            self.assertContains(response, f'href="#set-details-{step.pk}"')
+            self.assertContains(
+                response, f'<tr id="set-details-{step.pk}" class="collapse">'
+            )
+        self.assertContains(
+            response, '<span class="visually-hidden">Set actions</span>'
+        )
+        self.assertEqual(content.count('name="action" value="delete"'), 2)
+        self.assertEqual(content.count('name="action" value="undo"'), 2)
+        self.assertEqual(content.count('name="action" value="add"'), 2)
+        self.assertContains(response, ">Delete</a>")
+        self.assertContains(response, ">Reopen</a>")
+        self.assertContains(response, ">Add another</a>")
+
+    def test_adding_another_set_copies_it_after_the_last_one(self):
+        response = self.post("add", model_set=self.first)
+
+        self.assertRedirects(response, self.url())
+        added = (
+            self.entry.sets.exclude(pk=self.first.pk)
+            .exclude(pk=self.second.pk)
+            .get()
+        )
+        self.assertEqual(added.reps, self.first.reps)
+        self.assertEqual(added.weight, self.first.weight)
+        self.assertEqual(added.rest_seconds, self.first.rest_seconds)
+        self.assertEqual(added.position, self.second.position + 1)
+        self.assertFalse(added.completed)
+
+    def test_adding_another_timed_set_keeps_its_time(self):
+        entry = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=61, position=0
+        )
+        timed = WeightsWorkoutSet.objects.create(
+            entry=entry, duration_seconds=90, weight=Decimal("20.00"), position=0
+        )
+        self.workout.exercises.exclude(pk=entry.pk).delete()
+
+        self.post("add", model_set=timed)
+
+        added = entry.sets.exclude(pk=timed.pk).get()
+        self.assertEqual(added.duration_seconds, 90)
+        self.assertEqual(added.weight, Decimal("20.00"))
+        self.assertIsNone(added.reps)
+        self.assertFalse(added.completed)
+
+    def test_a_timed_exercise_is_labelled_time(self):
+        entry = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=61, position=1
+        )
+        timed = WeightsWorkoutSet.objects.create(
+            entry=entry, duration_seconds=90, position=0
+        )
+
+        response = self.client.get(self.url())
+
+        self.assertContains(response, '<th scope="col">Time</th>')
+        self.assertContains(
+            response, f'name="set-{timed.pk}-duration" form="log-set"'
+        )
+        self.assertContains(response, 'value="1:30"')
+
+    def test_logging_a_set_saves_the_values_typed_in(self):
+        response = self.post(
+            "log",
+            ajax=True,
+            **{f"set-{self.first.pk}-reps": "12", f"set-{self.first.pk}-weight": "60"},
+        )
+
+        self.assertTrue(response.json()["ok"])
+        self.first.refresh_from_db()
+        self.assertTrue(self.first.completed)
+        self.assertEqual(self.first.reps, 12)
+        self.assertEqual(self.first.weight, Decimal("60.00"))
+        # Rest is not on the page, so the set keeps its own.
+        self.assertEqual(self.first.rest_seconds, 45)
+
+    def test_logging_a_timed_set_saves_the_time_typed_in(self):
+        entry = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=61, position=0
+        )
+        timed = WeightsWorkoutSet.objects.create(
+            entry=entry, duration_seconds=90, position=0
+        )
+        self.workout.exercises.exclude(pk=entry.pk).delete()
+
+        response = self.post(
+            "log", ajax=True, **{f"set-{timed.pk}-duration": "1:20"}
+        )
+
+        self.assertTrue(response.json()["ok"])
+        timed.refresh_from_db()
+        self.assertTrue(timed.completed)
+        self.assertEqual(timed.duration_seconds, 80)
+        self.assertIsNone(timed.reps)
+
+    def test_logging_a_time_that_is_not_a_time_logs_nothing(self):
+        entry = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=61, position=0
+        )
+        timed = WeightsWorkoutSet.objects.create(
+            entry=entry, duration_seconds=90, position=0
+        )
+        self.workout.exercises.exclude(pk=entry.pk).delete()
+
+        response = self.post(
+            "log", ajax=True, **{f"set-{timed.pk}-duration": "ages"}
+        )
+
+        self.assertFalse(response.json()["ok"])
+        self.assertIn("duration", response.json()["errors"])
+        timed.refresh_from_db()
+        self.assertFalse(timed.completed)
+        self.assertEqual(timed.duration_seconds, 90)
+
+    def test_the_next_exercise_comes_on_when_the_first_is_finished(self):
+        other = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=2, position=1
+        )
+        WeightsWorkoutSet.objects.create(entry=other, reps=10, position=0)
+        WeightsWorkoutSet.objects.filter(entry=self.entry).update(completed=True)
+
+        response = self.client.get(self.url())
+
+        self.assertEqual(
+            [group["entry"] for group in response.context["step_groups"]],
+            [self.entry, other],
+        )
+        self.assertEqual(
+            [group["current"] for group in response.context["step_groups"]],
+            [False, True],
+        )
+        self.assertEqual(response.context["current_index"], 2)
+
+    def test_logging_a_set_ticks_off_the_first_one_still_to_do(self):
+        # Posted from the second row, but the first set is the one still to do.
+        response = self.post("log", model_set=self.second, ajax=True)
+
+        self.assertTrue(response.json()["ok"])
+        self.assertEqual(response.json()["set"], self.first.pk)
+        self.assertEqual(response.json()["done_count"], 1)
+        self.first.refresh_from_db()
+        self.second.refresh_from_db()
+        self.assertTrue(self.first.completed)
+        self.assertFalse(self.second.completed)
+
+    def test_logging_without_the_background_ticks_the_same_set_off(self):
+        response = self.post("log")
+
+        self.assertRedirects(response, self.url())
+        self.first.refresh_from_db()
+        self.assertTrue(self.first.completed)
+
+    def test_the_page_offers_the_full_list_and_a_pick_of_exercise(self):
+        other = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=2, position=1
+        )
+        WeightsWorkoutSet.objects.create(entry=other, reps=10, position=0)
+
+        response = self.client.get(self.url())
+
+        # A link that opens every exercise, and a name that picks one out.
+        self.assertContains(response, "Show all exercises")
+        self.assertContains(response, "data-show-all")
+        self.assertEqual(response.content.decode().count("data-pick"), 2)
+        self.assertContains(
+            response, f'data-exercise-group="{self.entry.pk}"'
+        )
+        # Logging follows the picked exercise, so the page targets it.
+        self.assertContains(response, '<input type="hidden" name="entry" value="">')
+
+    def test_each_exercise_has_a_summary_for_the_full_list(self):
+        other = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=2, position=1
+        )
+        WeightsWorkoutSet.objects.create(entry=other, reps=10, position=0)
+        WeightsWorkoutSet.objects.filter(pk=self.first.pk).update(completed=True)
+
+        response = self.client.get(self.url())
+
+        # One card per exercise, with its own line of how far along it is and
+        # the way back into it.
+        content = response.content.decode()
+        self.assertContains(response, "card-title")
+        self.assertContains(response, "perform-summary card-text")
+        self.assertContains(response, "1 of 2 sets done")
+        self.assertContains(response, "0 of 1 sets done")
+        self.assertEqual(content.count('class="card-footer"'), 2)
+        self.assertContains(response, "Update this exercise")
+
+    def test_the_page_offers_a_way_back_to_the_calendar_when_an_exercise_is_done(
+        self,
+    ):
+        self.workout.started_at = timezone.now() - timedelta(days=1)
+        self.workout.save()
+
+        response = self.client.get(self.url())
+
+        day = self.workout.started_at.date().isoformat()
+        self.assertContains(response, "Complete exercise")
+        self.assertContains(
+            response, f'href="{reverse("alors:calendar")}?d={day}"'
+        )
+
+    def test_logging_can_be_aimed_at_one_exercise(self):
+        other = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=2, position=1
+        )
+        other_set = WeightsWorkoutSet.objects.create(
+            entry=other, reps=10, position=0
+        )
+
+        response = self.post("log", ajax=True, entry=str(other.pk))
+
+        self.assertTrue(response.json()["ok"])
+        self.assertEqual(response.json()["set"], other_set.pk)
+        other_set.refresh_from_db()
+        self.assertTrue(other_set.completed)
+        # The first exercise's sets are left where they were.
+        self.first.refresh_from_db()
+        self.assertFalse(self.first.completed)
+
+    def test_logging_without_a_pick_takes_the_first_set_still_to_do(self):
+        other = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=2, position=1
+        )
+        WeightsWorkoutSet.objects.create(entry=other, reps=10, position=0)
+
+        response = self.post("log", ajax=True, entry="")
+
+        self.assertEqual(response.json()["set"], self.first.pk)
+
+    def test_a_pick_of_an_exercise_that_is_not_in_the_workout_logs_nothing(self):
+        response = self.post("log", ajax=True, entry="999")
+
+        self.assertIsNone(response.json()["set"])
+        self.first.refresh_from_db()
+        self.assertFalse(self.first.completed)
+
+    def test_logging_walks_through_the_sets_and_finishes_the_workout(self):
+        self.post("log", ajax=True)
+
+        response = self.post("log", ajax=True)
+
+        self.second.refresh_from_db()
+        self.assertTrue(self.second.completed)
+        self.assertEqual(response.json()["done_count"], 2)
+        self.assertTrue(response.json()["finished"])
+        self.workout.refresh_from_db()
+        self.assertTrue(self.workout.completed)
+
+    def test_logging_with_every_set_already_done_ticks_nothing_off(self):
+        WeightsWorkoutSet.objects.filter(entry__workout=self.workout).update(
+            completed=True
+        )
+
+        response = self.post("log", ajax=True)
+
+        self.assertTrue(response.json()["ok"])
+        self.assertIsNone(response.json()["set"])
+        self.assertEqual(response.json()["done_count"], 2)
 
     def test_unticking_a_set(self):
         self.first.completed = True
@@ -1467,6 +1928,293 @@ class PerformWorkoutTests(TestCase):
         response = self.post("complete", model_set=model_set)
 
         self.assertEqual(response.status_code, 404)
+
+
+class WorkoutCompletionTests(TestCase):
+    """Starting an actual workout, and finishing it off again."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="timer", password="glute-timer"
+        )
+        self.client.force_login(self.user)
+        self.plan = WeightsWorkout.objects.create(
+            created_by=self.user, title="Leg day"
+        )
+        self.entry = WeightsWorkoutExercise.objects.create(
+            workout=self.plan, exercise_id=1, position=0
+        )
+        WeightsWorkoutSet.objects.create(entry=self.entry, reps=8, position=0)
+        WeightsWorkoutSet.objects.create(entry=self.entry, reps=10, position=1)
+
+    def _do(self):
+        """Do the plan, returning the actual workout it starts."""
+        self.client.post(reverse("weights:workout_do", args=[self.plan.pk]))
+        return WeightsWorkout.objects.exclude(pk=self.plan.pk).get()
+
+    def _perform(self, workout, action, model_set):
+        return self.client.post(
+            reverse("weights:workout_perform", args=[workout.pk]),
+            {"set": model_set.pk, "action": action},
+        )
+
+    def _complete(self, workout):
+        return self.client.post(
+            reverse("weights:workout_complete", args=[workout.pk])
+        )
+
+    def _sets(self, workout):
+        """A workout's own sets, in order."""
+        return list(
+            WeightsWorkoutSet.objects.filter(entry__workout=workout).order_by(
+                "position"
+            )
+        )
+
+    def _tick_everything_off(self, workout):
+        """Do every set of a workout through its perform page."""
+        for model_set in self._sets(workout):
+            self._perform(workout, "complete", model_set)
+
+    def _payload(self, workout):
+        """POST data for a workout's edit page, with every set ticked off."""
+        entry = workout.exercises.get()
+        model_sets = list(entry.sets.all())
+        data = {
+            "title": workout.title,
+            "exercises-TOTAL_FORMS": "1",
+            "exercises-INITIAL_FORMS": "1",
+            "exercises-MIN_NUM_FORMS": "0",
+            "exercises-MAX_NUM_FORMS": "1000",
+            "exercises-0-id": str(entry.pk),
+            "exercises-0-exercise_id": str(entry.exercise_id),
+            "exercises-0-superset": "",
+            "sets0-TOTAL_FORMS": str(len(model_sets)),
+            "sets0-INITIAL_FORMS": str(len(model_sets)),
+            "sets0-MIN_NUM_FORMS": "0",
+            "sets0-MAX_NUM_FORMS": "1000",
+        }
+        for index, model_set in enumerate(model_sets):
+            data[f"sets0-{index}-id"] = str(model_set.pk)
+            data[f"sets0-{index}-reps"] = str(model_set.reps or "")
+            data[f"sets0-{index}-weight"] = str(model_set.weight or "")
+            data[f"sets0-{index}-duration"] = model_set.duration or ""
+            data[f"sets0-{index}-rest"] = model_set.rest or ""
+            data[f"sets0-{index}-completed"] = "on"
+        return data
+
+    def test_a_planned_workout_records_no_times(self):
+        self.assertIsNone(self.plan.started_at)
+        self.assertIsNone(self.plan.finished_at)
+
+    def test_doing_a_plan_stamps_the_start_on_the_copy_alone(self):
+        before = timezone.now()
+
+        actual = self._do()
+
+        self.assertIsNotNone(actual.started_at)
+        self.assertGreaterEqual(actual.started_at, before)
+        self.assertIsNone(actual.finished_at)
+        self.plan.refresh_from_db()
+        self.assertIsNone(self.plan.started_at)
+
+    def test_a_workout_is_started_only_once(self):
+        actual = self._do()
+        started = actual.started_at
+
+        self.client.get(reverse("weights:workout_perform", args=[actual.pk]))
+
+        actual.refresh_from_db()
+        self.assertEqual(actual.started_at, started)
+
+    def test_opening_a_workout_that_was_never_started_starts_it(self):
+        workout = WeightsWorkout.objects.create(
+            created_by=self.user, title="By hand", is_actual=True
+        )
+
+        self.client.get(reverse("weights:workout_perform", args=[workout.pk]))
+
+        workout.refresh_from_db()
+        self.assertIsNotNone(workout.started_at)
+
+    def test_finishing_the_last_set_stamps_the_finish(self):
+        actual = self._do()
+        first, second = self._sets(actual)
+
+        self._perform(actual, "complete", first)
+        actual.refresh_from_db()
+        self.assertIsNone(actual.finished_at)
+        self.assertFalse(actual.completed)
+
+        before = timezone.now()
+        self._perform(actual, "complete", second)
+
+        actual.refresh_from_db()
+        self.assertTrue(actual.completed)
+        self.assertIsNotNone(actual.finished_at)
+        self.assertGreaterEqual(actual.finished_at, before)
+
+    def test_unticking_a_set_leaves_a_finished_workout_finished(self):
+        actual = self._do()
+        last = self._sets(actual)[-1]
+        self._tick_everything_off(actual)
+        actual.refresh_from_db()
+        self.assertTrue(actual.completed)
+
+        self._perform(actual, "undo", last)
+
+        actual.refresh_from_db()
+        self.assertTrue(actual.completed)
+        self.assertIsNotNone(actual.finished_at)
+
+    def test_ticking_the_last_set_off_on_the_edit_page_finishes_the_workout(self):
+        actual = self._do()
+
+        self.client.post(
+            reverse("weights:workout_edit", args=[actual.pk]), self._payload(actual)
+        )
+
+        actual.refresh_from_db()
+        self.assertTrue(actual.completed)
+        self.assertIsNotNone(actual.finished_at)
+
+    def test_the_list_shows_when_the_workout_was_started_and_finished(self):
+        actual = self._do()
+        self._tick_everything_off(actual)
+        actual.refresh_from_db()
+
+        response = self.client.get(reverse("weights:workout_list"))
+
+        self.assertContains(
+            response, "Started " + actual.started_at.strftime("%-d %b %Y, %H:%M")
+        )
+        self.assertContains(
+            response, "finished " + actual.finished_at.strftime("%-d %b %Y, %H:%M")
+        )
+
+    def test_the_list_marks_a_workout_that_has_not_been_started(self):
+        WeightsWorkout.objects.create(
+            created_by=self.user, title="Not yet", is_actual=True
+        )
+
+        response = self.client.get(reverse("weights:workout_list"))
+
+        self.assertContains(response, "Not started yet")
+        self.assertNotContains(response, "finished ")
+        self.assertNotContains(response, "Completed")
+
+    def test_the_list_marks_a_workout_that_is_done(self):
+        actual = self._do()
+        self._complete(actual)
+
+        response = self.client.get(reverse("weights:workout_list"))
+
+        self.assertContains(response, "Completed")
+        self.assertNotContains(response, "Not started yet")
+
+    def test_the_button_finishes_the_workout(self):
+        actual = self._do()
+        before = timezone.now()
+
+        response = self._complete(actual)
+
+        # Back to the calendar, on today, which is the day it was finished.
+        self.assertRedirects(
+            response,
+            f"{reverse('alors:calendar')}?d=#today",
+            fetch_redirect_response=False,
+        )
+        actual.refresh_from_db()
+        self.assertTrue(actual.completed)
+        self.assertIsNotNone(actual.finished_at)
+        self.assertGreaterEqual(actual.finished_at, before)
+        # A workout can be finished with sets still to do.
+        self.assertEqual(actual.completed_set_count(), 0)
+
+    def test_the_button_reopens_a_finished_workout(self):
+        actual = self._do()
+        self._complete(actual)
+
+        self._complete(actual)
+
+        actual.refresh_from_db()
+        self.assertFalse(actual.completed)
+        self.assertIsNone(actual.finished_at)
+
+    def test_a_workout_finished_by_hand_stays_finished(self):
+        actual = self._do()
+        self._complete(actual)
+        first = self._sets(actual)[0]
+
+        self._perform(actual, "complete", first)
+
+        actual.refresh_from_db()
+        self.assertTrue(actual.completed)
+        self.assertIsNotNone(actual.finished_at)
+
+    def test_finishing_by_hand_leaves_a_plan_alone(self):
+        response = self._complete(self.plan)
+
+        self.assertRedirects(
+            response,
+            reverse("weights:workout_perform", args=[self.plan.pk]),
+            fetch_redirect_response=False,
+        )
+        self.plan.refresh_from_db()
+        self.assertFalse(self.plan.completed)
+
+    def test_finishing_requires_post(self):
+        actual = self._do()
+
+        response = self.client.get(
+            reverse("weights:workout_complete", args=[actual.pk])
+        )
+
+        self.assertRedirects(
+            response, reverse("weights:workout_perform", args=[actual.pk])
+        )
+        actual.refresh_from_db()
+        self.assertFalse(actual.completed)
+
+    def test_the_perform_page_offers_to_finish_the_workout(self):
+        actual = self._do()
+
+        response = self.client.get(
+            reverse("weights:workout_perform", args=[actual.pk])
+        )
+
+        self.assertContains(response, "Complete workout")
+        self.assertContains(
+            response, f'action="{reverse("weights:workout_complete", args=[actual.pk])}"'
+        )
+        self.assertContains(response, "data-finish-workout")
+        self.assertNotContains(response, "Reopen workout")
+
+    def test_a_finished_workout_offers_to_be_started_again(self):
+        actual = self._do()
+        self._complete(actual)
+
+        response = self.client.get(
+            reverse("weights:workout_perform", args=[actual.pk])
+        )
+
+        self.assertContains(response, "Reopen workout")
+        self.assertNotContains(response, "Complete workout")
+
+    def test_the_edit_page_offers_to_finish_an_actual_workout(self):
+        actual = self._do()
+
+        response = self.client.get(reverse("weights:workout_edit", args=[actual.pk]))
+
+        self.assertContains(response, "Complete workout")
+        self.assertContains(
+            response, f'action="{reverse("weights:workout_complete", args=[actual.pk])}"'
+        )
+
+    def test_the_edit_page_of_a_plan_offers_no_such_button(self):
+        response = self.client.get(reverse("weights:workout_edit", args=[self.plan.pk]))
+
+        self.assertNotContains(response, "Complete workout")
 
 
 class WeightsWorkoutViewTests(TestCase):

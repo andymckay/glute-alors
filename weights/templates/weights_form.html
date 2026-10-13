@@ -14,6 +14,12 @@
                         &mdash;
                     {% endif %}
                     {{ workout.completed_set_count }} of {{ workout.set_count }} sets done.
+                    {% if workout.started_at %}
+                        Started {{ workout.started_at|date:"j M Y, H:i" }}.
+                    {% endif %}
+                    {% if workout.finished_at %}
+                        Finished {{ workout.finished_at|date:"j M Y, H:i" }}.
+                    {% endif %}
                 </div>
             {% endif %}
 
@@ -64,6 +70,12 @@
                 <div class="d-flex flex-wrap gap-2">
                     {% if actual %}
                         <a class="btn btn-primary" href="{% url 'weights:workout_perform' workout.pk %}">Continue workout</a>
+                        <form method="post" action="{% url 'weights:workout_complete' workout.pk %}" data-finish-workout>
+                            {% csrf_token %}
+                            <button type="submit" class="btn {% if workout.completed %}btn-outline-secondary{% else %}btn-success{% endif %}">
+                                <span data-finish-label>{% if workout.completed %}Reopen workout{% else %}Complete workout{% endif %}</span>
+                            </button>
+                        </form>
                     {% else %}
                         <form method="post" action="{% url 'weights:workout_do' workout.pk %}">
                             {% csrf_token %}

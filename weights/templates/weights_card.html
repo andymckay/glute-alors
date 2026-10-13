@@ -1,9 +1,21 @@
-<div class="card card-event">
-    <a href="{{ workout.get_absolute_url }}" class="link-underline link-underline-opacity-0 link-card-hack">
+{% load alors %}
+{% load markdown_extras %}
+<div class="card card-event card-compact">
+    <a href="{% url 'weights:workout_perform' workout.pk %}#all" class="link-underline link-underline-opacity-0 link-card-hack">
         <div class="card-body text-muted">
             <div class="mb-2">
                 {{ workout.workout_type|emoji }}
+                <span class="text-muted">{{ workout.title|capfirst }}</span>
+                <div>
+                    <b>{{ workout.completed_set_count }} of {{ workout.set_count }}</b><br>
+                    <b>{{ workout.elapsed_seconds|hms }}</b>
+                </div>
             </div>
         </div>
+        {% if not workout.completed %}
+            <div class="card-footer">
+                <a class="badge bg-warning link-underline link-underline-opacity-0" href="{% url 'weights:workout_perform' workout.pk %}#all">Not completed</a>
+            </div>
+        {% endif %}
     </a>
 </div>
