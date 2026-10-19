@@ -77,11 +77,37 @@ def logout(request):
     return redirect("alors:index")
 
 
+PHONE_AGENT_TOKENS = (
+    "iphone",
+    "ipod",
+    "windows phone",
+    "blackberry",
+    "opera mini",
+)
+
+
+def _is_phone(request):
+    """Guess from the user agent whether the request came from a phone."""
+    user_agent = request.META.get("HTTP_USER_AGENT", "").lower()
+    if not user_agent:
+        return False
+    # iPad UAs also carry "Mobile", and Android tablets often omit it.
+    if "ipad" in user_agent or "tablet" in user_agent:
+        return False
+    return (
+        any(token in user_agent for token in PHONE_AGENT_TOKENS)
+        or "mobi" in user_agent
+    )
+
+
 @login_required
 def calendar(request):
+    range_value = request.GET.get("r") or request.COOKIES.get("r")
+    if not range_value:
+        range_value = "w" if _is_phone(request) else "m"
     query = {
         "d": request.GET.get("d", request.COOKIES.get("d", "")),
-        "r": request.GET.get("r", request.COOKIES.get("r", "")),
+        "r": range_value,
     }
     form = CalendarForm(query, request=request)
     form.is_valid()
@@ -90,6 +116,10 @@ def calendar(request):
     dates = form.cleaned_data["start_end_dates"]
     list_dates = form.cleaned_data["list_dates"]
     visible = visible_users(request.user)
+    try:
+        show_add_plan = request.user.profile.show_add_plan
+    except UserProfile.DoesNotExist:
+        show_add_plan = True
 
     # Note: use __lt to ensure we get runs up to midnight the last day.
     # ``workout_data`` is deferred: it can be several megabytes per workout and
@@ -209,6 +239,7 @@ def calendar(request):
             "dates_and_objects": results,
             "planned_edit_forms": planned_edit_forms,
             "add_planned_form": add_planned_form,
+            "show_add_plan": show_add_plan,
             "template": "monthly" if form.cleaned_data["r"] == "m" else "weekly",
         },
     )

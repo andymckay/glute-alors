@@ -709,6 +709,111 @@ class DeletePlannedWorkoutTests(TestCase):
         self.assertTrue(PlannedWorkout.objects.filter(pk=self.workout.pk).exists())
 
 
+class CalendarRangeTests(TestCase):
+    """Phones default to the weekly view when no range cookie exists."""
+
+    IPHONE = (
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+        "AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1"
+    )
+    ANDROID_PHONE = (
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) "
+        "AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"
+    )
+    IPAD = (
+        "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) "
+        "AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1"
+    )
+    DESKTOP = (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/605.1.15 Safari/605.1.15"
+    )
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="phone", password="secret")
+        UserProfile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+
+    def get(self, **extra):
+        return self.client.get(
+            reverse("alors:calendar"), {"d": "2026-09-05"}, **extra
+        )
+
+    def test_desktop_without_a_range_cookie_gets_monthly(self):
+        response = self.get(HTTP_USER_AGENT=self.DESKTOP)
+        self.assertEqual(response.context["template"], "monthly")
+
+    def test_phone_without_a_range_cookie_gets_weekly(self):
+        response = self.get(HTTP_USER_AGENT=self.IPHONE)
+        self.assertEqual(response.context["template"], "weekly")
+
+    def test_android_phone_without_a_range_cookie_gets_weekly(self):
+        response = self.get(HTTP_USER_AGENT=self.ANDROID_PHONE)
+        self.assertEqual(response.context["template"], "weekly")
+
+    def test_tablet_without_a_range_cookie_gets_monthly(self):
+        response = self.get(HTTP_USER_AGENT=self.IPAD)
+        self.assertEqual(response.context["template"], "monthly")
+
+    def test_cookie_wins_over_the_phone_user_agent(self):
+        self.client.cookies["r"] = "m"
+        response = self.get(HTTP_USER_AGENT=self.IPHONE)
+        self.assertEqual(response.context["template"], "monthly")
+
+    def test_explicit_range_wins_over_the_phone_user_agent(self):
+        response = self.client.get(
+            reverse("alors:calendar"),
+            {"d": "2026-09-05", "r": "m"},
+            HTTP_USER_AGENT=self.IPHONE,
+        )
+        self.assertEqual(response.context["template"], "monthly")
+
+
+class CalendarAddPlanOptionTests(TestCase):
+    """The profile's show-add-plan option controls the calendar's add UI."""
+
+    FUTURE = "2099-01-15"
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="planner", password="secret")
+        self.client.force_login(self.user)
+
+    def get(self, **params):
+        return self.client.get(
+            reverse("alors:calendar"), {"d": self.FUTURE, **params}
+        )
+
+    def test_add_plan_is_shown_by_default(self):
+        UserProfile.objects.create(user=self.user)
+
+        response = self.get()
+
+        self.assertContains(response, 'id="add-planned"')
+        self.assertContains(response, ">Add plan<")
+
+    def test_add_plan_is_shown_without_a_profile(self):
+        response = self.get()
+
+        self.assertContains(response, 'id="add-planned"')
+        self.assertContains(response, ">Add plan<")
+
+    def test_monthly_add_plan_is_hidden_when_turned_off(self):
+        UserProfile.objects.create(user=self.user, show_add_plan=False)
+
+        response = self.get()
+
+        self.assertNotContains(response, 'id="add-planned"')
+        self.assertNotContains(response, ">Add plan<")
+
+    def test_weekly_add_plan_is_hidden_when_turned_off(self):
+        UserProfile.objects.create(user=self.user, show_add_plan=False)
+
+        response = self.get(r="w")
+
+        self.assertNotContains(response, 'id="add-planned"')
+        self.assertNotContains(response, ">Add plan<")
+
+
 class CalendarVisibilityTests(TestCase):
     """Calendar and weekly views show only the user's own and shared records."""
 

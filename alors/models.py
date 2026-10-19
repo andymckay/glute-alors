@@ -709,6 +709,11 @@ class UserProfile(TimeStampedModel):
         null=True,
         help_text="An image shown next to your name.",
     )
+    show_add_plan = models.BooleanField(
+        "show add plan",
+        default=True,
+        help_text="Whether to show the Add plan option on the calendar.",
+    )
     send_daily_email = models.BooleanField(
         "send daily email",
         default=False,

@@ -370,12 +370,22 @@ class ProfileForm(forms.ModelForm):
 
     class Meta:
         model = UserProfile
-        fields = ["avatar", "visibility", "timezone", "units", "send_daily_email"]
+        fields = [
+            "avatar",
+            "visibility",
+            "timezone",
+            "units",
+            "show_add_plan",
+            "send_daily_email",
+        ]
         widgets = {
             "visibility": forms.SelectMultiple(
                 attrs={"class": "form-select", "size": 8}
             ),
             "units": forms.Select(attrs={"class": "form-select"}),
+            "show_add_plan": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
             "send_daily_email": forms.CheckboxInput(
                 attrs={"class": "form-check-input"}
             ),

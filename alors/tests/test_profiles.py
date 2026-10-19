@@ -60,6 +60,10 @@ class UserProfileModelTests(TestCase):
         profile = UserProfile.objects.create(user=self.user, timezone="Europe/London")
         self.assertEqual(profile.timezone, "Europe/London")
 
+    def test_show_add_plan_is_on_by_default(self):
+        profile = UserProfile.objects.create(user=self.user)
+        self.assertTrue(profile.show_add_plan)
+
     def test_daily_email_is_off_by_default(self):
         profile = UserProfile.objects.create(user=self.user)
         self.assertFalse(profile.send_daily_email)
@@ -117,6 +121,30 @@ class ProfileViewTests(TestCase):
 
         self.assertRedirects(response, reverse("alors:profile"))
         self.assertEqual(list(self.user.profile.visibility.all()), [other])
+
+    def test_profile_page_shows_the_add_plan_option(self):
+        response = self.client.get(reverse("alors:profile"))
+
+        self.assertContains(response, "Show add plan")
+        self.assertContains(response, 'name="show_add_plan"')
+
+    def test_post_can_turn_the_add_plan_option_on_and_off(self):
+        data = {
+            "units": "imperial",
+            "timezone": "UTC",
+            "email": "runner@example.com",
+            "show_add_plan": "on",
+        }
+
+        self.client.post(reverse("alors:profile"), data)
+        self.user.profile.refresh_from_db()
+        self.assertTrue(self.user.profile.show_add_plan)
+
+        # An unticked box is simply absent from the post.
+        data.pop("show_add_plan")
+        self.client.post(reverse("alors:profile"), data)
+        self.user.profile.refresh_from_db()
+        self.assertFalse(self.user.profile.show_add_plan)
 
     def test_profile_page_shows_the_daily_email_unticked(self):
         response = self.client.get(reverse("alors:profile"))
