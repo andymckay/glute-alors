@@ -132,6 +132,7 @@ class AddPlannedWorkoutTests(TestCase):
         self.assertContains(response, "Run")
         self.assertContains(response, "21.1")
 
+
 class MovePlannedWorkoutTests(TestCase):
     """The calendar JSON endpoint that moves and edits a planned workout."""
 
@@ -705,9 +706,7 @@ class CalendarRangeTests(TestCase):
         self.client.force_login(self.user)
 
     def get(self, **extra):
-        return self.client.get(
-            reverse("alors:calendar"), {"d": "2026-09-05"}, **extra
-        )
+        return self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"}, **extra)
 
     def test_desktop_without_a_range_cookie_gets_monthly(self):
         response = self.get(HTTP_USER_AGENT=self.DESKTOP)
@@ -749,9 +748,7 @@ class CalendarAddPlanOptionTests(TestCase):
         self.client.force_login(self.user)
 
     def get(self, **params):
-        return self.client.get(
-            reverse("alors:calendar"), {"d": self.FUTURE, **params}
-        )
+        return self.client.get(reverse("alors:calendar"), {"d": self.FUTURE, **params})
 
     def test_add_plan_is_shown_by_default(self):
         UserProfile.objects.create(user=self.user)
@@ -790,9 +787,7 @@ class CalendarVisibilityTests(TestCase):
     def setUp(self):
         self.viewer = User.objects.create_user(username="viewer", password="secret")
         self.owner = User.objects.create_user(username="owner", password="secret")
-        self.stranger = User.objects.create_user(
-            username="stranger", password="secret"
-        )
+        self.stranger = User.objects.create_user(username="stranger", password="secret")
         UserProfile.objects.create(user=self.viewer)
         owner_profile = UserProfile.objects.create(user=self.owner)
         UserProfile.objects.create(user=self.stranger)
@@ -1053,9 +1048,7 @@ class WeeklySummarySignalTests(TestCase):
         mine = WeeklySummary.objects.get(date=date(2026, 9, 6), created_by=self.user)
         theirs = WeeklySummary.objects.get(date=date(2026, 9, 6), created_by=other)
 
-        self.assertEqual(
-            mine.summary["planned_workout"]["run"]["total_distance"], 10.0
-        )
+        self.assertEqual(mine.summary["planned_workout"]["run"]["total_distance"], 10.0)
         self.assertEqual(
             theirs.summary["planned_workout"]["run"]["total_distance"], 5.0
         )
@@ -1090,9 +1083,7 @@ class RecreateWeeklySummariesCommandTests(TestCase):
 
         call_command("recreate_weekly_summaries")
 
-        summary = WeeklySummary.objects.get(
-            date=date(2026, 9, 6), created_by=self.user
-        )
+        summary = WeeklySummary.objects.get(date=date(2026, 9, 6), created_by=self.user)
         self.assertEqual(summary.summary["planned_workout"]["run"]["workouts"], 1)
 
     def test_recreates_a_summary_for_each_owner(self):
@@ -1107,9 +1098,7 @@ class RecreateWeeklySummariesCommandTests(TestCase):
 
         call_command("recreate_weekly_summaries")
 
-        self.assertEqual(
-            WeeklySummary.objects.filter(date=date(2026, 9, 6)).count(), 2
-        )
+        self.assertEqual(WeeklySummary.objects.filter(date=date(2026, 9, 6)).count(), 2)
 
     def test_overwrites_stale_summary_data(self):
         self.create_planned(date(2026, 9, 2))
@@ -1119,9 +1108,7 @@ class RecreateWeeklySummariesCommandTests(TestCase):
 
         call_command("recreate_weekly_summaries")
 
-        summary = WeeklySummary.objects.get(
-            date=date(2026, 9, 6), created_by=self.user
-        )
+        summary = WeeklySummary.objects.get(date=date(2026, 9, 6), created_by=self.user)
         self.assertEqual(summary.summary["planned_workout"]["run"]["workouts"], 1)
 
     def test_drops_summaries_for_weeks_with_no_workouts(self):
@@ -1150,7 +1137,9 @@ class RecreateWeeklySummariesCommandTests(TestCase):
         # The 09-06 week is outside the range and keeps its stale data.
         untouched = WeeklySummary.objects.get(date=date(2026, 9, 6))
         self.assertEqual(untouched.summary, {"stale": True})
-        rebuilt = WeeklySummary.objects.get(date=date(2026, 9, 20), created_by=self.user)
+        rebuilt = WeeklySummary.objects.get(
+            date=date(2026, 9, 20), created_by=self.user
+        )
         self.assertEqual(rebuilt.summary["planned_workout"]["run"]["workouts"], 1)
 
     def test_no_data_is_a_no_op(self):

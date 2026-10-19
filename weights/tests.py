@@ -83,7 +83,9 @@ class ExerciseJsonTests(SimpleTestCase):
     def test_returned_json_is_independent_of_the_cached_source(self):
         Exercise.get_exercises()[0]["relationships"]["equipment"]["data"].clear()
 
-        self.assertTrue(Exercise.get_exercises()[0]["relationships"]["equipment"]["data"])
+        self.assertTrue(
+            Exercise.get_exercises()[0]["relationships"]["equipment"]["data"]
+        )
 
     def test_catalogue_is_loaded_at_startup(self):
         from . import models
@@ -355,9 +357,7 @@ class TimedExerciseViewTests(TestCase):
     def test_edit_page_prefills_the_saved_time(self):
         workout = self._timed_entry()
 
-        response = self.client.get(
-            reverse("weights:workout_edit", args=[workout.pk])
-        )
+        response = self.client.get(reverse("weights:workout_edit", args=[workout.pk]))
 
         set_form = response.context["groups"][0]["rows"][0]["set_formset"].forms[0]
         self.assertTrue(set_form.timed)
@@ -448,9 +448,7 @@ class ExerciseDetailTests(TestCase):
         self.assertIsNone(payload["image"])
 
     def test_unknown_exercise_is_not_found(self):
-        response = self.client.get(
-            reverse("weights:exercise_detail", args=[999999])
-        )
+        response = self.client.get(reverse("weights:exercise_detail", args=[999999]))
 
         self.assertEqual(response.status_code, 404)
 
@@ -998,9 +996,9 @@ class DoWorkoutTests(TestCase):
                 data.update(
                     {
                         f"{prefix}-{name}": str(value)
-                        for name, value in (sets or {}).get(
-                            (index, set_index), {}
-                        ).items()
+                        for name, value in (sets or {})
+                        .get((index, set_index), {})
+                        .items()
                     }
                 )
         return data
@@ -1080,9 +1078,7 @@ class DoWorkoutTests(TestCase):
     def test_actual_page_ticks_sets_off_and_counts_them(self):
         actual = self._do(self._plan())
 
-        response = self.client.get(
-            reverse("weights:workout_edit", args=[actual.pk])
-        )
+        response = self.client.get(reverse("weights:workout_edit", args=[actual.pk]))
 
         self.assertContains(response, 'name="sets0-0-completed"')
         self.assertContains(response, 'name="sets0-__prefix__-completed"')
@@ -1221,7 +1217,9 @@ class DoWorkoutTests(TestCase):
 
         response = self.client.get(reverse("weights:workout_edit", args=[actual.pk]))
 
-        self.assertContains(response, 'name="sets0-0-completed" class="form-check-input"')
+        self.assertContains(
+            response, 'name="sets0-0-completed" class="form-check-input"'
+        )
         self.assertContains(response, 'name="sets0-0-DELETE" class="d-none"')
         self.assertContains(response, "js-remove-set")
 
@@ -1287,7 +1285,9 @@ class WorkoutStepTests(TestCase):
         self.assertEqual([step.of for step in steps], [2, 3, 2, 3, 3])
         self.assertEqual([step.rounds for step in steps], [3, 3, 3, 3, 3])
         # The rest lands on the last set of each round, not after every set.
-        self.assertEqual([step.rest_seconds for step in steps], [None, 90, None, 90, 90])
+        self.assertEqual(
+            [step.rest_seconds for step in steps], [None, 90, None, 90, 90]
+        )
         self.assertEqual(steps[1].rest, "1:30")
         self.assertEqual(steps[1].superset, group)
         # Each set knows where it comes in the workout, rounds and all, so the
@@ -1309,10 +1309,7 @@ class WorkoutStepTests(TestCase):
         groups = self.workout.step_groups()
 
         self.assertEqual(
-            [
-                (entry, [step.set.reps for step in group])
-                for entry, group in groups
-            ],
+            [(entry, [step.set.reps for step in group]) for entry, group in groups],
             [(first, [8, 8]), (second, [10])],
         )
 
@@ -1363,7 +1360,9 @@ class WorkoutStepTests(TestCase):
     def test_repr_names_the_step(self):
         entry = self._entry(1, 0, [{"reps": 8}])
 
-        self.assertEqual(repr(self.workout.steps()[0]), f"<WorkoutStep {entry} set 1 of 1>")
+        self.assertEqual(
+            repr(self.workout.steps()[0]), f"<WorkoutStep {entry} set 1 of 1>"
+        )
 
 
 class PerformWorkoutTests(TestCase):
@@ -1424,9 +1423,7 @@ class PerformWorkoutTests(TestCase):
         )
         self.assertContains(response, "Leg day")
         self.assertContains(response, "0</span> of 2 sets")
-        self.assertContains(
-            response, f'name="set-{self.first.pk}-reps" form="log-set"'
-        )
+        self.assertContains(response, f'name="set-{self.first.pk}-reps" form="log-set"')
         self.assertContains(
             response, f'name="set-{self.second.pk}-reps" form="log-set"'
         )
@@ -1637,9 +1634,7 @@ class PerformWorkoutTests(TestCase):
         self.assertContains(response, '<th scope="col">Reps</th>')
         self.assertContains(response, '<th scope="col">Weight (lb)</th>')
         # The set's values are inputs the log takes as it goes.
-        self.assertContains(
-            response, f'name="set-{self.first.pk}-reps" form="log-set"'
-        )
+        self.assertContains(response, f'name="set-{self.first.pk}-reps" form="log-set"')
         self.assertContains(
             response, f'name="set-{self.first.pk}-weight" form="log-set"'
         )
@@ -1674,9 +1669,7 @@ class PerformWorkoutTests(TestCase):
 
         self.assertRedirects(response, self.url())
         added = (
-            self.entry.sets.exclude(pk=self.first.pk)
-            .exclude(pk=self.second.pk)
-            .get()
+            self.entry.sets.exclude(pk=self.first.pk).exclude(pk=self.second.pk).get()
         )
         self.assertEqual(added.reps, self.first.reps)
         self.assertEqual(added.weight, self.first.weight)
@@ -1712,9 +1705,7 @@ class PerformWorkoutTests(TestCase):
         response = self.client.get(self.url())
 
         self.assertContains(response, '<th scope="col">Time</th>')
-        self.assertContains(
-            response, f'name="set-{timed.pk}-duration" form="log-set"'
-        )
+        self.assertContains(response, f'name="set-{timed.pk}-duration" form="log-set"')
         self.assertContains(response, 'value="1:30"')
 
     def test_a_timed_set_offers_a_timer(self):
@@ -1740,9 +1731,7 @@ class PerformWorkoutTests(TestCase):
         entry = WeightsWorkoutExercise.objects.create(
             workout=self.workout, exercise_id=61, position=1
         )
-        WeightsWorkoutSet.objects.create(
-            entry=entry, duration_seconds=90, position=0
-        )
+        WeightsWorkoutSet.objects.create(entry=entry, duration_seconds=90, position=0)
 
         response = self.client.get(self.url())
 
@@ -1752,9 +1741,7 @@ class PerformWorkoutTests(TestCase):
         entry = WeightsWorkoutExercise.objects.create(
             workout=self.workout, exercise_id=62, position=1
         )
-        WeightsWorkoutSet.objects.create(
-            entry=entry, duration_seconds=90, position=0
-        )
+        WeightsWorkoutSet.objects.create(entry=entry, duration_seconds=90, position=0)
 
         response = self.client.get(self.url())
 
@@ -1775,9 +1762,7 @@ class PerformWorkoutTests(TestCase):
         entry = WeightsWorkoutExercise.objects.create(
             workout=workout, exercise_id=61, position=0
         )
-        WeightsWorkoutSet.objects.create(
-            entry=entry, duration_seconds=90, position=0
-        )
+        WeightsWorkoutSet.objects.create(entry=entry, duration_seconds=90, position=0)
 
         response = self.client.get(
             reverse("weights:workout_perform", args=[workout.pk])
@@ -1818,9 +1803,7 @@ class PerformWorkoutTests(TestCase):
         )
         self.workout.exercises.exclude(pk=entry.pk).delete()
 
-        response = self.post(
-            "log", ajax=True, **{f"set-{timed.pk}-duration": "1:20"}
-        )
+        response = self.post("log", ajax=True, **{f"set-{timed.pk}-duration": "1:20"})
 
         self.assertTrue(response.json()["ok"])
         timed.refresh_from_db()
@@ -1860,9 +1843,7 @@ class PerformWorkoutTests(TestCase):
         )
         self.workout.exercises.exclude(pk=entry.pk).delete()
 
-        response = self.post(
-            "log", ajax=True, **{f"set-{timed.pk}-duration": "ages"}
-        )
+        response = self.post("log", ajax=True, **{f"set-{timed.pk}-duration": "ages"})
 
         self.assertFalse(response.json()["ok"])
         self.assertIn("duration", response.json()["errors"])
@@ -1920,9 +1901,7 @@ class PerformWorkoutTests(TestCase):
         self.assertContains(response, "Show all exercises")
         self.assertContains(response, "data-show-all")
         self.assertEqual(response.content.decode().count("data-pick"), 2)
-        self.assertContains(
-            response, f'data-exercise-group="{self.entry.pk}"'
-        )
+        self.assertContains(response, f'data-exercise-group="{self.entry.pk}"')
         # Logging follows the picked exercise, so the page targets it.
         self.assertContains(response, '<input type="hidden" name="entry" value="">')
 
@@ -1982,9 +1961,7 @@ class PerformWorkoutTests(TestCase):
             '<button type="button" class="btn btn-success perform-complete-exercise">'
             "Complete exercise</button>",
         )
-        self.assertNotContains(
-            response, f'href="{reverse("alors:calendar")}?d={day}"'
-        )
+        self.assertNotContains(response, f'href="{reverse("alors:calendar")}?d={day}"')
         self.workout.refresh_from_db()
         self.assertFalse(self.workout.completed)
 
@@ -1992,9 +1969,7 @@ class PerformWorkoutTests(TestCase):
         other = WeightsWorkoutExercise.objects.create(
             workout=self.workout, exercise_id=2, position=1
         )
-        other_set = WeightsWorkoutSet.objects.create(
-            entry=other, reps=10, position=0
-        )
+        other_set = WeightsWorkoutSet.objects.create(entry=other, reps=10, position=0)
 
         response = self.post("log", ajax=True, entry=str(other.pk))
 
@@ -2059,9 +2034,7 @@ class PerformWorkoutTests(TestCase):
         self.first.completed = True
         self.first.save()
 
-        response = self.post(
-            "save", ajax=True, reps="5", weight="55", rest="1:30"
-        )
+        response = self.post("save", ajax=True, reps="5", weight="55", rest="1:30")
 
         self.assertTrue(response.json()["ok"])
         self.first.refresh_from_db()
@@ -2122,9 +2095,7 @@ class WorkoutCompletionTests(TestCase):
             username="timer", password="glute-timer"
         )
         self.client.force_login(self.user)
-        self.plan = WeightsWorkout.objects.create(
-            created_by=self.user, title="Leg day"
-        )
+        self.plan = WeightsWorkout.objects.create(created_by=self.user, title="Leg day")
         self.entry = WeightsWorkoutExercise.objects.create(
             workout=self.plan, exercise_id=1, position=0
         )
@@ -2143,9 +2114,7 @@ class WorkoutCompletionTests(TestCase):
         )
 
     def _complete(self, workout):
-        return self.client.post(
-            reverse("weights:workout_complete", args=[workout.pk])
-        )
+        return self.client.post(reverse("weights:workout_complete", args=[workout.pk]))
 
     def _sets(self, workout):
         """A workout's own sets, in order."""
@@ -2353,13 +2322,12 @@ class WorkoutCompletionTests(TestCase):
     def test_the_perform_page_offers_to_finish_the_workout(self):
         actual = self._do()
 
-        response = self.client.get(
-            reverse("weights:workout_perform", args=[actual.pk])
-        )
+        response = self.client.get(reverse("weights:workout_perform", args=[actual.pk]))
 
         self.assertContains(response, "Complete workout")
         self.assertContains(
-            response, f'action="{reverse("weights:workout_complete", args=[actual.pk])}"'
+            response,
+            f'action="{reverse("weights:workout_complete", args=[actual.pk])}"',
         )
         self.assertContains(response, "data-finish-workout")
         self.assertNotContains(response, "Reopen workout")
@@ -2368,9 +2336,7 @@ class WorkoutCompletionTests(TestCase):
         actual = self._do()
         self._complete(actual)
 
-        response = self.client.get(
-            reverse("weights:workout_perform", args=[actual.pk])
-        )
+        response = self.client.get(reverse("weights:workout_perform", args=[actual.pk]))
 
         self.assertContains(response, "Reopen workout")
         self.assertNotContains(response, "Complete workout")
@@ -2382,7 +2348,8 @@ class WorkoutCompletionTests(TestCase):
 
         self.assertNotContains(response, "Complete workout")
         self.assertNotContains(
-            response, f'action="{reverse("weights:workout_complete", args=[actual.pk])}"'
+            response,
+            f'action="{reverse("weights:workout_complete", args=[actual.pk])}"',
         )
 
     def test_the_edit_page_of_a_plan_offers_no_such_button(self):
@@ -2436,8 +2403,8 @@ class WeightsWorkoutViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Create a weights workout")
-        self.assertContains(response, "id=\"add-exercise-row\"")
-        self.assertContains(response, "id=\"empty-exercise-row\"")
+        self.assertContains(response, 'id="add-exercise-row"')
+        self.assertContains(response, 'id="empty-exercise-row"')
         self.assertContains(response, "__prefix__")
         self.assertContains(response, 'name="exercises-TOTAL_FORMS"')
         self.assertContains(response, 'name="sets0-TOTAL_FORMS"')
@@ -2755,9 +2722,7 @@ class WeightsWorkoutViewTests(TestCase):
 
         self.client.post(reverse("weights:workout_duplicate", args=[workout.pk]))
 
-        self.assertEqual(
-            WeightsWorkout.objects.exclude(pk=workout.pk).get().title, ""
-        )
+        self.assertEqual(WeightsWorkout.objects.exclude(pk=workout.pk).get().title, "")
 
     def test_duplicate_requires_post(self):
         workout = WeightsWorkout.objects.create(created_by=self.user, title="Leg day")
@@ -2836,9 +2801,7 @@ class WeightsVisibilityTests(TestCase):
         User = get_user_model()
         self.viewer = User.objects.create_user(username="viewer", password="secret")
         self.owner = User.objects.create_user(username="owner", password="secret")
-        self.stranger = User.objects.create_user(
-            username="stranger", password="secret"
-        )
+        self.stranger = User.objects.create_user(username="stranger", password="secret")
         UserProfile.objects.create(user=self.viewer)
         owner_profile = UserProfile.objects.create(user=self.owner)
         UserProfile.objects.create(user=self.stranger)

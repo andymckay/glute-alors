@@ -64,9 +64,7 @@ class HealthVisibilityTests(TestCase):
         User = get_user_model()
         self.viewer = User.objects.create_user(username="viewer", password="secret")
         self.owner = User.objects.create_user(username="owner", password="secret")
-        self.stranger = User.objects.create_user(
-            username="stranger", password="secret"
-        )
+        self.stranger = User.objects.create_user(username="stranger", password="secret")
         UserProfile.objects.create(user=self.viewer)
         owner_profile = UserProfile.objects.create(user=self.owner)
         UserProfile.objects.create(user=self.stranger)
@@ -76,9 +74,7 @@ class HealthVisibilityTests(TestCase):
         self.viewer_record = Health.objects.create(
             created_by=self.viewer, weight="170.0"
         )
-        self.owner_record = Health.objects.create(
-            created_by=self.owner, weight="180.0"
-        )
+        self.owner_record = Health.objects.create(created_by=self.owner, weight="180.0")
         self.stranger_record = Health.objects.create(
             created_by=self.stranger, weight="190.0"
         )

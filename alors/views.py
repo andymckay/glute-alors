@@ -42,6 +42,7 @@ import json
 
 from weights.models import WeightsWorkout
 
+
 def index(request):
     if request.user.is_authenticated:
         return redirect("alors:calendar")
@@ -95,8 +96,7 @@ def _is_phone(request):
     if "ipad" in user_agent or "tablet" in user_agent:
         return False
     return (
-        any(token in user_agent for token in PHONE_AGENT_TOKENS)
-        or "mobi" in user_agent
+        any(token in user_agent for token in PHONE_AGENT_TOKENS) or "mobi" in user_agent
     )
 
 
@@ -310,9 +310,7 @@ def planned_weekly_summary(request):
         request,
         "summary_card.html",
         {
-            "summary": _week_summary(
-                parse_date(request.GET.get("date")), request.user
-            ),
+            "summary": _week_summary(parse_date(request.GET.get("date")), request.user),
             "planned": True,
         },
     )

@@ -130,6 +130,7 @@ class SavedWorkout(CreatedByModel):
         "text",
         help_text="The workout or instructions.",
     )
+
     class Meta:
         ordering = ["title"]
         verbose_name = "saved workout"
@@ -391,6 +392,7 @@ class Comment(CreatedByModel):
         blank=True,
         help_text="The completed workout this comment is about.",
     )
+
     class Meta:
         ordering = ["created_at"]
         verbose_name = "comment"
@@ -416,6 +418,7 @@ class Issue(CreatedByModel):
         default=Colour.PRIMARY,
         help_text="A Bootstrap badge colour.",
     )
+
     class Meta:
         ordering = ["title"]
         verbose_name = "issue"
@@ -488,6 +491,7 @@ class Label(CreatedByModel):
     )
     start_date = models.DateField("start date")
     end_date = models.DateField("end date")
+
     class Meta:
         ordering = ["start_date", "title"]
         verbose_name = "label"
@@ -719,6 +723,7 @@ class UserProfile(TimeStampedModel):
         default=False,
         help_text="Receive a daily email about your training.",
     )
+
     class Meta:
         verbose_name = "user profile"
         verbose_name_plural = "user profiles"

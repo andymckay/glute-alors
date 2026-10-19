@@ -39,6 +39,7 @@ class Health(CreatedByModel):
         blank=True,
         help_text="Resting heart rate in beats per minute.",
     )
+
     class Meta:
         ordering = ["-created_at"]
         verbose_name = "health"
@@ -46,9 +47,7 @@ class Health(CreatedByModel):
 
     def __str__(self):
         recorded = (
-            self.created_at.strftime("%Y-%m-%d %H:%M")
-            if self.created_at
-            else "unsaved"
+            self.created_at.strftime("%Y-%m-%d %H:%M") if self.created_at else "unsaved"
         )
         return f"Health measurements for {self.created_by or 'Anonymous'} ({recorded})"
 

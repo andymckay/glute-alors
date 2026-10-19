@@ -379,9 +379,7 @@ class WeightsWorkout(CreatedByModel):
 
     def __str__(self):
         created = (
-            self.created_at.strftime("%Y-%m-%d %H:%M")
-            if self.created_at
-            else "unsaved"
+            self.created_at.strftime("%Y-%m-%d %H:%M") if self.created_at else "unsaved"
         )
         return f"Weights workout for {self.created_by or 'Anonymous'} ({created})"
 
@@ -429,7 +427,9 @@ class WeightsWorkout(CreatedByModel):
                             of=of,
                             timed=entry.exercise.is_timed if entry.exercise else False,
                             unilateral=(
-                                entry.exercise.is_unilateral if entry.exercise else False
+                                entry.exercise.is_unilateral
+                                if entry.exercise
+                                else False
                             ),
                             # Only the last set of the round is followed by a rest.
                             rest_seconds=(
@@ -512,9 +512,7 @@ class WeightsWorkout(CreatedByModel):
         if self.started_at is None:
             return None
         stopped = (
-            self.finished_at
-            if self.completed and self.finished_at
-            else timezone.now()
+            self.finished_at if self.completed and self.finished_at else timezone.now()
         )
         return max(0, int((stopped - self.started_at).total_seconds()))
 

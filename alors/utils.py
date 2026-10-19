@@ -19,9 +19,7 @@ def visible_users(user):
         return User.objects.none()
     if user.is_superuser:
         return User.objects.all()
-    return User.objects.filter(
-        Q(pk=user.pk) | Q(profile__visibility=user)
-    ).distinct()
+    return User.objects.filter(Q(pk=user.pk) | Q(profile__visibility=user)).distinct()
 
 
 def today(user):

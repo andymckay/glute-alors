@@ -383,9 +383,7 @@ class ProfileForm(forms.ModelForm):
                 attrs={"class": "form-select", "size": 8}
             ),
             "units": forms.Select(attrs={"class": "form-select"}),
-            "show_add_plan": forms.CheckboxInput(
-                attrs={"class": "form-check-input"}
-            ),
+            "show_add_plan": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "send_daily_email": forms.CheckboxInput(
                 attrs={"class": "form-check-input"}
             ),

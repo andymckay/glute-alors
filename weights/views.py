@@ -285,9 +285,7 @@ def exercise_detail(request, exercise_id):
 def workout_list(request):
     workouts = WeightsWorkout.objects.filter(
         created_by__in=visible_users(request.user), is_actual=False
-    ).prefetch_related(
-        "exercises__sets", "exercises__superset"
-    )
+    ).prefetch_related("exercises__sets", "exercises__superset")
     return render(
         request,
         "weights_list.html",
@@ -418,9 +416,7 @@ def _set_summary(step, unit):
         written = format_seconds(step.set.duration_seconds) or ""
     else:
         written = str(step.set.reps) if step.set.reps is not None else ""
-    weight = (
-        f"{_number(step.set.weight)} {unit}" if step.set.weight is not None else ""
-    )
+    weight = f"{_number(step.set.weight)} {unit}" if step.set.weight is not None else ""
     if written and weight:
         return f"{written} @ {weight}"
     return written or weight
@@ -662,7 +658,9 @@ def workout_duplicate(request, pk):
             created_by=request.user,
             title=workout.title,
         )
-        messages.add_message(request, messages.SUCCESS, "📋 Duplicated weights workout.")
+        messages.add_message(
+            request, messages.SUCCESS, "📋 Duplicated weights workout."
+        )
         return redirect("weights:workout_edit", duplicate.pk)
     return redirect("weights:workout_edit", workout.pk)
 
@@ -679,5 +677,7 @@ def workout_delete(request, pk):
         workout.delete()
         messages.add_message(request, messages.SUCCESS, "🗑️ Deleted weights workout.")
     if workout_date:
-        return redirect(f"{reverse('alors:calendar')}?d={workout_date}#date-{workout_date}")
+        return redirect(
+            f"{reverse('alors:calendar')}?d={workout_date}#date-{workout_date}"
+        )
     return redirect("weights:workout_list")
