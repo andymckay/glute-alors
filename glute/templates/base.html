@@ -23,59 +23,52 @@
         <div class="container-lg pt-4">
             <h1><img src="{% static 'img/logo.png' %}" style="height: 2em; width: 2em;" />glute alors</h1>
         </div>
-        <nav class="navbar navbar-expand-lg border-bottom">
-            <div class="container-lg">
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-                <div class="collapse navbar-collapse bg-emphasis" id="navbarNav">
-                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                        <li class="nav-item">
-                            <a class="nav-link" href="/">🏠</a>
-                        </li>
-                        {% if user.is_authenticated %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'alors:calendar' %}#today">Calendar</a>
-                        </li>
-                        <li><a class="nav-link" href="{% url 'weights:workout_list' %}">Weights</a></li>
-                        <li><a class="nav-link" href="{% url 'health:health_list' %}">Health</a></li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'alors:notifications' %}">Notifications
-                                <span class="badge rounded-pill bg-danger" data-bs-toggle="tooltip" data-bs-title="Number of notifications">
-                                    {{ notification_count }}
-                                </span>
-                            </a>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                Settings
-                                <span id="timezone-alert" class="d-none badge rounded-pill bg-danger" data-bs-toggle="tooltip" data-bs-title="Your timezone differs from your profile timezone, you can change this in your profile.">
-                                    !
-                                </span>
-                            </a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="{% url 'alors:add_planned' %}">Planned run</a></li>
-                                <li><a class="dropdown-item" href="{% url 'alors:saved_workout_list' %}">Saved run</a></li>
-                                <li><a class="dropdown-item" href="{% url 'weights:workout_list' %}">Planned weights</a></li>
-                                <li><a class="dropdown-item" href="{% url 'alors:issue_list' %}">Issues</a></li>
-                                <li><a class="dropdown-item" href="{% url 'alors:label_list' %}">Labels</a></li>
-                                <li><a class="dropdown-item" href="{% url 'alors:profile' %}">Profile</a></li>
-                                <li><a class="dropdown-item theme-switch" href="#">Theme</a></li>
+        <nav class="border-bottom">
+            <div class="container-lg navigation">
+                {% if user.is_authenticated %}
+                    <div class="row">
+                        <div class="col">
+                            <ul class="nav nav-underline">
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'alors:calendar' %}#today">Calendar</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'weights:workout_list' %}">Weights</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'health:health_list' %}">Health</a>
+                                </li>
                             </ul>
-                        </li>
-                        <li class="nav-item d-flex align-items-center">
-                            {% if user_profile.avatar %}
-                            <img src="{{ user_profile.avatar.url }}" alt="{{ user }}" class="rounded-circle me-1" width="24" height="24">
-                            {% endif %}
-                            <a class="nav-link" href="{% url 'alors:logout' %}">Logout <b>{{ user }}</b></a>
-                        </li>
-                        {% else %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'alors:login' %}">Login</a>
-                        </li>
-                        {% endif %}
-                    </ul>
-                </div>
+                            <ul class="nav nav-underline pb-4">
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'alors:notifications' %}">Notifications
+                                        <span class="badge rounded-pill bg-danger" data-bs-toggle="tooltip" data-bs-title="Number of notifications">
+                                            {{ notification_count }}
+                                        </span>
+                                    </a>
+                                </li>
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        Settings
+                                        <span id="timezone-alert" class="d-none badge rounded-pill bg-danger" data-bs-toggle="tooltip" data-bs-title="Your timezone differs from your profile timezone, you can change this in your profile.">!</span>
+                                    </a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="{% url 'alors:add_planned' %}">Planned run</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'alors:saved_workout_list' %}">Saved run</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'weights:workout_list' %}">Planned weights</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'alors:issue_list' %}">Issues</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'alors:label_list' %}">Labels</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'alors:profile' %}">Profile</a></li>
+                                        <li><a class="dropdown-item theme-switch" href="#">Theme</a></li>
+                                        <li><a class="dropdown-item link-underline-opacity-0" href="{% url 'alors:logout' %}">Logout <b>{{ user }}</b></a></li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                {% else %}
+                    <a class="link-underline link-underline-opacity-0" href="{% url 'alors:login' %}">Login</a>
+                {% endif %}
             </div>
         </nav>
         <main class="bg-body border-bottom pt-4 pb-4">
