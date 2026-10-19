@@ -46,7 +46,6 @@
                 </div>
                 <div class="col p-2 bg-tertiary">
                     <div>
-                        <p>Planned</p>
                         {% for summary in entry.summaries %}
                             {% with planned=True %}
                                 {% include "summary_card.html" %}
@@ -54,7 +53,6 @@
                         {% endfor %}
                     </div>
                     <div>
-                        <p>Actual</p>
                         {% for summary in entry.summaries %}
                             {% with planned=False %}
                                 {% include "summary_card.html" %}

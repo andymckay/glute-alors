@@ -11,6 +11,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from ..models import (
+    Label,
     PlannedWorkout,
     SavedWorkout,
     UserProfile,
@@ -18,6 +19,7 @@ from ..models import (
     Workout,
     WorkoutType,
 )
+from weights.models import WeightsWorkout
 
 
 class AddPlannedWorkoutTests(TestCase):
@@ -171,6 +173,7 @@ class MovePlannedWorkoutTests(TestCase):
             workout_type=WorkoutType.RUN,
             workout_date="2026-09-05",
             total_distance="10.00",
+            created_by=self.user,
         )
 
     def move(self, date_value):
@@ -317,6 +320,7 @@ class DuplicatePlannedWorkoutTests(TestCase):
             notes="Easy pace.",
             status="done",
             comment_count=3,
+            created_by=self.user,
         )
 
     def duplicate(self):
@@ -381,6 +385,7 @@ class PlannedEditModalTests(TestCase):
             workout_date="2026-09-05",
             total_distance="21.10",
             notes="Easy pace.",
+            created_by=self.user,
         )
 
     def calendar(self):
@@ -421,6 +426,7 @@ class PlannedEditModalTests(TestCase):
         SavedWorkout.objects.create(
             title="Tempo session",
             text="Warm up\n20 min tempo\nCool down",
+            created_by=self.user,
         )
         content = self.calendar().content.decode()
         self.assertIn('name="saved_workout"', content)
@@ -430,12 +436,15 @@ class PlannedEditModalTests(TestCase):
         self.assertIn('name="notes"', content)
 
     def test_every_modal_gets_the_shared_saved_workout_picker(self):
-        SavedWorkout.objects.create(title="Tempo session", text="20 min tempo")
+        SavedWorkout.objects.create(
+            title="Tempo session", text="20 min tempo", created_by=self.user
+        )
         PlannedWorkout.objects.create(
             title="Easy jog",
             workout_type=WorkoutType.RUN,
             workout_date="2026-09-06",
             total_distance="5.00",
+            created_by=self.user,
         )
         content = self.calendar().content.decode()
         # Two edit modals plus the shared add modal.
@@ -443,13 +452,16 @@ class PlannedEditModalTests(TestCase):
         self.assertEqual(content.count('data-text="20 min tempo"'), 3)
 
     def test_calendar_queries_do_not_scale_with_planned_workouts(self):
-        SavedWorkout.objects.create(title="Tempo session", text="20 min tempo")
+        SavedWorkout.objects.create(
+            title="Tempo session", text="20 min tempo", created_by=self.user
+        )
         for i in range(5):
             PlannedWorkout.objects.create(
                 title=f"Run {i}",
                 workout_type=WorkoutType.RUN,
                 workout_date=f"2026-09-{10 + i:02d}",
                 total_distance="10.00",
+                created_by=self.user,
             )
         with CaptureQueriesContext(connection) as ctx:
             self.calendar()
@@ -490,6 +502,7 @@ class CalendarDragHandleTests(TestCase):
             workout_type=WorkoutType.RUN,
             workout_date="2026-09-05",
             total_distance="10.00",
+            created_by=self.user,
         )
 
     def test_card_uses_a_drag_handle_and_is_not_draggable(self):
@@ -525,11 +538,13 @@ class CalendarWorkoutQueryTests(TestCase):
                 workout_type=WorkoutType.RUN,
                 workout_date=f"2026-09-{5 + i:02d}",
                 total_distance="10.00",
+                created_by=self.user,
             )
             Workout.objects.create(
                 workout_date=datetime(2026, 9, 5 + i, 8, 0),
                 total_time=timedelta(minutes=45),
                 workout_type=WorkoutType.RUN,
+                created_by=self.user,
             )
         with CaptureQueriesContext(connection) as ctx:
             response = self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
@@ -545,6 +560,7 @@ class CalendarWorkoutQueryTests(TestCase):
             total_time=timedelta(minutes=45),
             workout_type=WorkoutType.RUN,
             workout_data='{"record_mesgs": []}',
+            created_by=self.user,
         )
         with CaptureQueriesContext(connection) as ctx:
             self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
@@ -603,6 +619,7 @@ class BusyModalTests(TestCase):
             workout_type=WorkoutType.RUN,
             workout_date="2026-09-05",
             total_distance="21.10",
+            created_by=self.user,
         )
 
     def calendar(self):
@@ -664,6 +681,7 @@ class DeletePlannedWorkoutTests(TestCase):
             workout_type=WorkoutType.RUN,
             workout_date="2026-09-05",
             total_distance="21.10",
+            created_by=self.user,
         )
 
     def delete(self):
@@ -689,6 +707,94 @@ class DeletePlannedWorkoutTests(TestCase):
         url = reverse("alors:delete_planned", args=[self.workout.pk])
         self.assertEqual(self.client.get(url).status_code, 405)
         self.assertTrue(PlannedWorkout.objects.filter(pk=self.workout.pk).exists())
+
+
+class CalendarVisibilityTests(TestCase):
+    """Calendar and weekly views show only the user's own and shared records."""
+
+    def setUp(self):
+        self.viewer = User.objects.create_user(username="viewer", password="secret")
+        self.owner = User.objects.create_user(username="owner", password="secret")
+        self.stranger = User.objects.create_user(
+            username="stranger", password="secret"
+        )
+        UserProfile.objects.create(user=self.viewer)
+        owner_profile = UserProfile.objects.create(user=self.owner)
+        UserProfile.objects.create(user=self.stranger)
+        # The owner lets the viewer see their calendar; the stranger shares
+        # with nobody.
+        owner_profile.visibility.add(self.viewer)
+        self.client.force_login(self.viewer)
+
+    def _records(self, user, name):
+        day = date(2026, 9, 5)
+        PlannedWorkout.objects.create(
+            created_by=user,
+            workout_type=WorkoutType.RUN,
+            workout_date=day,
+            total_distance="10.00",
+        )
+        Workout.objects.create(
+            created_by=user,
+            workout_type=WorkoutType.RUN,
+            workout_date=datetime(2026, 9, 5, 8),
+            total_time=timedelta(minutes=45),
+        )
+        WeightsWorkout.objects.create(
+            created_by=user,
+            is_actual=True,
+            title=f"{name}-weights",
+            started_at=datetime(2026, 9, 5, 9),
+        )
+        Label.objects.create(
+            created_by=user,
+            title=f"{name}-label",
+            start_date=day,
+            end_date=day,
+        )
+        SavedWorkout.objects.create(
+            created_by=user,
+            title=f"{name}-saved",
+            text="Session",
+        )
+
+    def _assert_shared_records_only(self, response):
+        content = response.content.decode().lower()
+        for name in ("viewer", "owner"):
+            self.assertIn(f"{name}-weights", content)
+            self.assertIn(f"{name}-label", content)
+            self.assertIn(f"{name}-saved", content)
+        for name in ("stranger",):
+            self.assertNotIn(name, content)
+            self.assertNotIn(f"{name}-weights", content)
+            self.assertNotIn(f"{name}-label", content)
+            self.assertNotIn(f"{name}-saved", content)
+
+    def test_monthly_calendar_shows_own_and_shared_records_only(self):
+        for user, name in (
+            (self.viewer, "viewer"),
+            (self.owner, "owner"),
+            (self.stranger, "stranger"),
+        ):
+            self._records(user, name)
+
+        response = self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
+
+        self._assert_shared_records_only(response)
+
+    def test_weekly_calendar_shows_own_and_shared_records_only(self):
+        for user, name in (
+            (self.viewer, "viewer"),
+            (self.owner, "owner"),
+            (self.stranger, "stranger"),
+        ):
+            self._records(user, name)
+
+        response = self.client.get(
+            reverse("alors:calendar"), {"d": "2026-09-05", "r": "w"}
+        )
+
+        self._assert_shared_records_only(response)
 
 
 class WeeklySummaryModelTests(TestCase):
@@ -720,11 +826,15 @@ class WeeklySummaryModelTests(TestCase):
 
 
 class WeeklySummarySignalTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="summariser", password="secret")
+
     def create_planned(self, workout_date, distance="10.00", workout_type="run"):
         return PlannedWorkout.objects.create(
             workout_type=workout_type,
             workout_date=workout_date,
             total_distance=distance,
+            created_by=self.user,
         )
 
     def create_workout_record(self, workout_date, distance="10.00", workout_type="run"):
@@ -735,10 +845,11 @@ class WeeklySummarySignalTests(TestCase):
             total_time=timedelta(minutes=30),
             workout_type=workout_type,
             total_distance=distance,
+            created_by=self.user,
         )
 
     def summary_for(self, sunday):
-        return WeeklySummary.objects.get(date=sunday)
+        return WeeklySummary.objects.get(date=sunday, created_by=self.user)
 
     def test_planned_workout_summarised_by_type(self):
         self.create_planned(date(2026, 9, 2), distance="10.00")  # Wednesday
@@ -767,6 +878,7 @@ class WeeklySummarySignalTests(TestCase):
             total_distance="10.00",
             effort=6,
             feeling=4,
+            created_by=self.user,
         )
         Workout.objects.create(
             workout_date=datetime(2026, 9, 7, 8, 0),
@@ -774,6 +886,7 @@ class WeeklySummarySignalTests(TestCase):
             workout_type="walk",
             total_distance="2.00",
             effort=2,
+            created_by=self.user,
         )
         summary = self.summary_for(date(2026, 9, 13))
         self.assertEqual(
@@ -852,6 +965,26 @@ class WeeklySummarySignalTests(TestCase):
         record.delete()
         self.assertFalse(WeeklySummary.objects.filter(date=date(2026, 9, 6)).exists())
 
+    def test_each_owner_gets_their_own_summary(self):
+        other = User.objects.create_user(username="other", password="secret")
+        self.create_planned(date(2026, 9, 2), distance="10.00")
+        PlannedWorkout.objects.create(
+            created_by=other,
+            workout_type=WorkoutType.RUN,
+            workout_date=date(2026, 9, 3),
+            total_distance="5.00",
+        )
+
+        mine = WeeklySummary.objects.get(date=date(2026, 9, 6), created_by=self.user)
+        theirs = WeeklySummary.objects.get(date=date(2026, 9, 6), created_by=other)
+
+        self.assertEqual(
+            mine.summary["planned_workout"]["run"]["total_distance"], 10.0
+        )
+        self.assertEqual(
+            theirs.summary["planned_workout"]["run"]["total_distance"], 5.0
+        )
+
     def test_model_helpers_sum_the_new_structure(self):
         self.create_planned(date(2026, 9, 2), distance="10.00")
         self.create_planned(date(2026, 9, 4), distance="3.00", workout_type="walk")
@@ -865,11 +998,15 @@ class WeeklySummarySignalTests(TestCase):
 
 
 class RecreateWeeklySummariesCommandTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="rebuilder", password="secret")
+
     def create_planned(self, workout_date, distance="10.00", workout_type="run"):
         return PlannedWorkout.objects.create(
             workout_type=workout_type,
             workout_date=workout_date,
             total_distance=distance,
+            created_by=self.user,
         )
 
     def test_recreates_a_deleted_summary(self):
@@ -878,8 +1015,26 @@ class RecreateWeeklySummariesCommandTests(TestCase):
 
         call_command("recreate_weekly_summaries")
 
-        summary = WeeklySummary.objects.get(date=date(2026, 9, 6))
+        summary = WeeklySummary.objects.get(
+            date=date(2026, 9, 6), created_by=self.user
+        )
         self.assertEqual(summary.summary["planned_workout"]["run"]["workouts"], 1)
+
+    def test_recreates_a_summary_for_each_owner(self):
+        other = User.objects.create_user(username="other", password="secret")
+        self.create_planned(date(2026, 9, 2))
+        PlannedWorkout.objects.create(
+            created_by=other,
+            workout_type=WorkoutType.RUN,
+            workout_date=date(2026, 9, 3),
+            total_distance="5.00",
+        )
+
+        call_command("recreate_weekly_summaries")
+
+        self.assertEqual(
+            WeeklySummary.objects.filter(date=date(2026, 9, 6)).count(), 2
+        )
 
     def test_overwrites_stale_summary_data(self):
         self.create_planned(date(2026, 9, 2))
@@ -889,7 +1044,9 @@ class RecreateWeeklySummariesCommandTests(TestCase):
 
         call_command("recreate_weekly_summaries")
 
-        summary = WeeklySummary.objects.get(date=date(2026, 9, 6))
+        summary = WeeklySummary.objects.get(
+            date=date(2026, 9, 6), created_by=self.user
+        )
         self.assertEqual(summary.summary["planned_workout"]["run"]["workouts"], 1)
 
     def test_drops_summaries_for_weeks_with_no_workouts(self):
@@ -918,7 +1075,7 @@ class RecreateWeeklySummariesCommandTests(TestCase):
         # The 09-06 week is outside the range and keeps its stale data.
         untouched = WeeklySummary.objects.get(date=date(2026, 9, 6))
         self.assertEqual(untouched.summary, {"stale": True})
-        rebuilt = WeeklySummary.objects.get(date=date(2026, 9, 20))
+        rebuilt = WeeklySummary.objects.get(date=date(2026, 9, 20), created_by=self.user)
         self.assertEqual(rebuilt.summary["planned_workout"]["run"]["workouts"], 1)
 
     def test_no_data_is_a_no_op(self):

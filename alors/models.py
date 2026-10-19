@@ -426,8 +426,16 @@ class Issue(CreatedByModel):
 
 
 class WeeklySummary(models.Model):
-    """A summary of a week, with arbitrary JSON data."""
+    """One user's summary of a week, with arbitrary JSON data."""
 
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="created by",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="The user this summary belongs to.",
+    )
     date = models.DateField(
         "date",
         help_text="The week this summary relates to (e.g. the Monday).",
@@ -444,7 +452,10 @@ class WeeklySummary(models.Model):
         verbose_name = "weekly summary"
         verbose_name_plural = "weekly summaries"
         constraints = [
-            models.UniqueConstraint(fields=["date"], name="uniq_weekly_summary_date"),
+            models.UniqueConstraint(
+                fields=["date", "created_by"],
+                name="uniq_weekly_summary_date_user",
+            ),
         ]
 
     def __str__(self):
@@ -671,12 +682,19 @@ class UserProfile(TimeStampedModel):
         default=Role.ATHLETE,
         help_text="Whether this user is a coach or an athlete.",
     )
+    visibility = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        verbose_name="visibility",
+        related_name="visible_profiles",
+        blank=True,
+        help_text="The users who can see your profile.",
+    )
     units = models.CharField(
         "units",
         max_length=10,
         choices=WeightUnit.choices,
         default=WeightUnit.IMPERIAL,
-        help_text="Whether to show weights in metric or imperial units.",
+        help_text="Whether to show weights in metric or imperial units. Speed and distance is in km, because this is Canada 🇨🇦",
     )
     timezone = models.CharField(
         "timezone",

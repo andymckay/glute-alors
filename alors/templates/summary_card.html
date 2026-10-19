@@ -1,16 +1,16 @@
 {% load alors %}
 <div class="card-compact mb-2">
 {% if planned %}
+    {% if summary.summary.planned_workout.items %}<p>Planned</p>{% endif %}
     {% for key, data in summary.summary.planned_workout.items %}
         {% if data.total_distance %}
             {{ key|emoji }} {{ key|capfirst }} &bull; <b>{{ data.total_distance }}</b> km<br>
         {% else %}
             {{ key|emoji }} {{ key|capfirst }} x<b>{{ data.workouts }}</b> <br>
         {% endif %}
-    {% empty %}
-        No plan yet.
     {% endfor %}
 {% else %}
+    {% if summary.summary.workout.items %}<p>Actual</p>{% endif %}
     {% for key, data in summary.summary.workout.items %}
         {% if data.total_distance %}
             {{ key|emoji }} {{ key|capfirst }} &bull; <b>{{ data.total_distance }} </b> km<br>

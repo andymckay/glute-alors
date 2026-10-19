@@ -3,6 +3,8 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 
+from alors.utils import visible_users
+
 from .forms import HealthForm
 from .models import Health
 
@@ -11,7 +13,8 @@ PAGE_SIZE = 25
 
 @login_required
 def health_list(request):
-    paginator = Paginator(Health.objects.all(), PAGE_SIZE)
+    records = Health.objects.filter(created_by__in=visible_users(request.user))
+    paginator = Paginator(records, PAGE_SIZE)
     page_obj = paginator.get_page(request.GET.get("page"))
     return render(
         request,
@@ -46,7 +49,9 @@ def health_add(request):
 
 @login_required
 def health_edit(request, pk):
-    health = get_object_or_404(Health, pk=pk)
+    health = get_object_or_404(
+        Health, pk=pk, created_by__in=visible_users(request.user)
+    )
     if request.method == "POST":
         form = HealthForm(request.POST, instance=health)
         if form.is_valid():
@@ -70,7 +75,9 @@ def health_edit(request, pk):
 
 @login_required
 def health_delete(request, pk):
-    health = get_object_or_404(Health, pk=pk)
+    health = get_object_or_404(
+        Health, pk=pk, created_by__in=visible_users(request.user)
+    )
     if request.method == "POST":
         health.delete()
         messages.add_message(request, messages.SUCCESS, "🗑️ Deleted health entry.")

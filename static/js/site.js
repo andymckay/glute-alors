@@ -943,13 +943,16 @@ function initWorkoutRunner() {
           })
         : null;
     const timerTime = runner.querySelector("[data-timer-time]");
+    const timerSide = runner.querySelector("[data-timer-side]");
     const timerExercise = runner.querySelector("[data-timer-exercise]");
     const timerStart = runner.querySelector("[data-timer-start]");
-    const timerStop = runner.querySelector("[data-timer-stop]");
+    const timerPause = runner.querySelector("[data-timer-pause]");
     const doneCount = runner.querySelector("[data-done-count]");
     const elapsed = runner.querySelector("[data-elapsed]");
     const showAll = runner.querySelector("[data-show-all]");
     const pickedInput = runner.querySelector("[name='entry']");
+    const logForm = runner.querySelector(".perform-log");
+    const logButton = runner.querySelector(".perform-log-button");
     const doneSummary = runner.querySelector("[data-done-summary]");
     const exerciseGroups = Array.from(
         runner.querySelectorAll("[data-exercise-group]")
@@ -969,6 +972,14 @@ function initWorkoutRunner() {
     let timerLeft = 0;
     let timerPlanned = 0;
     let timerInterval = null;
+    // A unilateral set is timed on each side in turn: the labels say which
+    // side the countdown is on, and the index says how far through them it is.
+    const TIMER_SIDES = ["Left side", "Right side"];
+    let timerSides = [];
+    let timerSideIndex = 0;
+    // Whether the countdown has been started, so a paused one offers to
+    // continue rather than to start from the top.
+    let timerStarted = false;
     // Pressing start gives the set this long to get you into position before
     // its own time begins.
     const TIMER_LEAD_IN = 3;
@@ -995,9 +1006,33 @@ function initWorkoutRunner() {
 
     // Which exercise is being logged: the one picked from the full list, or the
     // one holding the first set still to do. `showEveryGroup` opens the lot,
-    // which is where the page starts when it is linked to as #all.
-    let pickedGroup = null;
-    let showEveryGroup = window.location.hash === "#all";
+    // which is where the page starts when it is linked to as #all or when that
+    // is the view the user chose last.
+    const SHOW_ALL_KEY = "weights.perform.show-all";
+    const storedShowAll = () => {
+        try {
+            return window.localStorage.getItem(SHOW_ALL_KEY);
+        } catch (error) {
+            return null;
+        }
+    };
+    // The view the user chose last wins over a link's #all, so coming back to
+    // the page puts the workout up the way it was left.
+    const rememberedShowAll = storedShowAll();
+    // The exercise the page was asked to open on, left there when a set was
+    // added to it or a link was made to it.
+    const requestedEntry = new URLSearchParams(window.location.search).get("entry");
+    const requestedGroup = exerciseGroups.find(
+        (group) => group.dataset.exerciseGroup === requestedEntry
+    );
+    let pickedGroup =
+        requestedGroup && requestedGroup.querySelector('[data-done="false"]')
+            ? requestedGroup
+            : null;
+    let showEveryGroup =
+        rememberedShowAll === null
+            ? window.location.hash === "#all"
+            : rememberedShowAll === "all";
 
     /** The link says what pressing it will do. */
     const paintShowAll = () => {
@@ -1006,6 +1041,36 @@ function initWorkoutRunner() {
                 ? "Show one exercise"
                 : "Show all exercises";
         }
+    };
+
+    /**
+     * Remember the view the user chose, and keep the address bar in step with
+     * it, so a reload or a return to the page comes back to the same one.
+     */
+    const rememberShowAll = () => {
+        try {
+            window.localStorage.setItem(
+                SHOW_ALL_KEY,
+                showEveryGroup ? "all" : "one"
+            );
+        } catch (error) {
+            // Private browsing can refuse storage; the page still works.
+        }
+        const base = `${window.location.pathname}${window.location.search}`;
+        if (showEveryGroup) {
+            if (window.location.hash !== "#all") {
+                window.history.replaceState(null, "", `${base}#all`);
+            }
+        } else if (window.location.hash === "#all") {
+            window.history.replaceState(null, "", base);
+        }
+    };
+
+    /** Switch the page between the whole workout and one exercise at a time. */
+    const setShowEveryGroup = (value) => {
+        showEveryGroup = value;
+        rememberShowAll();
+        paintShowAll();
     };
 
     /**
@@ -1167,6 +1232,16 @@ function initWorkoutRunner() {
         });
     };
 
+    /** The main action logs a set, or starts its timer when it is timed. */
+    const paintLogButton = () => {
+        if (!logButton) {
+            return;
+        }
+        const step = steps[currentIndex()];
+        logButton.textContent =
+            step && step.dataset.timed === "true" ? "Start timer" : "Log set";
+    };
+
     const updateProgress = () => {
         const done = steps.filter(isDone).length;
         if (doneCount) {
@@ -1177,6 +1252,7 @@ function initWorkoutRunner() {
         }
         showCurrentGroup();
         paintSummaries();
+        paintLogButton();
     };
 
     /** Tick a set off; its row carries the state the rest of the page reads. */
@@ -1318,11 +1394,18 @@ function initWorkoutRunner() {
                 Math.max(0, timerLead > 0 ? timerLead : timerLeft)
             );
         }
+        if (timerSide) {
+            const side = timerSides[timerSideIndex] || "";
+            timerSide.textContent = side;
+            timerSide.classList.toggle("d-none", !side);
+        }
         if (timerStart) {
             timerStart.disabled = timerInterval !== null;
+            timerStart.textContent =
+                timerInterval === null && timerStarted ? "Continue" : "Start";
         }
-        if (timerStop) {
-            timerStop.disabled = timerInterval === null;
+        if (timerPause) {
+            timerPause.disabled = timerInterval === null;
         }
     };
 
@@ -1348,6 +1431,19 @@ function initWorkoutRunner() {
             paintTimer();
             return;
         }
+        // A unilateral set counts one side down, then the other: line the next
+        // side up and let the same countdown carry on.
+        if (timerSideIndex + 1 < timerSides.length) {
+            timerSideIndex += 1;
+            timerLeft = timerPlanned;
+            timerLead = TIMER_LEAD_IN;
+            paintTimer();
+            beep(880, 0.12);
+            if (navigator.vibrate) {
+                navigator.vibrate(200);
+            }
+            return;
+        }
         stopCountdown();
         timerTime.textContent = "Done";
         // A different sound for the end of the set, so it is not mistaken for
@@ -1370,8 +1466,8 @@ function initWorkoutRunner() {
     };
 
     /**
-     * Start the countdown: a few seconds to get into position first, then the
-     * set's own time, from where it is or from the top again.
+     * Start the countdown: a few seconds to get into position the first time,
+     * then the set's own time. Continuing after a pause picks up straight away.
      */
     const startCountdown = () => {
         if (!timerModal || !timerStep) {
@@ -1383,7 +1479,10 @@ function initWorkoutRunner() {
         if (timerLeft <= 0) {
             return;
         }
-        timerLead = TIMER_LEAD_IN;
+        // Only the first start counts the user in; continuing a paused set
+        // gets straight back to its time.
+        timerLead = timerStarted ? 0 : TIMER_LEAD_IN;
+        timerStarted = true;
         primeAudio();
         window.clearInterval(timerInterval);
         timerInterval = window.setInterval(tickTimer, 1000);
@@ -1400,6 +1499,9 @@ function initWorkoutRunner() {
         timerPlanned = timerSeconds(step, planned);
         timerLeft = timerPlanned;
         timerLead = 0;
+        timerStarted = false;
+        timerSides = (Number(step.dataset.sides) || 1) > 1 ? TIMER_SIDES : [];
+        timerSideIndex = 0;
         const card = groupOf(step);
         const title = card && card.querySelector(".card-title");
         if (timerExercise) {
@@ -1407,6 +1509,26 @@ function initWorkoutRunner() {
         }
         paintTimer();
         timerModal.show();
+    };
+
+    /**
+     * Finish the set early: the timer's elapsed time is what the set is logged
+     * as, and the set is ticked off the same way a completed timer is.
+     */
+    const endTimer = () => {
+        const step = timerStep;
+        stopCountdown();
+        const elapsed = Math.max(0, timerPlanned - timerLeft);
+        const input = step && step.querySelector('[name$="-duration"]');
+        if (input) {
+            input.value = formatTime(elapsed);
+        }
+        if (timerModal) {
+            timerModal.hide();
+        }
+        if (step && logForm) {
+            sendThen(logForm, { action: "end", set: step.dataset.set });
+        }
     };
 
     /** What the server refused, said the same way wherever it is refused. */
@@ -1480,6 +1602,15 @@ function initWorkoutRunner() {
             return;
         }
         event.preventDefault();
+        // A timed set is counted down rather than logged by hand: start its
+        // timer, which logs the set as complete when it runs out.
+        const step = steps[currentIndex()];
+        const timerTrigger = step && step.querySelector("[data-timer]");
+        if (step && step.dataset.timed === "true" && timerTrigger) {
+            openTimer(step, timerTrigger.getAttribute("data-timer"));
+            startCountdown();
+            return;
+        }
         // The server logs the first set still to do, not the row the button was
         // tapped on, so tick off whichever set came back.
         sendThen(form);
@@ -1489,8 +1620,7 @@ function initWorkoutRunner() {
     if (showAll) {
         showAll.addEventListener("click", (event) => {
             event.preventDefault();
-            showEveryGroup = !showEveryGroup;
-            paintShowAll();
+            setShowEveryGroup(!showEveryGroup);
             showCurrentGroup();
         });
     }
@@ -1502,8 +1632,7 @@ function initWorkoutRunner() {
         }
         event.preventDefault();
         pickedGroup = pick.closest("[data-exercise-group]");
-        showEveryGroup = false;
-        paintShowAll();
+        setShowEveryGroup(false);
         showCurrent();
     });
 
@@ -1519,10 +1648,20 @@ function initWorkoutRunner() {
             return;
         }
         event.preventDefault();
-        send(form, { action: action.getAttribute("value") })
+        const name = action.getAttribute("value");
+        send(form, { action: name })
             .then((data) => {
                 if (!data.ok) {
                     showErrors(data.errors);
+                    return;
+                }
+                // The new set makes the table taller, so the page comes back
+                // from the server. Keep the same exercise on show afterwards.
+                const group = form.closest("[data-exercise-group]");
+                if (name === "add" && group) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set("entry", group.dataset.exerciseGroup);
+                    window.location.replace(url.toString());
                     return;
                 }
                 window.location.reload();
@@ -1533,6 +1672,15 @@ function initWorkoutRunner() {
     });
 
     runner.addEventListener("click", (event) => {
+        // The exercise on show is finished: go back to the whole workout, where
+        // the next one is waiting.
+        if (event.target.closest(".perform-complete-exercise")) {
+            event.preventDefault();
+            pickedGroup = null;
+            setShowEveryGroup(true);
+            showCurrentGroup();
+            return;
+        }
         const step = event.target.closest(".perform-step");
         const prev = event.target.closest(".js-perform-prev");
         const next = event.target.closest(".js-perform-next");
@@ -1557,8 +1705,8 @@ function initWorkoutRunner() {
     });
 
     /**
-     * The timer for a timed set: its row opens it, and the modal either counts
-     * the set's time down, stops where it is, or leaves it alone.
+     * The timer for a timed set: its row opens it, and the modal counts the
+     * set's time down, pauses it, or ends it early.
      */
     runner.addEventListener("click", (event) => {
         const trigger = event.target.closest("[data-timer]");
@@ -1574,15 +1722,12 @@ function initWorkoutRunner() {
             startCountdown();
             return;
         }
-        if (event.target.closest("[data-timer-stop]")) {
+        if (event.target.closest("[data-timer-pause]")) {
             stopCountdown();
             return;
         }
-        if (event.target.closest("[data-timer-cancel]")) {
-            stopCountdown();
-            if (timerModal) {
-                timerModal.hide();
-            }
+        if (event.target.closest("[data-timer-end]")) {
+            endTimer();
         }
     });
 
@@ -1608,6 +1753,7 @@ function initWorkoutRunner() {
     });
     hideRest();
     showCurrent();
+    rememberShowAll();
     paintShowAll();
 
     // The workout's clock, ticking while it is going on.

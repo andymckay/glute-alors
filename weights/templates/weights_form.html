@@ -68,20 +68,6 @@
             {% if workout %}
                 <hr class="my-4">
                 <div class="d-flex flex-wrap gap-2">
-                    {% if actual %}
-                        <a class="btn btn-primary" href="{% url 'weights:workout_perform' workout.pk %}">Continue workout</a>
-                        <form method="post" action="{% url 'weights:workout_complete' workout.pk %}" data-finish-workout>
-                            {% csrf_token %}
-                            <button type="submit" class="btn {% if workout.completed %}btn-outline-secondary{% else %}btn-success{% endif %}">
-                                <span data-finish-label>{% if workout.completed %}Reopen workout{% else %}Complete workout{% endif %}</span>
-                            </button>
-                        </form>
-                    {% else %}
-                        <form method="post" action="{% url 'weights:workout_do' workout.pk %}">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-primary">Do workout</button>
-                        </form>
-                    {% endif %}
                     <a href="{% url 'weights:workout_list' %}" class="btn btn-secondary">Cancel</a>
                     <form method="post" action="{% url 'weights:workout_duplicate' workout.pk %}">
                         {% csrf_token %}

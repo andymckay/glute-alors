@@ -69,6 +69,10 @@ class ExerciseJsonTests(SimpleTestCase):
         self.assertTrue(Exercise.get(61).is_timed)
         self.assertFalse(Exercise.get(1).is_timed)
 
+    def test_marks_only_unilateral_exercises_as_unilateral(self):
+        self.assertTrue(Exercise.get(61).is_unilateral)
+        self.assertFalse(Exercise.get(1).is_unilateral)
+
     def test_timed_ids_lists_every_timed_exercise(self):
         timed_ids = Exercise.timed_ids()
 
@@ -1083,7 +1087,7 @@ class DoWorkoutTests(TestCase):
         self.assertContains(response, 'name="sets0-0-completed"')
         self.assertContains(response, 'name="sets0-__prefix__-completed"')
         self.assertContains(response, "0 of 3 sets done")
-        self.assertNotContains(response, "Do workout")
+        self.assertNotContains(response, "Start workout")
 
     def test_the_rows_the_js_adds_offer_the_done_boxes_too(self):
         actual = self._do(self._plan())
@@ -1102,13 +1106,13 @@ class DoWorkoutTests(TestCase):
 
         self.assertNotContains(response, "-completed")
 
-    def test_plan_page_offers_to_start_the_workout(self):
+    def test_plan_page_does_not_offer_to_start_the_workout(self):
         plan = self._plan()
 
         response = self.client.get(reverse("weights:workout_edit", args=[plan.pk]))
 
-        self.assertContains(response, "Do workout")
-        self.assertContains(
+        self.assertNotContains(response, "Start workout")
+        self.assertNotContains(
             response, f'action="{reverse("weights:workout_do", args=[plan.pk])}"'
         )
         self.assertNotContains(response, "-completed")
@@ -1336,6 +1340,22 @@ class WorkoutStepTests(TestCase):
         self.assertTrue(step.timed)
         self.assertIsNone(step.rest_seconds)
 
+    def test_a_timed_unilateral_set_is_done_on_both_sides(self):
+        self._entry(61, 0, [{"duration_seconds": 90}])
+
+        step = self.workout.steps()[0]
+
+        self.assertTrue(step.unilateral)
+        self.assertEqual(step.sides, 2)
+
+    def test_a_timed_set_on_both_sides_at_once_has_one_side(self):
+        self._entry(62, 0, [{"duration_seconds": 90}])
+
+        step = self.workout.steps()[0]
+
+        self.assertFalse(step.unilateral)
+        self.assertEqual(step.sides, 1)
+
     def test_a_step_knows_when_it_is_done(self):
         self._entry(1, 0, [{"reps": 8, "completed": True}])
 
@@ -1414,6 +1434,32 @@ class PerformWorkoutTests(TestCase):
 
         self.assertEqual(response.context["current_index"], 1)
         self.assertEqual(response.context["done_count"], 1)
+
+    def test_the_page_can_open_on_a_chosen_exercise(self):
+        other = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=2, position=1
+        )
+        WeightsWorkoutSet.objects.create(entry=other, reps=10, position=0)
+
+        response = self.client.get(self.url() + f"?entry={other.pk}")
+
+        self.assertEqual(response.context["current_index"], 2)
+        self.assertEqual(
+            [group["current"] for group in response.context["step_groups"]],
+            [False, True],
+        )
+
+    def test_a_finished_chosen_exercise_hands_the_page_on(self):
+        other = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=2, position=1
+        )
+        WeightsWorkoutSet.objects.create(
+            entry=other, reps=10, position=0, completed=True
+        )
+
+        response = self.client.get(self.url() + f"?entry={other.pk}")
+
+        self.assertEqual(response.context["current_index"], 0)
 
     def test_a_superset_step_names_its_round(self):
         group = WeightsWorkoutSuperset.objects.create(
@@ -1504,7 +1550,8 @@ class PerformWorkoutTests(TestCase):
     def _on_show(self, response):
         """The exercises the page puts in front of the user."""
         return re.findall(
-            r'<div class="card perform-exercise mb-2" data-exercise-group="(\d+)"',
+            r'<div class="card perform-exercise(?![^"]*d-none)[^"]*"\s+'
+            r'data-exercise-group="(\d+)"',
             response.content.decode(),
         )
 
@@ -1675,13 +1722,69 @@ class PerformWorkoutTests(TestCase):
         # The set's own time is what the timer counts down.
         self.assertContains(response, f'data-timer="{timed.duration_seconds}"')
         self.assertContains(response, "data-timer-panel")
-        for label in ("Start", "Stop", "Cancel"):
+        self.assertContains(response, "data-timer-side")
+        for label in ("Start", "Pause", "End"):
             self.assertContains(response, f">{label}</button>")
+        self.assertNotContains(response, ">Stop</button>")
+        self.assertNotContains(response, ">Cancel</button>")
+
+    def test_a_timed_unilateral_set_is_counted_down_on_each_side(self):
+        entry = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=61, position=1
+        )
+        WeightsWorkoutSet.objects.create(
+            entry=entry, duration_seconds=90, position=0
+        )
+
+        response = self.client.get(self.url())
+
+        self.assertContains(response, 'data-sides="2"', count=1)
+
+    def test_a_timed_set_done_on_both_sides_at_once_has_one_countdown(self):
+        entry = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=62, position=1
+        )
+        WeightsWorkoutSet.objects.create(
+            entry=entry, duration_seconds=90, position=0
+        )
+
+        response = self.client.get(self.url())
+
+        self.assertContains(response, 'data-sides="1"')
+        self.assertNotContains(response, 'data-sides="2"')
 
     def test_a_set_counted_in_reps_has_no_timer_to_press(self):
         response = self.client.get(self.url())
 
         self.assertNotContains(response, 'data-timer="')
+        self.assertContains(response, ">Log set</button>")
+        self.assertNotContains(response, "Start timer")
+
+    def test_a_timed_exercise_offers_to_start_its_timer(self):
+        workout = WeightsWorkout.objects.create(
+            created_by=self.user, title="Core", is_actual=True
+        )
+        entry = WeightsWorkoutExercise.objects.create(
+            workout=workout, exercise_id=61, position=0
+        )
+        WeightsWorkoutSet.objects.create(
+            entry=entry, duration_seconds=90, position=0
+        )
+
+        response = self.client.get(
+            reverse("weights:workout_perform", args=[workout.pk])
+        )
+
+        self.assertTrue(response.context["current_timed"])
+        self.assertContains(response, ">Start timer</button>")
+        self.assertContains(response, 'data-timed="true"')
+        self.assertNotContains(response, "Log set")
+
+    def test_an_exercise_image_can_back_its_card_in_the_full_list(self):
+        response = self.client.get(self.url())
+
+        self.assertContains(response, "has-exercise-image")
+        self.assertContains(response, "--exercise-image")
 
     def test_logging_a_set_saves_the_values_typed_in(self):
         response = self.post(
@@ -1715,6 +1818,29 @@ class PerformWorkoutTests(TestCase):
         timed.refresh_from_db()
         self.assertTrue(timed.completed)
         self.assertEqual(timed.duration_seconds, 80)
+        self.assertIsNone(timed.reps)
+
+    def test_ending_a_timer_logs_its_elapsed_time_and_completes_the_set(self):
+        entry = WeightsWorkoutExercise.objects.create(
+            workout=self.workout, exercise_id=61, position=0
+        )
+        timed = WeightsWorkoutSet.objects.create(
+            entry=entry, duration_seconds=90, position=0
+        )
+        self.workout.exercises.exclude(pk=entry.pk).delete()
+
+        response = self.post(
+            "end",
+            model_set=timed,
+            ajax=True,
+            **{f"set-{timed.pk}-duration": "0:35"},
+        )
+
+        self.assertTrue(response.json()["ok"])
+        self.assertEqual(response.json()["set"], timed.pk)
+        timed.refresh_from_db()
+        self.assertTrue(timed.completed)
+        self.assertEqual(timed.duration_seconds, 35)
         self.assertIsNone(timed.reps)
 
     def test_logging_a_time_that_is_not_a_time_logs_nothing(self):
@@ -1809,7 +1935,7 @@ class PerformWorkoutTests(TestCase):
         self.assertContains(response, "1 of 2 sets done")
         self.assertContains(response, "0 of 1 sets done")
         self.assertEqual(content.count('class="card-footer"'), 2)
-        self.assertContains(response, "Update this exercise")
+        self.assertContains(response, "Work on this exercise")
 
     def test_the_full_list_says_what_was_done_for_an_exercise(self):
         WeightsWorkoutSet.objects.filter(pk=self.first.pk).update(completed=True)
@@ -1835,9 +1961,7 @@ class PerformWorkoutTests(TestCase):
 
         self.assertContains(response, "data-performed>1:30 @ 20 lb</p>")
 
-    def test_the_page_offers_a_way_back_to_the_calendar_when_an_exercise_is_done(
-        self,
-    ):
+    def test_a_finished_exercise_offers_the_whole_workout_again(self):
         self.workout.started_at = timezone.now() - timedelta(days=1)
         self.workout.save()
 
@@ -1846,8 +1970,15 @@ class PerformWorkoutTests(TestCase):
         day = self.workout.started_at.date().isoformat()
         self.assertContains(response, "Complete exercise")
         self.assertContains(
+            response,
+            '<button type="button" class="btn btn-success perform-complete-exercise">'
+            "Complete exercise</button>",
+        )
+        self.assertNotContains(
             response, f'href="{reverse("alors:calendar")}?d={day}"'
         )
+        self.workout.refresh_from_db()
+        self.assertFalse(self.workout.completed)
 
     def test_logging_can_be_aimed_at_one_exercise(self):
         other = WeightsWorkoutExercise.objects.create(
@@ -2098,6 +2229,21 @@ class WorkoutCompletionTests(TestCase):
         self.assertTrue(actual.completed)
         self.assertIsNotNone(actual.finished_at)
         self.assertGreaterEqual(actual.finished_at, before)
+
+    def test_adding_another_set_reopens_a_finished_workout(self):
+        actual = self._do()
+        last = self._sets(actual)[-1]
+        self._tick_everything_off(actual)
+        actual.refresh_from_db()
+        self.assertTrue(actual.completed)
+
+        response = self._perform(actual, "add", last)
+
+        self.assertEqual(response.status_code, 302)
+        actual.refresh_from_db()
+        self.assertFalse(actual.completed)
+        self.assertIsNone(actual.finished_at)
+        self.assertEqual(actual.set_count(), 3)
 
     def test_unticking_a_set_leaves_a_finished_workout_finished(self):
         actual = self._do()
@@ -2554,6 +2700,20 @@ class WeightsWorkoutViewTests(TestCase):
         self.assertRedirects(response, reverse("weights:workout_list"))
         self.assertTrue(WeightsWorkout.objects.filter(pk=workout.pk).exists())
 
+    def test_delete_of_a_started_workout_returns_to_its_day_on_the_calendar(self):
+        workout = WeightsWorkout.objects.create(
+            created_by=self.user, title="Leg day", is_actual=True
+        )
+        workout.mark_started()
+
+        response = self.client.post(
+            reverse("weights:workout_delete", args=[workout.pk])
+        )
+
+        day = workout.started_at.date().isoformat()
+        self.assertEqual(response.url, f"/calendar/?d={day}#date-{day}")
+        self.assertFalse(WeightsWorkout.objects.exists())
+
     def test_duplicate_copies_the_whole_workout(self):
         workout = WeightsWorkout.objects.create(created_by=self.user, title="Leg day")
         first = WeightsWorkoutExercise.objects.create(
@@ -2684,3 +2844,82 @@ class WeightsWorkoutViewTests(TestCase):
         response = self.client.get(reverse("weights:workout_list"))
 
         self.assertContains(response, "8 reps @ 50.00 kg")
+
+
+class WeightsVisibilityTests(TestCase):
+    """Weights workouts follow the same sharing rules as the calendar."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.viewer = User.objects.create_user(username="viewer", password="secret")
+        self.owner = User.objects.create_user(username="owner", password="secret")
+        self.stranger = User.objects.create_user(
+            username="stranger", password="secret"
+        )
+        UserProfile.objects.create(user=self.viewer)
+        owner_profile = UserProfile.objects.create(user=self.owner)
+        UserProfile.objects.create(user=self.stranger)
+        owner_profile.visibility.add(self.viewer)
+        self.client.force_login(self.viewer)
+
+        self.viewer_plan = WeightsWorkout.objects.create(
+            created_by=self.viewer, title="Viewer plan"
+        )
+        self.owner_plan = WeightsWorkout.objects.create(
+            created_by=self.owner, title="Owner plan"
+        )
+        self.stranger_plan = WeightsWorkout.objects.create(
+            created_by=self.stranger, title="Stranger plan"
+        )
+        self.owner_actual = WeightsWorkout.objects.create(
+            created_by=self.owner, title="Owner actual", is_actual=True
+        )
+
+    def test_list_shows_own_and_shared_plans_only(self):
+        response = self.client.get(reverse("weights:workout_list"))
+
+        content = response.content.decode().lower()
+        self.assertIn("viewer plan", content)
+        self.assertIn("owner plan", content)
+        self.assertNotIn("stranger plan", content)
+        self.assertNotIn("owner actual", content)
+
+    def test_can_edit_a_shared_workout_but_not_an_unshared_one(self):
+        response = self.client.get(
+            reverse("weights:workout_edit", args=[self.owner_plan.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get(
+            reverse("weights:workout_edit", args=[self.stranger_plan.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_can_perform_a_shared_workout_but_not_an_unshared_one(self):
+        response = self.client.get(
+            reverse("weights:workout_perform", args=[self.owner_actual.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+        stranger_actual = WeightsWorkout.objects.create(
+            created_by=self.stranger, title="Stranger actual", is_actual=True
+        )
+        response = self.client.get(
+            reverse("weights:workout_perform", args=[stranger_actual.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_can_delete_a_shared_workout_but_not_an_unshared_one(self):
+        response = self.client.post(
+            reverse("weights:workout_delete", args=[self.owner_plan.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(WeightsWorkout.objects.filter(pk=self.owner_plan.pk).exists())
+
+        response = self.client.post(
+            reverse("weights:workout_delete", args=[self.stranger_plan.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(
+            WeightsWorkout.objects.filter(pk=self.stranger_plan.pk).exists()
+        )

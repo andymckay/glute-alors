@@ -211,6 +211,11 @@ class Exercise:
         return bool(self.attributes.get("is_timed"))
 
     @property
+    def is_unilateral(self):
+        """Whether this exercise is done one side at a time."""
+        return bool(self.attributes.get("is_unilateral"))
+
+    @property
     def instructions(self):
         """How to do the exercise, from the bundled instructions."""
         return self._metadata().get("instructions")
@@ -282,12 +287,14 @@ class WorkoutStep:
         round=None,
         rounds=None,
         order=None,
+        unilateral=False,
     ):
         self.entry = entry
         self.set = model_set
         self.number = number
         self.of = of
         self.timed = timed
+        self.unilateral = unilateral
         self.rest_seconds = rest_seconds
         self.round = round
         self.rounds = rounds
@@ -308,6 +315,11 @@ class WorkoutStep:
     def rest(self):
         """The rest to take after this step as ``m:ss``, or ``None``."""
         return format_seconds(self.rest_seconds)
+
+    @property
+    def sides(self):
+        """How many sides the set is timed over: two when done one at a time."""
+        return 2 if self.timed and self.unilateral else 1
 
     @property
     def done(self):
@@ -416,6 +428,9 @@ class WeightsWorkout(CreatedByModel):
                             number=index + 1,
                             of=of,
                             timed=entry.exercise.is_timed if entry.exercise else False,
+                            unilateral=(
+                                entry.exercise.is_unilateral if entry.exercise else False
+                            ),
                             # Only the last set of the round is followed by a rest.
                             rest_seconds=(
                                 superset.rest_seconds
@@ -456,6 +471,7 @@ class WeightsWorkout(CreatedByModel):
                 number=number,
                 of=len(model_sets),
                 timed=entry.exercise.is_timed if entry.exercise else False,
+                unilateral=entry.exercise.is_unilateral if entry.exercise else False,
                 rest_seconds=model_set.rest_seconds,
             )
             for number, model_set in enumerate(model_sets, start=1)

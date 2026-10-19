@@ -7,13 +7,25 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
-from ..models import Comment, Notification, PlannedWorkout, Workout, WorkoutType
+from ..models import (
+    Comment,
+    Notification,
+    PlannedWorkout,
+    UserProfile,
+    Workout,
+    WorkoutType,
+)
 
 
 class NotificationTests(TestCase):
     def setUp(self):
         self.athlete = User.objects.create_user(username="runner", password="secret123")
         self.coach = User.objects.create_user(username="coach", password="secret123")
+
+        athlete_profile = UserProfile.objects.create(user=self.athlete)
+        coach_profile = UserProfile.objects.create(user=self.coach)
+        athlete_profile.visibility.add(self.coach)
+        coach_profile.visibility.add(self.athlete)
 
     def create_planned(self, **overrides):
         values = {
@@ -50,6 +62,17 @@ class NotificationTests(TestCase):
         self.assertEqual(notification.action, "added")
         self.assertEqual(notification.content_object, planned)
         self.assertEqual(notification.actor, self.athlete)
+
+    def test_only_users_in_the_visibility_list_are_notified(self):
+        outsider = User.objects.create_user(username="outsider", password="secret")
+        self.create_planned()
+        self.assertEqual(self.notifications_for(self.coach).count(), 1)
+        self.assertEqual(self.notifications_for(outsider).count(), 0)
+
+    def test_no_notification_when_the_visibility_list_is_empty(self):
+        self.athlete.profile.visibility.clear()
+        self.create_planned()
+        self.assertEqual(Notification.objects.count(), 0)
 
     def test_editing_planned_workout_notifies_others(self):
         planned = self.create_planned()
@@ -176,9 +199,6 @@ class NotificationTests(TestCase):
     def test_workout_edit_view_claims_owner_and_notifies_others(self):
         self.client.force_login(self.athlete)
         workout = self.create_workout(created_by=None)
-        # Without an owner the creation notified everyone; have the coach read
-        # it so the edit triggers a fresh notification for them.
-        self.notifications_for(self.coach).update(read=True)
         response = self.client.post(
             reverse("alors:workout_edit", args=[workout.pk]),
             {"notes": "Updated via the form."},
@@ -194,11 +214,13 @@ class NotificationTests(TestCase):
         self.assertEqual(notification.actor, self.athlete)
 
     def test_dedupe_is_checked_per_recipient(self):
-        workout = self.create_workout(created_by=None)
-        # With no owner set, everyone is notified on creation.
+        other = User.objects.create_user(username="other", password="secret")
+        self.athlete.profile.visibility.add(other)
+        workout = self.create_workout()
+        # The coach and the other visible user are both notified on creation.
         self.assertEqual(
             Notification.objects.filter(
-                recipient__in=[self.athlete, self.coach], read=False
+                recipient__in=[self.coach, other], read=False
             ).count(),
             2,
         )
@@ -207,18 +229,26 @@ class NotificationTests(TestCase):
         workout._notification_actor = self.athlete
         workout.notes = "Updated."
         workout.save()
-        # The athlete is the actor (so excluded) and keeps their unread one;
-        # the coach read theirs, so they get a fresh notification.
-        self.assertEqual(self.notifications_for(self.athlete).count(), 1)
+        # The athlete is the actor (so excluded); the coach read theirs, so
+        # they get a fresh notification, while the other user's unread one is
+        # left alone.
+        self.assertEqual(self.notifications_for(self.athlete).count(), 0)
         coach_unread = self.notifications_for(self.coach).filter(read=False)
         self.assertEqual(coach_unread.count(), 1)
         self.assertEqual(coach_unread.first().action, "edited")
+        other_unread = self.notifications_for(other).filter(read=False)
+        self.assertEqual(other_unread.count(), 1)
+        self.assertEqual(other_unread.first().action, "added")
 
 
 class NotificationPageTests(TestCase):
     def setUp(self):
         self.athlete = User.objects.create_user(username="runner", password="secret123")
         self.coach = User.objects.create_user(username="coach", password="secret123")
+        athlete_profile = UserProfile.objects.create(user=self.athlete)
+        coach_profile = UserProfile.objects.create(user=self.coach)
+        athlete_profile.visibility.add(self.coach)
+        coach_profile.visibility.add(self.athlete)
         self.client.force_login(self.athlete)
         self.planned = PlannedWorkout.objects.create(
             workout_type=WorkoutType.RUN,

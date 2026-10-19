@@ -4,6 +4,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from alors.models import UserProfile
+
 from .models import Health
 from .views import PAGE_SIZE
 
@@ -53,6 +55,64 @@ class HealthModelTests(TestCase):
         newer = Health.objects.create(created_by=self.user, weight="178.0")
 
         self.assertEqual(list(Health.objects.all()), [newer, older])
+
+
+class HealthVisibilityTests(TestCase):
+    """Health entries follow the same sharing rules as the calendar."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.viewer = User.objects.create_user(username="viewer", password="secret")
+        self.owner = User.objects.create_user(username="owner", password="secret")
+        self.stranger = User.objects.create_user(
+            username="stranger", password="secret"
+        )
+        UserProfile.objects.create(user=self.viewer)
+        owner_profile = UserProfile.objects.create(user=self.owner)
+        UserProfile.objects.create(user=self.stranger)
+        owner_profile.visibility.add(self.viewer)
+        self.client.force_login(self.viewer)
+
+        self.viewer_record = Health.objects.create(
+            created_by=self.viewer, weight="170.0"
+        )
+        self.owner_record = Health.objects.create(
+            created_by=self.owner, weight="180.0"
+        )
+        self.stranger_record = Health.objects.create(
+            created_by=self.stranger, weight="190.0"
+        )
+
+    def test_list_shows_own_and_shared_records_only(self):
+        response = self.client.get(reverse("health:health_list"))
+
+        self.assertContains(response, "170.0 lb")
+        self.assertContains(response, "180.0 lb")
+        self.assertNotContains(response, "190.0 lb")
+
+    def test_can_edit_a_shared_record_but_not_an_unshared_one(self):
+        response = self.client.get(
+            reverse("health:health_edit", args=[self.owner_record.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get(
+            reverse("health:health_edit", args=[self.stranger_record.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_can_delete_a_shared_record_but_not_an_unshared_one(self):
+        response = self.client.post(
+            reverse("health:health_delete", args=[self.owner_record.pk])
+        )
+        self.assertRedirects(response, reverse("health:health_list"))
+        self.assertFalse(Health.objects.filter(pk=self.owner_record.pk).exists())
+
+        response = self.client.post(
+            reverse("health:health_delete", args=[self.stranger_record.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Health.objects.filter(pk=self.stranger_record.pk).exists())
 
 
 class HealthViewTests(TestCase):

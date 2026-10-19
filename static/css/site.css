@@ -312,6 +312,15 @@ body.dragging-superset * {
   display: none;
 }
 
+
+.perform.showing-all .has-exercise-image {
+  background-image:
+    var(--exercise-image);
+  background-position: right;
+  background-size: auto 10em;
+  background-repeat: no-repeat;
+}
+
 .link-card-hack {
   color: var(--bs-secondary-color) !important;
 }

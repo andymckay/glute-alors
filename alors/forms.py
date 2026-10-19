@@ -1,4 +1,5 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from django.db.models.utils import get_blank_choice_label
 from django.utils import timezone
 from .models import (
@@ -350,7 +351,7 @@ class CommentForm(forms.ModelForm):
 
 
 class ProfileForm(forms.ModelForm):
-    """Edit a user's role, timezone, daily email and email address.
+    """Edit a user's timezone, units, daily email and email address.
 
     The email address itself lives on the user, not the profile.
     """
@@ -369,9 +370,11 @@ class ProfileForm(forms.ModelForm):
 
     class Meta:
         model = UserProfile
-        fields = ["avatar", "role", "timezone", "units", "send_daily_email"]
+        fields = ["avatar", "visibility", "timezone", "units", "send_daily_email"]
         widgets = {
-            "role": forms.Select(attrs={"class": "form-select"}),
+            "visibility": forms.SelectMultiple(
+                attrs={"class": "form-select", "size": 8}
+            ),
             "units": forms.Select(attrs={"class": "form-select"}),
             "send_daily_email": forms.CheckboxInput(
                 attrs={"class": "form-check-input"}
@@ -384,6 +387,14 @@ class ProfileForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.user:
             self.fields["email"].initial = self.user.email
+            # Everyone else who could be shown the profile; superusers already
+            # see everything and have no need of it.
+            self.fields["visibility"].queryset = (
+                get_user_model()
+                .objects.filter(is_superuser=False)
+                .exclude(pk=self.user.pk)
+                .order_by("username")
+            )
 
     def save(self, commit=True):
         profile = super().save(commit=commit)

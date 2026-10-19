@@ -12,10 +12,14 @@
                 </div>
             </div>
         </div>
-        {% if not workout.completed %}
-            <div class="card-footer">
-                <a class="badge bg-warning link-underline link-underline-opacity-0" href="{% url 'weights:workout_perform' workout.pk %}#all">Not completed</a>
-            </div>
-        {% endif %}
     </a>
+    {% if not workout.completed %}
+        <div class="card-footer">
+            <a class="badge bg-warning link-underline link-underline-opacity-0" href="{% url 'weights:workout_perform' workout.pk %}#all">Resume</a>
+            <form method="post" action="{% url 'weights:workout_delete' workout.pk %}" class="d-inline js-busy-form" data-confirm="Delete this weights workout?">
+                {% csrf_token %}
+                <button type="submit" class="badge bg-danger border-0 link-underline link-underline-opacity-0">Delete</button>
+            </form>
+        </div>
+    {% endif %}
 </div>

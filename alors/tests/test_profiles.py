@@ -21,6 +21,14 @@ class UserProfileModelTests(TestCase):
         self.assertEqual(profile.role, "coach")
         self.assertEqual(profile.get_role_display(), "Coach")
 
+    def test_visibility_holds_the_users_who_can_see_the_profile(self):
+        other = User.objects.create_user(username="other", password="secret")
+        profile = UserProfile.objects.create(user=self.user)
+
+        profile.visibility.add(other)
+
+        self.assertEqual(list(profile.visibility.all()), [other])
+
     def test_units_defaults_to_imperial(self):
         profile = UserProfile.objects.create(user=self.user)
         self.assertEqual(profile.units, UserProfile.WeightUnit.IMPERIAL)
@@ -70,14 +78,45 @@ class ProfileViewTests(TestCase):
         )
         self.client.force_login(self.user)
 
-    def test_get_creates_profile_and_shows_email_role_and_timezone(self):
+    def test_get_creates_profile_and_shows_email_and_timezone(self):
         response = self.client.get(reverse("alors:profile"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Email address")
         self.assertContains(response, "runner@example.com")
-        self.assertContains(response, "Role")
+        self.assertNotContains(response, "Role")
         self.assertContains(response, "Timezone")
         self.assertTrue(UserProfile.objects.filter(user=self.user).exists())
+
+    def test_profile_page_lists_other_users_for_visibility(self):
+        other = User.objects.create_user(username="other", password="secret")
+        admin = User.objects.create_superuser(
+            username="admin", email="admin@example.com", password="secret"
+        )
+
+        response = self.client.get(reverse("alors:profile"))
+
+        options = response.context["form"].fields["visibility"].queryset
+        self.assertIn(other, options)
+        self.assertNotIn(self.user, options)
+        self.assertNotIn(admin, options)
+        self.assertContains(response, 'name="visibility"')
+        self.assertContains(response, "The users who can see your profile.")
+
+    def test_post_updates_visibility(self):
+        other = User.objects.create_user(username="other", password="secret")
+
+        response = self.client.post(
+            reverse("alors:profile"),
+            {
+                "units": "imperial",
+                "timezone": "UTC",
+                "email": "runner@example.com",
+                "visibility": [other.pk],
+            },
+        )
+
+        self.assertRedirects(response, reverse("alors:profile"))
+        self.assertEqual(list(self.user.profile.visibility.all()), [other])
 
     def test_profile_page_shows_the_daily_email_unticked(self):
         response = self.client.get(reverse("alors:profile"))
@@ -86,7 +125,6 @@ class ProfileViewTests(TestCase):
 
     def test_post_can_turn_the_daily_email_on_and_off_again(self):
         data = {
-            "role": "athlete",
             "units": "imperial",
             "timezone": "UTC",
             "email": "runner@example.com",
@@ -101,11 +139,10 @@ class ProfileViewTests(TestCase):
         self.user.profile.refresh_from_db()
         self.assertFalse(self.user.profile.send_daily_email)
 
-    def test_post_updates_role_timezone_and_email(self):
+    def test_post_updates_timezone_and_email(self):
         response = self.client.post(
             reverse("alors:profile"),
             {
-                "role": "coach",
                 "units": "imperial",
                 "timezone": "Europe/London",
                 "email": "coach@example.com",
@@ -113,7 +150,6 @@ class ProfileViewTests(TestCase):
         )
         self.assertRedirects(response, reverse("alors:profile"))
         profile = self.user.profile
-        self.assertEqual(profile.role, "coach")
         self.assertEqual(profile.timezone, "Europe/London")
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, "coach@example.com")
@@ -128,7 +164,6 @@ class ProfileViewTests(TestCase):
         response = self.client.post(
             reverse("alors:profile"),
             {
-                "role": "athlete",
                 "units": "metric",
                 "timezone": "UTC",
                 "email": "runner@example.com",
@@ -142,7 +177,6 @@ class ProfileViewTests(TestCase):
         response = self.client.post(
             reverse("alors:profile"),
             {
-                "role": "athlete",
                 "units": "imperial",
                 "timezone": "UTC",
                 "email": "not-an-email",
@@ -166,7 +200,6 @@ class ProfileViewTests(TestCase):
                 response = self.client.post(
                     reverse("alors:profile"),
                     {
-                        "role": "athlete",
                         "units": "imperial",
                         "timezone": "America/New_York",
                         "email": "runner@example.com",

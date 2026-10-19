@@ -117,7 +117,8 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(WeeklySummary)
 class WeeklySummaryAdmin(admin.ModelAdmin):
-    list_display = ("date", "summary")
+    list_display = ("date", "created_by", "summary")
+    list_filter = ("created_by",)
     date_hierarchy = "date"
 
 

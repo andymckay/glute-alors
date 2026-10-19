@@ -16,6 +16,7 @@ from .forms import (
     parse_seconds,
 )
 from alors.models import UserProfile
+from alors.utils import visible_users
 
 from .models import (
     Exercise,
@@ -282,7 +283,9 @@ def exercise_detail(request, exercise_id):
 
 @login_required
 def workout_list(request):
-    workouts = WeightsWorkout.objects.filter(is_actual=False).prefetch_related(
+    workouts = WeightsWorkout.objects.filter(
+        created_by__in=visible_users(request.user), is_actual=False
+    ).prefetch_related(
         "exercises__sets", "exercises__superset"
     )
     return render(
@@ -338,7 +341,9 @@ def workout_add(request):
 
 @login_required
 def workout_edit(request, pk):
-    workout = get_object_or_404(WeightsWorkout, pk=pk)
+    workout = get_object_or_404(
+        WeightsWorkout, pk=pk, created_by__in=visible_users(request.user)
+    )
     supersets = {superset.letter: superset for superset in workout.supersets.all()}
     data = request.POST if request.method == "POST" else None
     if data is not None:
@@ -386,7 +391,9 @@ def workout_edit(request, pk):
 @login_required
 def workout_do(request, pk):
     """Start a planned workout, leaving the plan itself alone."""
-    workout = get_object_or_404(WeightsWorkout, pk=pk)
+    workout = get_object_or_404(
+        WeightsWorkout, pk=pk, created_by__in=visible_users(request.user)
+    )
     if request.method == "POST":
         actual = _copy_workout(
             workout,
@@ -441,7 +448,9 @@ def workout_perform(request, pk):
     plain form; with JavaScript the ticks are sent in the background and the
     rest is counted down.
     """
-    workout = get_object_or_404(WeightsWorkout, pk=pk)
+    workout = get_object_or_404(
+        WeightsWorkout, pk=pk, created_by__in=visible_users(request.user)
+    )
     if not workout.is_actual:
         # A plan is a blueprint; doing one starts an actual workout.
         return redirect("weights:workout_edit", workout.pk)
@@ -452,10 +461,26 @@ def workout_perform(request, pk):
         return _perform_action(request, workout)
 
     steps = workout.steps()
-    # The set to open on: the first one still to do.
-    current_index = next(
-        (index for index, step in enumerate(steps) if not step.done), 0
-    )
+    # The set to open on: the one the page asks for, such as the exercise a set
+    # was just added to, or else the first one still to do.
+    requested_entry = request.GET.get("entry")
+    current_index = None
+    if requested_entry:
+        matching = [
+            (index, step)
+            for index, step in enumerate(steps)
+            if str(step.entry.pk) == requested_entry
+        ]
+        if matching:
+            # Keep the requested exercise on show while it still has a set to
+            # do; once it is finished, the workout moves on as usual.
+            current_index = next(
+                (index for index, step in matching if not step.done), None
+            )
+    if current_index is None:
+        current_index = next(
+            (index for index, step in enumerate(steps) if not step.done), 0
+        )
     current_entry_pk = steps[current_index].entry.pk if steps else None
     unit = _weight_unit_abbr(request)
     return render(
@@ -481,6 +506,7 @@ def workout_perform(request, pk):
             ],
             "current_index": current_index,
             "current_set_pk": steps[current_index].set.pk if steps else None,
+            "current_timed": steps[current_index].timed if steps else False,
             "done_count": sum(1 for step in steps if step.done),
             "total_count": len(steps),
             "weight_unit_abbr": unit,
@@ -546,9 +572,10 @@ def _perform_action(request, workout):
         )
         if form.is_valid():
             form.save()
-    elif action == "log":
+    elif action in ("log", "end"):
         if model_set is not None:
-            # What the page entered for this set is what gets logged.
+            # What the page entered for this set is what gets logged. Ending a
+            # timer is the same, with the time it ran put on the set first.
             form = WeightsWorkoutSetForm(
                 _logged_values(request, model_set),
                 instance=model_set,
@@ -569,6 +596,10 @@ def _perform_action(request, workout):
             added.entry = model_set.entry
             added.position = _next_set_position(model_set.entry)
             added.save()
+            # The new set is work still to do, so a finished workout is open
+            # again until it has been ticked off.
+            if workout.completed:
+                workout.reopen()
     elif model_set is not None:
         model_set.completed = action == "complete"
         model_set.save(update_fields=["completed"])
@@ -598,7 +629,9 @@ def _perform_action(request, workout):
 @login_required
 def workout_complete(request, pk):
     """Finish an actual workout by hand, or reopen one that was finished."""
-    workout = get_object_or_404(WeightsWorkout, pk=pk)
+    workout = get_object_or_404(
+        WeightsWorkout, pk=pk, created_by__in=visible_users(request.user)
+    )
     if request.method == "POST" and workout.is_actual:
         if workout.completed:
             workout.reopen()
@@ -620,7 +653,9 @@ def workout_complete(request, pk):
 
 @login_required
 def workout_duplicate(request, pk):
-    workout = get_object_or_404(WeightsWorkout, pk=pk)
+    workout = get_object_or_404(
+        WeightsWorkout, pk=pk, created_by__in=visible_users(request.user)
+    )
     if request.method == "POST":
         duplicate = _copy_workout(
             workout,
@@ -634,8 +669,15 @@ def workout_duplicate(request, pk):
 
 @login_required
 def workout_delete(request, pk):
-    workout = get_object_or_404(WeightsWorkout, pk=pk)
+    workout = get_object_or_404(
+        WeightsWorkout, pk=pk, created_by__in=visible_users(request.user)
+    )
+    # The calendar shows an actual workout on the day it was started; a plan
+    # that has never been started has no day to go back to.
+    workout_date = workout.get_date_as_str() if workout.started_at else None
     if request.method == "POST":
         workout.delete()
         messages.add_message(request, messages.SUCCESS, "🗑️ Deleted weights workout.")
+    if workout_date:
+        return redirect(f"{reverse('alors:calendar')}?d={workout_date}#date-{workout_date}")
     return redirect("weights:workout_list")

@@ -3,9 +3,8 @@
 import datetime
 from decimal import Decimal
 
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import F, Q
+from django.db.models import F
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.utils.dateparse import parse_date
 from .models import (
@@ -13,12 +12,11 @@ from .models import (
     Notification,
     PlannedWorkout,
     Status,
+    UserProfile,
     WeeklySummary,
     Workout,
     WorkoutType,
 )
-
-User = get_user_model()
 
 
 def _as_date(value):
@@ -82,8 +80,8 @@ def _effort_feeling(queryset):
     ]
 
 
-def refresh_weekly_summary(sunday):
-    """Recompute and store the weekly summary for the week ending on ``sunday``.
+def refresh_weekly_summary(sunday, user_id):
+    """Recompute one user's summary for the week ending on ``sunday``.
 
     Planned and completed workouts are each aggregated by workout type:
 
@@ -92,20 +90,24 @@ def refresh_weekly_summary(sunday):
        "effort_feeling": [{"workout_type": "run", "effort": 6,
                            "feeling": 4}]}``
     """
+    if user_id is None:
+        return
     week_start = sunday - datetime.timedelta(days=6)
 
     planned = PlannedWorkout.objects.filter(
+        created_by_id=user_id,
         workout_date__gte=week_start,
         workout_date__lte=sunday,
     )
     completed = Workout.objects.filter(
+        created_by_id=user_id,
         workout_date_for_timezone__date__gte=week_start,
         workout_date_for_timezone__date__lte=sunday,
     )
 
     if not planned.exists() and not completed.exists():
-        # Nothing remains for that week, so drop the summary.
-        WeeklySummary.objects.filter(date=sunday).delete()
+        # Nothing remains for that week, so drop this user's summary.
+        WeeklySummary.objects.filter(date=sunday, created_by_id=user_id).delete()
         return
     summary = {
         "planned_workout": _by_type(planned),
@@ -114,26 +116,29 @@ def refresh_weekly_summary(sunday):
     }
     WeeklySummary.objects.update_or_create(
         date=sunday,
+        created_by_id=user_id,
         defaults={"summary": summary},
     )
 
 
 def _remember_original_date(sender, instance, **kwargs):
-    """Stash the previous date so moved workouts can refresh both weeks."""
+    """Stash the previous date and owner so edits refresh both summaries."""
     instance._original_workout_date = None
+    instance._original_created_by_id = None
     if instance.pk is not None:
         value = "workout_date" if instance.is_planned else "workout_date_for_timezone"
         original = (
             type(instance)
             .objects.filter(pk=instance.pk)
-            .values_list(value, flat=True)
+            .values_list(value, "created_by_id")
             .first()
         )
-        instance._original_workout_date = original
+        if original is not None:
+            instance._original_workout_date, instance._original_created_by_id = original
 
 
 def _sync_weekly_summary(sender, instance, **kwargs):
-    """Create or update weekly summaries for the workout's week(s)."""
+    """Create or update the summaries for the workout's owner and week(s)."""
     value = "workout_date" if instance.is_planned else "workout_date_for_timezone"
     workout_date = getattr(instance, value, None) or instance.workout_date
     sundays = {_sunday_for(workout_date)}
@@ -141,16 +146,22 @@ def _sync_weekly_summary(sender, instance, **kwargs):
     if original is not None:
         sundays.add(_sunday_for(original))
 
+    user_ids = {instance.created_by_id}
+    original_user_id = getattr(instance, "_original_created_by_id", None)
+    if original_user_id is not None:
+        user_ids.add(original_user_id)
+
     for sunday in sundays:
-        refresh_weekly_summary(sunday)
+        for user_id in user_ids:
+            refresh_weekly_summary(sunday, user_id)
 
 
 def _sync_weekly_summary_on_delete(sender, instance, **kwargs):
-    """Refresh the weekly summary after a workout is deleted."""
+    """Refresh the owner's weekly summary after a workout is deleted."""
     value = "workout_date" if instance.is_planned else "workout_date_for_timezone"
     workout_date = getattr(instance, value, None) or instance.workout_date
     if workout_date is not None:
-        refresh_weekly_summary(_sunday_for(workout_date))
+        refresh_weekly_summary(_sunday_for(workout_date), instance.created_by_id)
 
 
 for _model in (PlannedWorkout, Workout):
@@ -172,7 +183,11 @@ for _model in (PlannedWorkout, Workout):
 
 
 def _notify_on_save(sender, instance, created, **kwargs):
-    """Notify every user except the actor when a linked model is added/edited.
+    """Notify the users the actor has shared their profile with.
+
+    Only the actor's visibility list receives notifications, and the actor is
+    never notified about their own change. With no actor or an empty list,
+    nobody is notified.
 
     A user only ever has one unread notification per object: if they already
     have an unread notification about ``instance``, no further notification is
@@ -181,14 +196,13 @@ def _notify_on_save(sender, instance, created, **kwargs):
     actor = getattr(instance, "_notification_actor", None)
     if actor is None:
         actor = getattr(instance, "created_by", None)
+    if actor is None:
+        return
+    try:
+        recipients = actor.profile.visibility.exclude(pk=actor.pk)
+    except UserProfile.DoesNotExist:
+        return
     action = Notification.Action.ADDED if created else Notification.Action.EDITED
-
-    # Also exclude super users.
-    recipients = (
-        User.objects.exclude(Q(pk=actor.pk) | Q(is_superuser=True))
-        if actor
-        else User.objects.all()
-    )
 
     # Drop any recipient that already has an unread notification about this
     # object, so people are not spammed with duplicates for the same thing.

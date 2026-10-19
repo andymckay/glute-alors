@@ -37,6 +37,7 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'alors:calendar' %}#today">Calendar</a>
                         </li>
+                        <li><a class="nav-link" href="{% url 'weights:workout_list' %}">Weights</a></li>
                         <li><a class="nav-link" href="{% url 'health:health_list' %}">Health</a></li>
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'alors:notifications' %}">Notifications
@@ -91,7 +92,7 @@
         </main>
         <footer class="bg-tertiary pt-4">
             <div class="container-lg">
-                {% if not user.is_anonymous %}<p class="text-muted">Your timezone: <b id="timezone">{{ user.profile.timezone }}</b></p>{% endif %}
+                {% if not user.is_anonymous %}<p class="text-muted">Your timezone: <b id="timezone">{% if not user.profile %}Not set{% else %}{{ user.profile.timezone }}{% endif %}</b></p>{% endif %}
                 <p class="text-muted">Subscribe to planned workouts <a class="text-muted" href="{% url 'alors:planned_webcal' %}">in your calendar</a>.</p>
                 <p class="text-muted">Glute Alors is an <a href="https://github.com/andymckay/glute-alors">open source project</a> made with ❤️ by <a href="https://clearwind.ca">Andy McKay</a>.</p>
             </div>

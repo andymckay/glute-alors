@@ -36,7 +36,7 @@ from decimal import Decimal
 from .validators import validate_date
 from .ical import render_calendar
 from itertools import chain
-from .utils import dateList, combineDateLists
+from .utils import combineDateLists, dateList, visible_users
 from .emails import email_as_text
 import json
 
@@ -89,12 +89,14 @@ def calendar(request):
     template = "weekly.html" if form.cleaned_data["r"] == "w" else "monthly.html"
     dates = form.cleaned_data["start_end_dates"]
     list_dates = form.cleaned_data["list_dates"]
+    visible = visible_users(request.user)
 
     # Note: use __lt to ensure we get runs up to midnight the last day.
     # ``workout_data`` is deferred: it can be several megabytes per workout and
     # the calendar cards never read it.
     planned_workouts = dateList(
         PlannedWorkout.objects.filter(
+            created_by__in=visible,
             workout_date__gte=dates["start"],
             workout_date__lt=dates["next"],
         ).order_by("workout_date")
@@ -102,6 +104,7 @@ def calendar(request):
 
     actual_workouts = dateList(
         Workout.objects.filter(
+            created_by__in=visible,
             workout_date_for_timezone__gte=dates["start"],
             workout_date_for_timezone__lt=dates["next"],
         )
@@ -111,19 +114,24 @@ def calendar(request):
 
     summaries = dateList(
         WeeklySummary.objects.filter(
-            date__gte=dates["start"], date__lte=dates["next"]
-        ).order_by("date")
+            created_by__in=visible,
+            date__gte=dates["start"],
+            date__lte=dates["next"],
+        ).order_by("date", "created_by__username")
     )
 
     weight_workouts = dateList(
         WeightsWorkout.objects.filter(
-            is_actual=True, 
-            started_at__gte=dates["start"], 
-            started_at__lte=dates["next"]).order_by("started_at")
+            created_by__in=visible,
+            is_actual=True,
+            started_at__gte=dates["start"],
+            started_at__lte=dates["next"],
+        ).order_by("started_at")
     )
 
     labels = dateList(
         Label.objects.filter(
+            created_by__in=visible,
             end_date__gte=dates["start"],
             start_date__lte=dates["next"],
         ).order_by("title")
@@ -165,7 +173,9 @@ def calendar(request):
     # once so a page full of modals does not query for each form.
     saved_workout_choices = []
     saved_workout_texts = {}
-    for pk, title, text in SavedWorkout.objects.values_list("pk", "title", "text"):
+    for pk, title, text in SavedWorkout.objects.filter(
+        created_by__in=visible
+    ).values_list("pk", "title", "text"):
         saved_workout_choices.append((str(pk), title))
         saved_workout_texts[str(pk)] = text
 
@@ -211,13 +221,13 @@ def calendar(request):
     return response
 
 
-def _week_summary(date_value):
-    """Return the stored WeeklySummary for the week containing ``date_value``."""
+def _week_summary(date_value, user):
+    """Return ``user``'s summary for the week containing ``date_value``."""
 
     if date_value is None:
         return None
     sunday = date_value + timedelta(days=6 - date_value.weekday())
-    return WeeklySummary.objects.filter(date=sunday).first()
+    return WeeklySummary.objects.filter(date=sunday, created_by=user).first()
 
 
 @login_required
@@ -228,9 +238,11 @@ def add_planned(request):
         else request.POST.get("workout_date")
     )
     date_value = parse_date(date) if isinstance(date, str) else None
-    this_week_summary = _week_summary(date_value)
+    this_week_summary = _week_summary(date_value, request.user)
     last_week_summary = (
-        _week_summary(date_value - timedelta(days=7)) if date_value else None
+        _week_summary(date_value - timedelta(days=7), request.user)
+        if date_value
+        else None
     )
     if request.method == "POST":
         form = PlannedWorkoutForm(request.POST)
@@ -267,7 +279,9 @@ def planned_weekly_summary(request):
         request,
         "summary_card.html",
         {
-            "summary": _week_summary(parse_date(request.GET.get("date"))),
+            "summary": _week_summary(
+                parse_date(request.GET.get("date")), request.user
+            ),
             "planned": True,
         },
     )
@@ -294,7 +308,7 @@ def edit_planned(request, pk):
     else:
         form = PlannedWorkoutForm(instance=workout)
 
-    summary = _week_summary(workout.workout_date)
+    summary = _week_summary(workout.workout_date, request.user)
     return render(
         request,
         "planned_add.html",
@@ -763,7 +777,7 @@ def label_delete(request, pk):
 
 @login_required
 def edit_profile(request):
-    """Let the logged-in user edit their own role and email address."""
+    """Let the logged-in user edit their profile, visibility and email address."""
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     if request.method == "POST":
         form = ProfileForm(
@@ -782,7 +796,7 @@ def edit_profile(request):
         {
             "form": form,
             "page_title": "Your profile",
-            "page_intro": "Choose your role and timezone, and keep your email address up to date.",
+            "page_intro": "Choose who can see your profile, your timezone and units, and keep your email address up to date.",
         },
     )
 

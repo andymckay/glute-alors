@@ -65,9 +65,26 @@ class Command(BaseCommand):
             date__gte=first_sunday, date__lte=last_sunday
         ).delete()
 
+        # Every owner with work in the rebuilt weeks needs their summaries.
+        week_start = first_sunday - datetime.timedelta(days=6)
+        user_ids = set(
+            PlannedWorkout.objects.filter(
+                workout_date__gte=week_start,
+                workout_date__lte=last_sunday,
+            ).values_list("created_by_id", flat=True)
+        )
+        user_ids.update(
+            Workout.objects.filter(
+                workout_date_for_timezone__date__gte=week_start,
+                workout_date_for_timezone__date__lte=last_sunday,
+            ).values_list("created_by_id", flat=True)
+        )
+        user_ids.discard(None)
+
         sunday = first_sunday
         while sunday <= last_sunday:
-            refresh_weekly_summary(sunday)
+            for user_id in user_ids:
+                refresh_weekly_summary(sunday, user_id)
             sunday += datetime.timedelta(days=7)
 
         recreated = WeeklySummary.objects.filter(

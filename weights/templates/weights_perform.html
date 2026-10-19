@@ -29,9 +29,10 @@
     {% endif %}
 
     {% for group in step_groups %}
-        <div class="card perform-exercise{% if not group.current %} d-none{% endif %} mb-2" data-exercise-group="{{ group.entry.pk }}">
-            {% with exercise=group.entry.exercise %}
-                <div class="card-body">
+        {% with exercise=group.entry.exercise %}
+            <div class="card perform-exercise{% if not group.current %} d-none{% endif %} mb-2"
+                 data-exercise-group="{{ group.entry.pk }}">
+                <div class="card-body {% if exercise.image_url %} has-exercise-image{% endif %}" {% if exercise.image_url %}style="--exercise-image: url('{{ exercise.image_url }}');"{% endif %}>
                     <div class="d-flex flex-wrap align-items-center gap-2">
                         <h3 class="card-title mb-0">{{ exercise.name }}</h3>
                         {% if group.entry.superset %}
@@ -72,6 +73,8 @@
                                         data-set="{{ step.set.pk }}"
                                         data-round="{{ step.round|default_if_none:'' }}"
                                         data-step-rest="{{ step.rest_seconds|default_if_none:'' }}"
+                                        data-sides="{{ step.sides }}"
+                                        data-timed="{{ step.timed|yesno:'true,false' }}"
                                         data-done="{{ step.done|yesno:'true,false' }}">
                                     <td>
                                         {% if step.timed %}
@@ -112,10 +115,10 @@
                     </table>
                 </div>
                 <div class="card-footer">
-                    <a href="#" data-pick>Update this exercise</a>
+                    <a href="#" data-pick>Work on this exercise</a>
                 </div>
-            {% endwith %}
-        </div>
+            </div>
+        {% endwith %}
     {% endfor %}
 
     {% if steps %}
@@ -124,10 +127,9 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" value="log">
                 <input type="hidden" name="entry" value="">
-                <button type="submit" class="btn btn-primary perform-log-button">Log set</button>
+                <button type="submit" class="btn btn-primary perform-log-button">{% if current_timed %}Start timer{% else %}Log set{% endif %}</button>
             </form>
-            <a class="btn btn-success perform-complete-exercise"
-               href="{% url 'alors:calendar' %}?d={{ workout.get_date_as_str }}">Complete exercise</a>
+            <button type="button" class="btn btn-success perform-complete-exercise">Complete exercise</button>
             <form method="post" action="{% url 'weights:workout_complete' workout.pk %}" data-finish-workout>
                 {% csrf_token %}
                 <button type="submit" class="btn {% if workout.completed %}btn-outline-secondary{% else %}btn-success{% endif %}">
@@ -159,11 +161,12 @@
                 <div class="modal-body text-center">
                     <p class="perform-timer-label mb-0">Time</p>
                     <p class="display-4 mb-1" data-timer-time>0:00</p>
+                    <p class="perform-timer-side text-muted mb-1 d-none" data-timer-side></p>
                     <p class="perform-timer-exercise text-muted mb-4" data-timer-exercise></p>
                     <div class="d-flex flex-wrap gap-2 justify-content-center">
                         <button type="button" class="btn btn-primary" data-timer-start>Start</button>
-                        <button type="button" class="btn btn-outline-secondary" data-timer-stop>Stop</button>
-                        <button type="button" class="btn btn-outline-secondary" data-timer-cancel>Cancel</button>
+                        <button type="button" class="btn btn-outline-secondary" data-timer-pause>Pause</button>
+                        <button type="button" class="btn btn-outline-secondary" data-timer-end>End</button>
                     </div>
                 </div>
             </div>

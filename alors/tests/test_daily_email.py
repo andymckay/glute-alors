@@ -26,8 +26,13 @@ class SendDailyEmailsCommandTests(TestCase):
     def subscribe(self, user, send_daily_email=True):
         UserProfile.objects.create(user=user, send_daily_email=send_daily_email)
 
+    def share(self, author, *audience):
+        """Let the author's activity notify the given users."""
+        profile, _ = UserProfile.objects.get_or_create(user=author)
+        profile.visibility.add(*audience)
+
     def leave_something_to_say(self, author, day):
-        """A planned workout notifies everyone except whoever created it."""
+        """A planned workout notifies the users the author shares with."""
         PlannedWorkout.objects.create(
             workout_type=WorkoutType.RUN,
             workout_date=date(2026, 9, day),
@@ -37,6 +42,7 @@ class SendDailyEmailsCommandTests(TestCase):
 
     def test_emails_a_subscribed_user(self):
         self.subscribe(self.athlete)
+        self.share(self.coach, self.athlete)
         self.leave_something_to_say(self.coach, 5)
 
         call_command("send_daily_emails")
@@ -108,6 +114,8 @@ class SendDailyEmailsCommandTests(TestCase):
     def test_a_failing_send_does_not_stop_the_others(self):
         self.subscribe(self.coach)
         self.subscribe(self.athlete)
+        self.share(self.coach, self.athlete)
+        self.share(self.athlete, self.coach)
         self.leave_something_to_say(self.coach, 5)  # the athlete has news
         self.leave_something_to_say(self.athlete, 6)  # and so does the coach
 

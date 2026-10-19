@@ -55,7 +55,6 @@
             {% if forloop.last %}
             <td class="border-start">
                 <div>
-                    <p>Planned</p>
                     {% for summary in entry.summaries %}
                         {% with planned=True %}
                             {% include "summary_card.html" %}
@@ -63,7 +62,6 @@
                     {% endfor %}
                 </div>
                 <div>
-                    <p>Actual</p>
                     {% for summary in entry.summaries %}
                         {% with planned=False %}
                             {% include "summary_card.html" %}
