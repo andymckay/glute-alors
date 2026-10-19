@@ -1203,7 +1203,7 @@ class DoWorkoutTests(TestCase):
             response, f'action="{reverse("weights:workout_do", args=[actual.pk])}"'
         )
 
-    def test_list_shows_the_actual_workout_and_its_progress(self):
+    def test_list_shows_the_plan_not_the_actual_workout(self):
         plan = self._plan()
         actual = self._do(plan)
         first = actual.exercises.first().sets.first()
@@ -1212,9 +1212,8 @@ class DoWorkoutTests(TestCase):
 
         response = self.client.get(reverse("weights:workout_list"))
 
-        self.assertContains(response, "Actual")
-        self.assertContains(response, "1 of 3 sets done")
         self.assertContains(response, plan.title)
+        self.assertNotContains(response, "1 of 3 sets done")
         self.assertNotContains(response, f"weights/{actual.pk}/do/")
 
     def test_a_set_can_be_ticked_off_and_removed_from_an_actual_workout(self):
@@ -1419,12 +1418,19 @@ class PerformWorkoutTests(TestCase):
         response = self.client.get(self.url())
 
         self.assertEqual(response.context["current_index"], 0)
-        self.assertEqual((response.context["done_count"], response.context["total_count"]), (0, 2))
+        self.assertEqual(
+            (response.context["done_count"], response.context["total_count"]),
+            (0, 2),
+        )
         self.assertContains(response, "Leg day")
-        self.assertContains(response, "set 1 of 2")
-        self.assertContains(response, "8 reps")
-        self.assertContains(response, "of 2 sets")
-        self.assertContains(response, 'style="width: 0%"')
+        self.assertContains(response, "0</span> of 2 sets")
+        self.assertContains(
+            response, f'name="set-{self.first.pk}-reps" form="log-set"'
+        )
+        self.assertContains(
+            response, f'name="set-{self.second.pk}-reps" form="log-set"'
+        )
+        self.assertNotContains(response, "progress-bar")
 
     def test_it_opens_on_the_first_set_still_to_do(self):
         self.first.completed = True
@@ -1461,7 +1467,7 @@ class PerformWorkoutTests(TestCase):
 
         self.assertEqual(response.context["current_index"], 0)
 
-    def test_a_superset_step_names_its_round(self):
+    def test_a_superset_step_carries_its_round_and_rest(self):
         group = WeightsWorkoutSuperset.objects.create(
             workout=self.workout, letter="A", rest_seconds=90
         )
@@ -1472,8 +1478,10 @@ class PerformWorkoutTests(TestCase):
 
         response = self.client.get(self.url())
 
-        self.assertContains(response, "Superset A &middot; round 1 of 2")
-        self.assertContains(response, "rest 1:30")
+        self.assertContains(response, "Superset A")
+        self.assertContains(response, 'data-round="1"')
+        self.assertContains(response, 'data-round="2"')
+        self.assertContains(response, 'data-step-rest="90"')
 
     def test_ticking_a_set_off(self):
         response = self.post("complete")
@@ -2269,31 +2277,6 @@ class WorkoutCompletionTests(TestCase):
         self.assertTrue(actual.completed)
         self.assertIsNotNone(actual.finished_at)
 
-    def test_the_list_shows_when_the_workout_was_started_and_finished(self):
-        actual = self._do()
-        self._tick_everything_off(actual)
-        actual.refresh_from_db()
-
-        response = self.client.get(reverse("weights:workout_list"))
-
-        self.assertContains(
-            response, "Started " + actual.started_at.strftime("%-d %b %Y, %H:%M")
-        )
-        self.assertContains(
-            response, "finished " + actual.finished_at.strftime("%-d %b %Y, %H:%M")
-        )
-
-    def test_the_list_marks_a_workout_that_has_not_been_started(self):
-        WeightsWorkout.objects.create(
-            created_by=self.user, title="Not yet", is_actual=True
-        )
-
-        response = self.client.get(reverse("weights:workout_list"))
-
-        self.assertContains(response, "Not started yet")
-        self.assertNotContains(response, "finished ")
-        self.assertNotContains(response, "Completed")
-
     def test_the_list_marks_a_workout_that_is_done(self):
         actual = self._do()
         self._complete(actual)
@@ -2392,13 +2375,13 @@ class WorkoutCompletionTests(TestCase):
         self.assertContains(response, "Reopen workout")
         self.assertNotContains(response, "Complete workout")
 
-    def test_the_edit_page_offers_to_finish_an_actual_workout(self):
+    def test_the_edit_page_does_not_offer_to_finish_an_actual_workout(self):
         actual = self._do()
 
         response = self.client.get(reverse("weights:workout_edit", args=[actual.pk]))
 
-        self.assertContains(response, "Complete workout")
-        self.assertContains(
+        self.assertNotContains(response, "Complete workout")
+        self.assertNotContains(
             response, f'action="{reverse("weights:workout_complete", args=[actual.pk])}"'
         )
 

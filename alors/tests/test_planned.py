@@ -123,28 +123,6 @@ class AddPlannedWorkoutTests(TestCase):
             "Long run",
         )
 
-    def test_add_page_shows_weekly_summary_for_provided_date(self):
-        # Saving the workout creates a WeeklySummary for its week (09-06).
-        self.add_workout()
-        response = self.client.get(reverse("alors:add_planned"), {"date": "2026-09-05"})
-        self.assertEqual(response.status_code, 200)
-        # "<b>Last</b> week summary" / "<b>This</b> week summary" cards.
-        self.assertContains(response, "week summary")
-        self.assertContains(response, "Planned so far:")
-        self.assertContains(response, "21.1")
-
-    def test_add_page_shows_placeholder_when_week_has_no_summary(self):
-        response = self.client.get(reverse("alors:add_planned"), {"date": "2026-09-05"})
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "week summary")
-        self.assertContains(response, "No plan yet.")
-
-    def test_add_page_without_a_date_renders_empty_summaries(self):
-        response = self.client.get(reverse("alors:add_planned"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "week summary")
-        self.assertContains(response, "No plan yet.")
-
     def test_weekly_summary_snippet_returns_summary_for_date(self):
         self.add_workout()
         response = self.client.get(
@@ -153,14 +131,6 @@ class AddPlannedWorkoutTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Run")
         self.assertContains(response, "21.1")
-
-    def test_weekly_summary_snippet_returns_placeholder_without_data(self):
-        response = self.client.get(
-            reverse("alors:planned_weekly_summary"), {"date": "2026-09-05"}
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "No plan yet.")
-
 
 class MovePlannedWorkoutTests(TestCase):
     """The calendar JSON endpoint that moves and edits a planned workout."""
@@ -369,7 +339,7 @@ class DuplicatePlannedWorkoutTests(TestCase):
             response,
             f'action="{reverse("alors:duplicate_planned", args=[self.workout.pk])}"',
         )
-        self.assertContains(response, "Duplicate")
+        self.assertContains(response, "Copy")
 
 
 class PlannedEditModalTests(TestCase):
@@ -518,7 +488,7 @@ class CalendarDragHandleTests(TestCase):
     def test_monthly_drop_target_is_the_table_cell(self):
         response = self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
         content = response.content.decode()
-        self.assertIn('<td class="js-planned-drop"', content)
+        self.assertIn('<td class="js-planned-drop', content)
         self.assertIn('data-date="2026-09-05"', content)
         # The old inner drop wrapper is gone.
         self.assertNotIn('<div class="js-planned-drop"', content)

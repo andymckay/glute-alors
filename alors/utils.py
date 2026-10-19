@@ -66,7 +66,7 @@ def combineDateLists(dates, **kwargs):
 
     for res in result:
         # If we've got an actual run, don't show the planned.
-        if res["actual"]:
+        if res["actual"] and "run" in [a.workout_type for a in res["actual"]]:
             res["planned"] = None
 
     return result
