@@ -11,7 +11,7 @@ from django.utils import timezone
 from core.models import CreatedByModel
 
 # The directory holding the bundled JSON:API dumps.
-FITBOD_DIR = Path(__file__).resolve().parent / "fitbod"
+EXERCISE_DATA_DIR = Path(__file__).resolve().parent / "exercise_data"
 
 # Exercise relationship -> the bucket in ``_index()`` that resolves it.
 _RELATIONSHIPS = {
@@ -32,7 +32,7 @@ def _load(name):
     Enrichment is best-effort, so a dump that is not present yields nothing.
     """
     try:
-        payload = json.loads((FITBOD_DIR / name).read_text(encoding="utf-8"))
+        payload = json.loads((EXERCISE_DATA_DIR / name).read_text(encoding="utf-8"))
     except FileNotFoundError:
         return []
     rows = payload.get("data") if isinstance(payload, dict) else payload
@@ -605,7 +605,7 @@ class WeightsWorkoutExercise(models.Model):
     )
     exercise_id = models.PositiveIntegerField(
         "Exercise id",
-        help_text="The exercise id from weights/fitbod/exercises.json.",
+        help_text="The exercise id from weights/exercise_data/exercises.json.",
     )
     position = models.PositiveSmallIntegerField(
         "position",

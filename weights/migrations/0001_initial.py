@@ -61,7 +61,7 @@ class Migration(migrations.Migration):
                 (
                     "exercise_id",
                     models.PositiveIntegerField(
-                        help_text="The exercise id from weights/fitbod/exercises.json.",
+                        help_text="The exercise id from weights/exercise_data/exercises.json.",
                         verbose_name="Exercise id",
                     ),
                 ),

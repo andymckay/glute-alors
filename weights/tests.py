@@ -1,4 +1,6 @@
+import json
 import re
+import tempfile
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -30,10 +32,112 @@ RESOLVED = (
     "instructions",
 )
 
-# The real Fitbod dumps are not committed, so tests bring their own small
+# The real exercise data dumps are not committed, so tests create their own small
 # catalogue: the exercises these tests refer to, plus one relationship each.
-TEST_FITBOD_DIR = Path(__file__).resolve().parent / "testfitbod"
-DEFAULT_FITBOD_DIR = weights_models.FITBOD_DIR
+EXERCISE_FIXTURES = {
+    "exercises.json": [
+        {
+            "id": "1",
+            "type": "exercises",
+            "attributes": {
+                "name": "Back Extensions",
+                "slug": "back-extensions",
+                "is_timed": False,
+                "is_unilateral": False,
+            },
+            "relationships": {
+                "exercise_statistic": {
+                    "links": {
+                        "related": "https://api.example.com/v2/exercise_statistics/1"
+                    }
+                }
+            },
+        },
+        {
+            "id": "2",
+            "type": "exercises",
+            "attributes": {
+                "name": "Calf Raises",
+                "slug": "calf-raises",
+                "is_timed": False,
+                "is_unilateral": False,
+            },
+        },
+        {
+            "id": "3",
+            "type": "exercises",
+            "attributes": {
+                "name": "Split Squat",
+                "slug": "split-squat",
+                "is_timed": False,
+                "is_unilateral": False,
+            },
+        },
+        {
+            "id": "4",
+            "type": "exercises",
+            "attributes": {
+                "name": "Leg Press",
+                "slug": "leg-press",
+                "is_timed": False,
+                "is_unilateral": False,
+            },
+        },
+        {
+            "id": "61",
+            "type": "exercises",
+            "attributes": {
+                "name": "Plank",
+                "slug": "plank",
+                "is_timed": True,
+                "is_unilateral": True,
+            },
+        },
+        {
+            "id": "62",
+            "type": "exercises",
+            "attributes": {
+                "name": "Farmers Carry",
+                "slug": "farmers-carry",
+                "is_timed": True,
+                "is_unilateral": False,
+            },
+        },
+    ],
+    "equipment.json": [
+        {
+            "id": "10",
+            "type": "equipment",
+            "attributes": {"name": "Barbell"},
+        }
+    ],
+    "exercise_equipment.json": [
+        {
+            "id": "100",
+            "type": "exercise_equipments",
+            "attributes": {},
+            "relationships": {
+                "exercise": {"data": {"id": "1"}},
+                "equipment": {"data": {"id": "10"}},
+            },
+        }
+    ],
+    "exercise_instructions_metadata.json": [
+        {
+            "id": "200",
+            "type": "instructions",
+            "attributes": {
+                "instructions": (
+                    "Place the thighs on the forward pad and lower your torso."
+                ),
+                "image_url": "/static/weights/exercises/24.jpg",
+            },
+            "relationships": {"exercise": {"data": {"id": "1"}}},
+        }
+    ],
+}
+DEFAULT_EXERCISE_DATA_DIR = weights_models.EXERCISE_DATA_DIR
+_exercise_fixture_directory = None
 
 
 def _clear_exercise_caches():
@@ -47,14 +151,23 @@ def _clear_exercise_caches():
 
 
 def setUpModule():
-    weights_models.FITBOD_DIR = TEST_FITBOD_DIR
+    global _exercise_fixture_directory
+    _exercise_fixture_directory = tempfile.TemporaryDirectory()
+    fixture_dir = Path(_exercise_fixture_directory.name)
+    for name, rows in EXERCISE_FIXTURES.items():
+        (fixture_dir / name).write_text(
+            json.dumps({"data": rows}), encoding="utf-8"
+        )
+    weights_models.EXERCISE_DATA_DIR = fixture_dir
     _clear_exercise_caches()
     weights_models.load()
 
 
 def tearDownModule():
-    weights_models.FITBOD_DIR = DEFAULT_FITBOD_DIR
+    weights_models.EXERCISE_DATA_DIR = DEFAULT_EXERCISE_DATA_DIR
     _clear_exercise_caches()
+    if _exercise_fixture_directory is not None:
+        _exercise_fixture_directory.cleanup()
 
 
 class ExerciseJsonTests(SimpleTestCase):
