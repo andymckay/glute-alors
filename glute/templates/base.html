@@ -43,13 +43,16 @@
                             <ul class="nav nav-underline pb-4">
                                 <li class="nav-item">
                                     <a class="nav-link" href="{% url 'alors:notifications' %}">Notifications
-                                        <span class="badge rounded-pill bg-danger" data-bs-toggle="tooltip" data-bs-title="Number of notifications">
+                                        <span class="badge rounded-pill {% if notification_count %}bg-danger{% else %}bg-success{% endif %}" data-bs-toggle="tooltip" data-bs-title="Number of notifications">
                                             {{ notification_count }}
                                         </span>
                                     </a>
                                 </li>
                                 <li class="nav-item dropdown">
                                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        {% if user.profile.avatar %}
+                                            <img src="{{ user.profile.avatar.url }}" alt="{{ user }}" class="rounded-circle me-1" width="24" height="24">
+                                        {% endif %}
                                         Settings
                                         <span id="timezone-alert" class="d-none badge rounded-pill bg-danger" data-bs-toggle="tooltip" data-bs-title="Your timezone differs from your profile timezone, you can change this in your profile.">!</span>
                                     </a>
