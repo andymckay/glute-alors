@@ -1,6 +1,7 @@
 import re
 from datetime import timedelta
 from decimal import Decimal
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
@@ -9,6 +10,7 @@ from django.utils import timezone
 
 from alors.models import Comment, UserProfile
 
+from . import models as weights_models
 from .forms import TIME_ERROR, parse_seconds
 from .models import (
     Exercise,
@@ -28,12 +30,38 @@ RESOLVED = (
     "instructions",
 )
 
+# The real Fitbod dumps are not committed, so tests bring their own small
+# catalogue: the exercises these tests refer to, plus one relationship each.
+TEST_FITBOD_DIR = Path(__file__).resolve().parent / "testfitbod"
+DEFAULT_FITBOD_DIR = weights_models.FITBOD_DIR
+
+
+def _clear_exercise_caches():
+    for cached in (
+        weights_models._load,
+        weights_models._index,
+        weights_models._catalogue,
+        weights_models._timed_ids,
+    ):
+        cached.cache_clear()
+
+
+def setUpModule():
+    weights_models.FITBOD_DIR = TEST_FITBOD_DIR
+    _clear_exercise_caches()
+    weights_models.load()
+
+
+def tearDownModule():
+    weights_models.FITBOD_DIR = DEFAULT_FITBOD_DIR
+    _clear_exercise_caches()
+
 
 class ExerciseJsonTests(SimpleTestCase):
     def test_returns_every_exercise(self):
         exercises = Exercise.get_exercises()
 
-        self.assertEqual(len(exercises), 1274)
+        self.assertEqual(len(exercises), 6)
         self.assertEqual(exercises[0]["id"], "1")
         self.assertEqual(exercises[0]["attributes"]["name"], "Back Extensions")
 
@@ -76,9 +104,8 @@ class ExerciseJsonTests(SimpleTestCase):
     def test_timed_ids_lists_every_timed_exercise(self):
         timed_ids = Exercise.timed_ids()
 
-        self.assertIn(61, timed_ids)
+        self.assertEqual(timed_ids, {61, 62})
         self.assertNotIn(1, timed_ids)
-        self.assertEqual(len(timed_ids), 134)
 
     def test_returned_json_is_independent_of_the_cached_source(self):
         Exercise.get_exercises()[0]["relationships"]["equipment"]["data"].clear()
