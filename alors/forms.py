@@ -353,7 +353,7 @@ class CommentForm(forms.ModelForm):
 
 
 class ProfileForm(forms.ModelForm):
-    """Edit a user's timezone, units, daily email and email address.
+    """Edit a user's timezone, units, email subscriptions and email address.
 
     The email address itself lives on the user, not the profile.
     """
@@ -379,6 +379,7 @@ class ProfileForm(forms.ModelForm):
             "units",
             "show_add_plan",
             "send_daily_email",
+            "send_comment_email",
         ]
         widgets = {
             "visibility": forms.SelectMultiple(
@@ -387,6 +388,9 @@ class ProfileForm(forms.ModelForm):
             "units": forms.Select(attrs={"class": "form-select"}),
             "show_add_plan": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "send_daily_email": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
+            "send_comment_email": forms.CheckboxInput(
                 attrs={"class": "form-check-input"}
             ),
             "avatar": forms.ClearableFileInput(attrs={"class": "form-control"}),

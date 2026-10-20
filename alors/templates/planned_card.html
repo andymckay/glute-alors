@@ -42,9 +42,6 @@
             </a>
         </div>
         <div class="card-footer text-muted ">
-            {% if workout.comment_count %}
-                <div class="badge bg-primary">{{ workout.comment_count }} comment{{ workout.comment_count|pluralize }}</div>
-            {% endif %}
             {% if not expand %}
                 <div><a href="#" class="link-underline link-underline-opacity-0" data-bs-toggle="collapse" data-bs-target="#options-{{ workout.pk }}">➕</a></div>
                 <div class="collapse mt-2" id="options-{{ workout.pk }}">
@@ -59,7 +56,6 @@
                         <button type="submit" class="badge bg-danger border-0 link-underline link-underline-opacity-0">Delete</button>
                     </form>&nbsp;
                     <a class="js-drag-handle badge bg-warning border-0 link-underline link-underline-opacity-0" draggable="true">Drag</a>
-
                 </div>
             {% endif %}
         </div>

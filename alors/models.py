@@ -407,6 +407,22 @@ class Comment(CreatedByModel):
         verbose_name = "comment"
         verbose_name_plural = "comments"
 
+    @property
+    def created_at_local(self):
+        """The comment time in the current user's timezone.
+
+        Timestamps are stored as naive UTC; render them as a naive wall-clock
+        time so the template does not show a timezone offset.
+        """
+        if self.created_at is None:
+            return None
+        value = self.created_at
+        if django_timezone.is_naive(value):
+            value = value.replace(tzinfo=pytz.utc)
+        return value.astimezone(django_timezone.get_current_timezone()).replace(
+            tzinfo=None
+        )
+
     def __str__(self):
         text = self.text if len(self.text) <= 80 else self.text[:77] + "…"
         return f"{self.created_by or 'Anonymous'}: {text}"
@@ -748,6 +764,11 @@ class UserProfile(TimeStampedModel):
         "send daily email",
         default=False,
         help_text="Receive a daily email about your training.",
+    )
+    send_comment_email = models.BooleanField(
+        "send email on comment",
+        default=False,
+        help_text="Receive an email when someone comments on a workout.",
     )
 
     class Meta:

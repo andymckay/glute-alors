@@ -7,6 +7,41 @@ the other.
 
 from django.conf import settings
 from django.template.loader import render_to_string
+from django.urls import reverse
+
+
+def _comment_target(comment):
+    """The planned, completed or weights workout a comment was left on."""
+    return comment.planned_workout or comment.workout or comment.weights_workout
+
+
+def _comment_url(comment):
+    """Where the recipient can read a comment."""
+    from .models import PlannedWorkout, Workout
+    from weights.models import WeightsWorkout
+
+    target = _comment_target(comment)
+    if isinstance(target, PlannedWorkout):
+        return f"{reverse('alors:edit_planned', args=[target.pk])}#comments"
+    if isinstance(target, Workout):
+        return f"{reverse('alors:workout_detail', args=[target.pk])}#comments"
+    if isinstance(target, WeightsWorkout):
+        return f"{reverse('weights:workout_perform', args=[target.pk])}#comments"
+    return ""
+
+
+def comment_email_as_text(comment, recipient):
+    """The body of the email sent to ``recipient`` about a new comment."""
+    return render_to_string(
+        "comment_email.txt",
+        {
+            "recipient": recipient,
+            "comment": comment,
+            "target": _comment_target(comment),
+            "comment_url": _comment_url(comment),
+            "host": settings.HOST,
+        },
+    )
 
 
 def email_as_text(user):

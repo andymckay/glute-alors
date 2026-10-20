@@ -1,12 +1,17 @@
 """Signals that keep WeeklySummary records and Notifications in sync."""
 
 import datetime
+import logging
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.mail import send_mail
 from django.db.models import F
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.utils.dateparse import parse_date
+
+from .emails import comment_email_as_text
 from .models import (
     Comment,
     Notification,
@@ -17,6 +22,8 @@ from .models import (
     Workout,
     WorkoutType,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _as_date(value):
@@ -226,6 +233,35 @@ def _notify_on_save(sender, instance, created, **kwargs):
             for recipient in recipients
         ]
     )
+
+    if created and isinstance(instance, Comment):
+        _email_comment_subscribers(instance)
+
+
+def _email_comment_subscribers(comment):
+    """Email the users who can see a new comment, except its author."""
+    from .utils import visible_users
+
+    if comment.created_by_id is None:
+        return
+    audience = visible_users(comment.created_by).exclude(pk=comment.created_by_id)
+    subscribers = audience.filter(
+        is_active=True, profile__send_comment_email=True
+    ).exclude(email="")
+    for recipient in subscribers:
+        try:
+            send_mail(
+                "New comment on Glute Alors",
+                comment_email_as_text(comment, recipient),
+                settings.DEFAULT_FROM_EMAIL,
+                [recipient.email],
+            )
+        except Exception:
+            logger.exception(
+                "Could not email %s about comment %s",
+                recipient.email,
+                comment.pk,
+            )
 
 
 def _remove_notifications(sender, instance, **kwargs):

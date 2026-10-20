@@ -1,0 +1,9 @@
+Hi {{ recipient }} 👋
+
+{{ comment.created_by|default:"Someone" }} commented on {{ target }}:
+
+{{ comment.text }}
+
+See it here: {{ host }}{{ comment_url }}
+
+Turn off comment emails here: {{ host }}{% url 'alors:profile' %}

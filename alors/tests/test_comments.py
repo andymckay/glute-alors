@@ -1,9 +1,12 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
+import pytz
 from django.contrib.auth.models import User
+from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from ..models import Comment, PlannedWorkout, UserProfile, Workout, WorkoutType
 from weights.models import WeightsWorkout
@@ -58,6 +61,16 @@ class CommentModelTests(TestCase):
         comment.refresh_from_db()
         self.assertIsNotNone(comment.created_at)
         self.assertIsNotNone(comment.updated_at)
+
+    def test_created_at_local_uses_the_active_timezone(self):
+        comment = self.comment(planned_workout=self.planned)
+        Comment.objects.filter(pk=comment.pk).update(
+            created_at=datetime(2026, 9, 5, 12, 0)
+        )
+        comment.refresh_from_db()
+
+        with timezone.override(pytz.timezone("Europe/London")):
+            self.assertEqual(comment.created_at_local, datetime(2026, 9, 5, 13, 0))
 
     def test_created_by_links_back_to_user(self):
         self.comment(planned_workout=self.planned)
@@ -182,4 +195,91 @@ class CommentViewTests(TestCase):
         self.assertContains(
             response,
             reverse("alors:add_workout_comment", args=[self.workout.pk]),
+        )
+
+
+class CommentEmailTests(TestCase):
+    """The profile's "send email on comment" option."""
+
+    def setUp(self):
+        self.coach = User.objects.create_user(
+            username="coach", password="secret123", email="coach@example.com"
+        )
+        self.athlete = User.objects.create_user(
+            username="runner", password="secret123", email="runner@example.com"
+        )
+        self.coach_profile = UserProfile.objects.create(user=self.coach)
+        self.athlete_profile = UserProfile.objects.create(
+            user=self.athlete, send_comment_email=True
+        )
+        self.coach_profile.visibility.add(self.athlete)
+        self.athlete_profile.visibility.add(self.coach)
+        self.planned = PlannedWorkout.objects.create(
+            workout_type=WorkoutType.RUN,
+            workout_date=date(2026, 9, 5),
+            total_distance=Decimal("10.00"),
+            title="Long run",
+            created_by=self.athlete,
+        )
+
+    def comment(self, **overrides):
+        values = {
+            "planned_workout": self.planned,
+            "text": "Looks good.",
+            "created_by": self.coach,
+        }
+        values.update(overrides)
+        return Comment.objects.create(**values)
+
+    def test_emails_a_subscriber(self):
+        self.comment()
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["runner@example.com"])
+        self.assertEqual(message.subject, "New comment on Glute Alors")
+        self.assertIn("Looks good.", message.body)
+        self.assertIn(
+            f"{reverse('alors:edit_planned', args=[self.planned.pk])}#comments",
+            message.body,
+        )
+        self.assertIn("Turn off comment emails here", message.body)
+
+    def test_does_not_email_when_the_option_is_off(self):
+        self.athlete_profile.send_comment_email = False
+        self.athlete_profile.save()
+
+        self.comment()
+
+        self.assertEqual(mail.outbox, [])
+
+    def test_does_not_email_the_author(self):
+        self.athlete_profile.send_comment_email = False
+        self.athlete_profile.save()
+        self.coach_profile.send_comment_email = True
+        self.coach_profile.save()
+
+        self.comment()
+
+        self.assertEqual(mail.outbox, [])
+
+    def test_does_not_email_a_recipient_without_an_address(self):
+        self.athlete.email = ""
+        self.athlete.save()
+
+        self.comment()
+
+        self.assertEqual(mail.outbox, [])
+
+    def test_a_weights_comment_links_to_its_workout(self):
+        workout = WeightsWorkout.objects.create(
+            created_by=self.athlete, title="Leg day", is_actual=True
+        )
+
+        self.comment(planned_workout=None, weights_workout=workout)
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(
+            f"{reverse('weights:workout_perform', args=[workout.pk])}#comments",
+            mail.outbox[0].body,
         )
