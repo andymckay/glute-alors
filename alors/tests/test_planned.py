@@ -867,6 +867,61 @@ class CalendarVisibilityTests(TestCase):
         self._assert_shared_records_only(response)
 
 
+class CalendarLabelRangeTests(TestCase):
+    """Labels appear on every displayed day their range overlaps."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="creator", password="secret123")
+        self.client.force_login(self.user)
+
+    def add_label(self, title, start_date, end_date):
+        return Label.objects.create(
+            created_by=self.user,
+            title=title,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    def test_monthly_calendar_includes_labels_overlapping_the_grid(self):
+        # The September 2026 grid runs from 27 July to 1 November.
+        self.add_label("Starts before", date(2026, 7, 1), date(2026, 8, 2))
+        self.add_label("Ends after", date(2026, 10, 30), date(2026, 11, 30))
+        # Longer than the 100-day expansion guard; the calendar only needs the
+        # visible slice of it.
+        self.add_label("Covers grid", date(2026, 1, 1), date(2026, 12, 31))
+
+        response = self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
+
+        self.assertContains(response, "Starts before")
+        self.assertContains(response, "Ends after")
+        self.assertContains(response, "Covers grid")
+
+    def test_monthly_calendar_excludes_labels_outside_the_grid(self):
+        self.add_label("Before grid", date(2026, 6, 1), date(2026, 7, 20))
+        self.add_label("After grid", date(2026, 11, 5), date(2026, 12, 1))
+
+        response = self.client.get(reverse("alors:calendar"), {"d": "2026-09-05"})
+
+        self.assertNotContains(response, "Before grid")
+        self.assertNotContains(response, "After grid")
+
+    def test_weekly_calendar_includes_labels_overlapping_the_week(self):
+        # The week containing 5 September 2026 runs from 31 August to 6 September.
+        self.add_label("Starts before", date(2026, 8, 20), date(2026, 9, 1))
+        self.add_label("Ends after", date(2026, 9, 4), date(2026, 9, 20))
+        self.add_label("Before week", date(2026, 8, 1), date(2026, 8, 15))
+        self.add_label("After week", date(2026, 9, 7), date(2026, 9, 20))
+
+        response = self.client.get(
+            reverse("alors:calendar"), {"d": "2026-09-05", "r": "w"}
+        )
+
+        self.assertContains(response, "Starts before")
+        self.assertContains(response, "Ends after")
+        self.assertNotContains(response, "Before week")
+        self.assertNotContains(response, "After week")
+
+
 class WeeklySummaryModelTests(TestCase):
     def test_can_store_nested_json_summary(self):
         data = {

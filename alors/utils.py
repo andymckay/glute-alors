@@ -34,12 +34,12 @@ def today(user):
     return datetime.datetime.utcnow().replace(tzinfo=timezone).date()
 
 
-def dateList(queryset):
+def dateList(queryset, start=None, end=None):
     dates = defaultdict(list)
     for item in queryset:
         try:
             # Labels have multiple dates, so instead return dates as a list.
-            for date in item.get_dates_as_list():
+            for date in item.get_dates_as_list(start, end):
                 dates[date].append(item)
         except AttributeError:
             dates[item.get_date_as_str()].append(item)

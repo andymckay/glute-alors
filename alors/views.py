@@ -121,22 +121,30 @@ def calendar(request):
     except UserProfile.DoesNotExist:
         show_add_plan = True
 
-    # Note: use __lt to ensure we get runs up to midnight the last day.
+    # ``start`` and ``end`` are the first and last days displayed in the grid.
+    # Datetimes need an exclusive upper bound so the final day is included in
+    # full; ``dates["end"]`` alone would stop at midnight that morning.
+    start = dates["start"]
+    end = dates["end"]
+    end_exclusive = (
+        datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
+    ).strftime("%Y-%m-%d")
+
     # ``workout_data`` is deferred: it can be several megabytes per workout and
     # the calendar cards never read it.
     planned_workouts = dateList(
         PlannedWorkout.objects.filter(
             created_by__in=visible,
-            workout_date__gte=dates["start"],
-            workout_date__lt=dates["next"],
+            workout_date__gte=start,
+            workout_date__lte=end,
         ).order_by("workout_date")
     )
 
     actual_workouts = dateList(
         Workout.objects.filter(
             created_by__in=visible,
-            workout_date_for_timezone__gte=dates["start"],
-            workout_date_for_timezone__lt=dates["next"],
+            workout_date_for_timezone__gte=start,
+            workout_date_for_timezone__lt=end_exclusive,
         )
         .defer("workout_data")
         .order_by("workout_date_for_timezone")
@@ -145,8 +153,8 @@ def calendar(request):
     summaries = dateList(
         WeeklySummary.objects.filter(
             created_by__in=visible,
-            date__gte=dates["start"],
-            date__lte=dates["next"],
+            date__gte=start,
+            date__lte=end,
         ).order_by("date", "created_by__username")
     )
 
@@ -154,17 +162,21 @@ def calendar(request):
         WeightsWorkout.objects.filter(
             created_by__in=visible,
             is_actual=True,
-            started_at__gte=dates["start"],
-            started_at__lte=dates["next"],
+            started_at__gte=start,
+            started_at__lt=end_exclusive,
         ).order_by("started_at")
     )
 
+    # Labels are ranges: include any that overlap the displayed days, even when
+    # they begin before the grid or finish after it.
     labels = dateList(
         Label.objects.filter(
             created_by__in=visible,
-            end_date__gte=dates["start"],
-            start_date__lte=dates["next"],
-        ).order_by("title")
+            start_date__lte=end,
+            end_date__gte=start,
+        ).order_by("title"),
+        start=list_dates[0],
+        end=list_dates[-1],
     )
 
     # ``Workout.get_planned`` is read several times per card in the template.

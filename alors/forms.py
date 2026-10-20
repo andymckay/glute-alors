@@ -82,6 +82,8 @@ class CalendarForm(forms.Form):
                     "end": end,
                     "previous": start_of_month - timedelta(days=days_in_month - 1),
                     "next": end_of_month + timedelta(days=1),
+                    "end_next_month": end_next_month,
+                    "start_previous_month": start_previous_month
                 }
             )
 

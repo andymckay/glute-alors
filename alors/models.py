@@ -503,11 +503,18 @@ class Label(CreatedByModel):
     def __str__(self):
         return self.title
 
-    def get_dates_as_list(self):
+    def get_dates_as_list(self, start=None, end=None):
+        """Return the label's dates as ``YYYY-MM-DD`` strings.
+
+        ``start`` and ``end`` optionally clip the range, letting callers such as
+        the calendar expand a label only over the days it displays.
+        """
+        start_date = max(self.start_date, start) if start else self.start_date
+        end_date = min(self.end_date, end) if end else self.end_date
         result = []
         for k in range(0, 100):
-            date = self.start_date + timedelta(days=k)
-            if date > self.end_date:
+            date = start_date + timedelta(days=k)
+            if date > end_date:
                 return result
             result.append(date.strftime("%Y-%m-%d"))
         raise IterationError("Start and end date are more than 100 days apart.")
