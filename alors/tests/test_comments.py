@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from ..models import Comment, PlannedWorkout, UserProfile, Workout, WorkoutType
+from weights.models import WeightsWorkout
 
 
 class CommentModelTests(TestCase):
@@ -23,6 +24,9 @@ class CommentModelTests(TestCase):
             total_time=timedelta(minutes=50),
             workout_type=WorkoutType.RUN,
         )
+        self.weights_workout = WeightsWorkout.objects.create(
+            title="Leg day", is_actual=True, created_by=self.user
+        )
 
     def comment(self, **overrides):
         values = {"text": "Nice session.", "created_by": self.user}
@@ -38,6 +42,11 @@ class CommentModelTests(TestCase):
         comment = self.comment(workout=self.workout)
         self.assertEqual(self.workout.comments.count(), 1)
         self.assertEqual(self.workout.comments.first(), comment)
+
+    def test_comment_can_attach_to_weights_workout(self):
+        comment = self.comment(weights_workout=self.weights_workout)
+        self.assertEqual(self.weights_workout.comments.count(), 1)
+        self.assertEqual(self.weights_workout.comments.first(), comment)
 
     def test_multiple_comments_allowed(self):
         self.comment(planned_workout=self.planned, text="First.")
@@ -72,6 +81,10 @@ class CommentModelTests(TestCase):
         self.comment(workout=self.workout)
         self.workout.refresh_from_db()
         self.assertEqual(self.workout.comment_count, 2)
+
+        self.comment(weights_workout=self.weights_workout)
+        self.weights_workout.refresh_from_db()
+        self.assertEqual(self.weights_workout.comment_count, 1)
 
     def test_comment_count_decrements_when_comment_removed(self):
         comment = self.comment(planned_workout=self.planned)

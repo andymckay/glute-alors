@@ -7,7 +7,7 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from alors.models import UserProfile
+from alors.models import Comment, UserProfile
 
 from .forms import TIME_ERROR, parse_seconds
 from .models import (
@@ -2085,6 +2085,69 @@ class PerformWorkoutTests(TestCase):
         response = self.post("complete", model_set=model_set)
 
         self.assertEqual(response.status_code, 404)
+
+
+class WeightsWorkoutCommentTests(TestCase):
+    """Comments on an actual weights workout, from its perform page."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="commenter", password="secret123"
+        )
+        self.client.force_login(self.user)
+        self.workout = WeightsWorkout.objects.create(
+            created_by=self.user, title="Leg day", is_actual=True
+        )
+
+    def url(self):
+        return reverse("weights:workout_comment", args=[self.workout.pk])
+
+    def test_adds_a_comment_to_the_actual_weights_workout(self):
+        response = self.client.post(self.url(), {"text": "Felt strong"})
+
+        self.assertRedirects(
+            response,
+            f"{reverse('weights:workout_perform', args=[self.workout.pk])}#comments",
+        )
+        comment = Comment.objects.get(weights_workout=self.workout)
+        self.assertEqual(comment.text, "Felt strong")
+        self.assertEqual(comment.created_by, self.user)
+
+    def test_perform_page_shows_comments_and_the_form(self):
+        Comment.objects.create(
+            weights_workout=self.workout,
+            text="Strong session",
+            created_by=self.user,
+        )
+
+        response = self.client.get(
+            reverse("weights:workout_perform", args=[self.workout.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Strong session")
+        self.assertContains(response, "Add a comment")
+        self.assertContains(response, self.url())
+
+    def test_blank_comment_is_not_saved(self):
+        response = self.client.post(self.url(), {"text": ""})
+
+        self.assertRedirects(
+            response,
+            f"{reverse('weights:workout_perform', args=[self.workout.pk])}#comments",
+        )
+        self.assertFalse(Comment.objects.exists())
+
+    def test_a_planned_weights_workout_rejects_comments(self):
+        plan = WeightsWorkout.objects.create(created_by=self.user, title="Plan")
+
+        response = self.client.post(
+            reverse("weights:workout_comment", args=[plan.pk]),
+            {"text": "Not allowed"},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(Comment.objects.exists())
 
 
 class WorkoutCompletionTests(TestCase):

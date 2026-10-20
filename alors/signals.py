@@ -252,9 +252,19 @@ for _model in (Comment, PlannedWorkout, Workout):
 
 def _comment_parent(instance):
     """Return the planned/completed workout a comment is attached to."""
+    from weights.models import WeightsWorkout
+
     try:
-        return instance.planned_workout or instance.workout
-    except (PlannedWorkout.DoesNotExist, Workout.DoesNotExist):
+        return (
+            instance.planned_workout
+            or instance.workout
+            or instance.weights_workout
+        )
+    except (
+        PlannedWorkout.DoesNotExist,
+        Workout.DoesNotExist,
+        WeightsWorkout.DoesNotExist,
+    ):
         # The parent has already been deleted (e.g. cascade delete).
         return None
 

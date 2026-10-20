@@ -25,9 +25,10 @@
         </div>
         <nav class="border-bottom">
             <div class="container-lg navigation">
-                {% if user.is_authenticated %}
                     <div class="row">
                         <div class="col">
+                {% if user.is_authenticated %}
+
                             <ul class="nav nav-underline">
                                 <li class="nav-item">
                                     <a class="nav-link" href="{% url 'alors:calendar' %}#today">Calendar</a>
@@ -64,11 +65,13 @@
                                     </ul>
                                 </li>
                             </ul>
+
+                {% else %}
+
+                <a class="link-underline link-underline-opacity-0" href="{% url 'alors:login' %}">Login</a>
+                {% endif %}
                         </div>
                     </div>
-                {% else %}
-                    <a class="link-underline link-underline-opacity-0" href="{% url 'alors:login' %}">Login</a>
-                {% endif %}
             </div>
         </nav>
         <main class="bg-body border-bottom pt-4 pb-4">

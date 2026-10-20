@@ -392,6 +392,15 @@ class Comment(CreatedByModel):
         blank=True,
         help_text="The completed workout this comment is about.",
     )
+    weights_workout = models.ForeignKey(
+        "weights.WeightsWorkout",
+        verbose_name="weights workout",
+        related_name="comments",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="The completed weights workout this comment is about.",
+    )
 
     class Meta:
         ordering = ["created_at"]
@@ -538,6 +547,8 @@ class NotificationManager(models.Manager):
             object_id=target.pk,
         ).update(read=True)
 
+        from weights.models import WeightsWorkout
+
         if isinstance(target, PlannedWorkout):
             comment_ids = Comment.objects.filter(planned_workout=target).values_list(
                 "pk", flat=True
@@ -546,6 +557,10 @@ class NotificationManager(models.Manager):
             comment_ids = Comment.objects.filter(workout=target).values_list(
                 "pk", flat=True
             )
+        elif isinstance(target, WeightsWorkout):
+            comment_ids = Comment.objects.filter(
+                weights_workout=target
+            ).values_list("pk", flat=True)
         else:
             return
 
@@ -635,15 +650,19 @@ class Notification(TimeStampedModel):
         """
         obj = self.content_object
         if isinstance(obj, Comment):
-            obj = obj.planned_workout or obj.workout
+            obj = obj.planned_workout or obj.workout or obj.weights_workout
         return obj
 
     def get_absolute_url(self):
+        from weights.models import WeightsWorkout
+
         target = self.target()
         if isinstance(target, PlannedWorkout):
             return reverse("alors:edit_planned", args=[str(target.pk)])
         if isinstance(target, Workout):
             return reverse("alors:workout_detail", args=[str(target.pk)])
+        if isinstance(target, WeightsWorkout):
+            return reverse("weights:workout_perform", args=[str(target.pk)])
 
     def summary(self):
         actor = self.actor or "Someone"

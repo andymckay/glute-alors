@@ -15,7 +15,8 @@ from .forms import (
     WeightsWorkoutSetFormSet,
     parse_seconds,
 )
-from alors.models import UserProfile
+from alors.forms import CommentForm
+from alors.models import Notification, UserProfile
 from alors.utils import visible_users
 
 from .models import (
@@ -450,6 +451,7 @@ def workout_perform(request, pk):
     if not workout.is_actual:
         # A plan is a blueprint; doing one starts an actual workout.
         return redirect("weights:workout_edit", workout.pk)
+    Notification.objects.mark_read_for(request.user, workout)
     # An actual workout that has no start yet (one made by hand, say) is
     # started now that it is being done.
     workout.mark_started()
@@ -506,8 +508,29 @@ def workout_perform(request, pk):
             "done_count": sum(1 for step in steps if step.done),
             "total_count": len(steps),
             "weight_unit_abbr": unit,
+            "comments": workout.comments.all(),
+            "comment_form": CommentForm(),
         },
     )
+
+
+@login_required
+def workout_comment(request, pk):
+    """Add a comment to an actual weights workout."""
+    workout = get_object_or_404(
+        WeightsWorkout, pk=pk, created_by__in=visible_users(request.user)
+    )
+    if not workout.is_actual:
+        raise Http404("Comments are only available on actual weights workouts.")
+    if request.method == "POST":
+        form = CommentForm(request.POST)
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.weights_workout = workout
+            comment.created_by = request.user
+            comment.save()
+            messages.add_message(request, messages.SUCCESS, "💬 Comment added.")
+    return redirect(f"{reverse('weights:workout_perform', args=[workout.pk])}#comments")
 
 
 def _logged_values(request, model_set):

@@ -77,11 +77,12 @@ class CommentAdmin(admin.ModelAdmin):
         "text",
         "planned_workout",
         "workout",
+        "weights_workout",
         "created_by",
         "created_at",
         "updated_at",
     )
-    list_filter = ("created_by", "planned_workout", "workout")
+    list_filter = ("created_by", "planned_workout", "workout", "weights_workout")
     search_fields = ("text",)
 
 

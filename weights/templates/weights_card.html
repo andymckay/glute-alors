@@ -10,6 +10,9 @@
                     <b>{{ workout.completed_set_count }} of {{ workout.set_count }}</b><br>
                     <b>{{ workout.elapsed_seconds|hms }}</b>
                 </div>
+                {% if workout.comment_count %}
+                    <div class="badge bg-primary">{{ workout.comment_count }} comment{{ workout.comment_count|pluralize }}</div>
+                {% endif %}
             </div>
         </div>
     </a>

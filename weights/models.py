@@ -5,6 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from django.db import models
+from django.urls import reverse
 from django.utils import timezone
 
 from core.models import CreatedByModel
@@ -366,6 +367,11 @@ class WeightsWorkout(CreatedByModel):
         default=False,
         help_text="Whether the workout has been finished.",
     )
+    comment_count = models.PositiveIntegerField(
+        "comment count",
+        default=0,
+        help_text="Number of comments on this workout.",
+    )
 
     class Meta:
         ordering = ["-created_at"]
@@ -382,6 +388,11 @@ class WeightsWorkout(CreatedByModel):
             self.created_at.strftime("%Y-%m-%d %H:%M") if self.created_at else "unsaved"
         )
         return f"Weights workout for {self.created_by or 'Anonymous'} ({created})"
+
+    def get_absolute_url(self):
+        if self.is_actual:
+            return reverse("weights:workout_perform", args=[str(self.pk)])
+        return reverse("weights:workout_edit", args=[str(self.pk)])
 
     def get_exercises(self):
         """The workout's exercises as JSON, in order."""

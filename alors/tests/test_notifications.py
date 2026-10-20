@@ -15,6 +15,7 @@ from ..models import (
     Workout,
     WorkoutType,
 )
+from weights.models import WeightsWorkout
 
 
 class NotificationTests(TestCase):
@@ -354,6 +355,27 @@ class NotificationPageTests(TestCase):
         coach_notification = self._notification_for(self.coach, workout)
         coach_notification.refresh_from_db()
         self.assertFalse(coach_notification.read)
+
+    def test_weights_workout_comments_link_to_and_are_read_from_perform_page(self):
+        workout = WeightsWorkout.objects.create(
+            created_by=self.athlete, title="Leg day", is_actual=True
+        )
+        comment = Comment.objects.create(
+            weights_workout=workout,
+            text="Strong session!",
+            created_by=self.coach,
+        )
+        notification = self._notification_for(self.athlete, comment)
+
+        response = self.client.get(reverse("alors:notifications"))
+        self.assertContains(
+            response,
+            f"{reverse('weights:workout_perform', args=[workout.pk])}#comments",
+        )
+
+        self.client.get(reverse("weights:workout_perform", args=[workout.pk]))
+        notification.refresh_from_db()
+        self.assertTrue(notification.read)
 
     def test_viewing_workout_marks_direct_notifications_read(self):
         workout = self._workout()

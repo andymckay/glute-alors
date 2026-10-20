@@ -223,6 +223,10 @@ body.dragging-superset * {
   cursor: grabbing !important;
 }
 
+.exercise-row {
+  position: relative;
+}
+
 .exercise-row.dragging {
   opacity: 0.4;
 }
@@ -230,6 +234,24 @@ body.dragging-superset * {
 .exercise-row.drop-target {
   outline: 2px dashed var(--bs-primary);
   outline-offset: -2px;
+}
+
+.exercise-row.drop-before::before,
+.exercise-row.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--bs-primary);
+}
+
+.exercise-row.drop-before::before {
+  top: -5px;
+}
+
+.exercise-row.drop-after::after {
+  bottom: -5px;
 }
 
 .superset-header {
@@ -284,6 +306,11 @@ body.dragging-superset * {
 }
 
 .perform:not(.showing-all) [data-finish-workout] {
+  display: none;
+}
+
+/* Comments belong to the whole workout, not the one-exercise focus view. */
+.perform:not(.showing-all) .perform-comments {
   display: none;
 }
 

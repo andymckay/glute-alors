@@ -139,6 +139,11 @@
         </div>
     {% endif %}
 
+    <div class="perform-comments">
+        <h3 id="comments" class="border-bottom mt-4">Comments</h3>
+        {% include "comments.html" with comment_action="weights:workout_comment" %}
+    </div>
+
     <div class="modal fade perform-rest" id="rest" data-rest-panel tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">

@@ -720,13 +720,68 @@ function initExerciseFormset() {
         sync();
     };
 
+    /**
+     * The row and place a drop at this point would affect.
+     *
+     * Dropping near the top or bottom edge reorders the exercises; dropping on
+     * the middle of a row groups the two exercises into a superset.
+     */
     const dropTargetAt = (x, y, dragged) => {
         const element = document.elementFromPoint(x, y);
         if (!element || !element.closest) {
             return null;
         }
         const row = element.closest(".exercise-row");
-        return row && row !== dragged && !row.classList.contains("d-none") ? row : null;
+        if (!row || row === dragged || row.classList.contains("d-none")) {
+            return null;
+        }
+        const bounds = row.getBoundingClientRect();
+        const offset = bounds.height ? (y - bounds.top) / bounds.height : 0.5;
+        if (offset < 0.2) {
+            return { row, position: "before" };
+        }
+        if (offset > 0.8) {
+            return { row, position: "after" };
+        }
+        return { row, position: "group" };
+    };
+
+    /** The first or last row of a group, so the whole group keeps together. */
+    const groupEdge = (row, position) => {
+        const letter = letterOf(row).value;
+        if (!letter) {
+            return row;
+        }
+        let edge = row;
+        let sibling =
+            position === "before" ? row.previousElementSibling : row.nextElementSibling;
+        while (
+            sibling &&
+            sibling.classList.contains("exercise-row") &&
+            letterOf(sibling).value === letter
+        ) {
+            edge = sibling;
+            sibling =
+                position === "before"
+                    ? sibling.previousElementSibling
+                    : sibling.nextElementSibling;
+        }
+        return edge;
+    };
+
+    /** Move an exercise before or after another, outside any superset it has. */
+    const moveRow = (row, target, position) => {
+        const targetLetter = letterOf(target).value;
+        const edge =
+            targetLetter && targetLetter !== letterOf(row).value
+                ? groupEdge(target, position)
+                : target;
+        if (position === "before") {
+            edge.before(row);
+        } else {
+            edge.after(row);
+        }
+        sync();
     };
 
     const startDrag = (event, row) => {
@@ -738,16 +793,31 @@ function initExerciseFormset() {
         document.body.classList.add("dragging-superset");
 
         let target = null;
-        const highlight = (found) => {
-            if (found === target) {
+        const clearTarget = () => {
+            if (!target) {
                 return;
             }
-            if (target) {
-                target.classList.remove("drop-target");
+            target.row.classList.remove("drop-target", "drop-before", "drop-after");
+            target = null;
+        };
+        const highlight = (found) => {
+            if (
+                found === target ||
+                (found &&
+                    target &&
+                    found.row === target.row &&
+                    found.position === target.position)
+            ) {
+                return;
             }
+            clearTarget();
             target = found;
             if (target) {
-                target.classList.add("drop-target");
+                target.row.classList.add(
+                    target.position === "group"
+                        ? "drop-target"
+                        : `drop-${target.position}`
+                );
             }
         };
 
@@ -761,14 +831,20 @@ function initExerciseFormset() {
             document.removeEventListener("pointercancel", onEnd);
             row.classList.remove("dragging");
             document.body.classList.remove("dragging-superset");
-            highlight(target || dropTargetAt(endEvent.clientX, endEvent.clientY, row));
-            const found = target;
-            if (target) {
-                target.classList.remove("drop-target");
-                target = null;
+            if (endEvent.type === "pointercancel") {
+                clearTarget();
+                return;
             }
-            if (found) {
-                groupWith(row, found);
+            highlight(dropTargetAt(endEvent.clientX, endEvent.clientY, row));
+            const found = target;
+            clearTarget();
+            if (!found) {
+                return;
+            }
+            if (found.position === "group") {
+                groupWith(row, found.row);
+            } else {
+                moveRow(row, found.row, found.position);
             }
         };
 
@@ -1029,10 +1105,14 @@ function initWorkoutRunner() {
         requestedGroup && requestedGroup.querySelector('[data-done="false"]')
             ? requestedGroup
             : null;
+    // Comments live in the whole-workout view, so a link straight to them has
+    // to bring that view up rather than landing on a hidden section.
+    const wantsComments = window.location.hash === "#comments";
     let showEveryGroup =
-        rememberedShowAll === null
+        wantsComments ||
+        (rememberedShowAll === null
             ? window.location.hash === "#all"
-            : rememberedShowAll === "all";
+            : rememberedShowAll === "all");
 
     /** The link says what pressing it will do. */
     const paintShowAll = () => {
@@ -1755,6 +1835,12 @@ function initWorkoutRunner() {
     showCurrent();
     rememberShowAll();
     paintShowAll();
+    if (wantsComments) {
+        const comments = document.getElementById("comments");
+        if (comments) {
+            comments.scrollIntoView({ block: "start" });
+        }
+    }
 
     // The workout's clock, ticking while it is going on.
     if (elapsed && startedAt !== null) {
