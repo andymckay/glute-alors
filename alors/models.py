@@ -733,7 +733,7 @@ class UserProfile(TimeStampedModel):
         verbose_name="visibility",
         related_name="visible_profiles",
         blank=True,
-        help_text="The users who can see your profile.",
+        help_text="The users who can see your added workouts, comments and so on.",
     )
     units = models.CharField(
         "units",

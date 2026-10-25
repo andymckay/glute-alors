@@ -10,7 +10,7 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from alors.models import Comment, UserProfile
+from alors.models import Comment, Issue, UserProfile
 
 from . import models as weights_models
 from .forms import TIME_ERROR, parse_seconds
@@ -2288,6 +2288,118 @@ class WeightsWorkoutCommentTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertFalse(Comment.objects.exists())
+
+
+class WeightsWorkoutIssueTests(TestCase):
+    """Attaching and detaching issues on an actual weights workout."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="lifter", password="pw"
+        )
+        self.client.force_login(self.user)
+        self.workout = WeightsWorkout.objects.create(
+            created_by=self.user, title="Leg day", is_actual=True
+        )
+        self.knees = Issue.objects.create(title="Sore knees", colour="danger")
+
+    def perform_url(self):
+        return f"{reverse('weights:workout_perform', args=[self.workout.pk])}#issues"
+
+    def add_url(self):
+        return reverse("weights:workout_issue_add", args=[self.workout.pk])
+
+    def remove_url(self, issue):
+        return reverse(
+            "weights:workout_issue_remove", args=[self.workout.pk, issue.pk]
+        )
+
+    def test_attaches_an_existing_issue(self):
+        response = self.client.post(self.add_url(), {"issue": self.knees.pk})
+
+        self.assertRedirects(response, self.perform_url())
+        self.assertIn(self.knees, self.workout.issues.all())
+
+    def test_detaches_an_issue(self):
+        self.workout.issues.add(self.knees)
+
+        response = self.client.post(self.remove_url(self.knees))
+
+        self.assertRedirects(response, self.perform_url())
+        self.assertFalse(self.workout.issues.filter(pk=self.knees.pk).exists())
+
+    def test_perform_page_shows_issues_and_both_forms(self):
+        self.workout.issues.add(self.knees)
+        hips = Issue.objects.create(title="Tight hips")
+
+        response = self.client.get(
+            reverse("weights:workout_perform", args=[self.workout.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sore knees")
+        self.assertContains(response, self.add_url())
+        self.assertContains(response, self.remove_url(self.knees))
+        self.assertContains(response, f'<option value="{hips.pk}"')
+
+    def test_attached_issues_are_not_offered_again(self):
+        self.workout.issues.add(self.knees)
+        Issue.objects.create(title="Tight hips")
+
+        response = self.client.get(
+            reverse("weights:workout_perform", args=[self.workout.pk])
+        )
+
+        self.assertNotContains(response, f'<option value="{self.knees.pk}"')
+
+    def test_no_add_form_once_every_issue_is_attached(self):
+        self.workout.issues.add(self.knees)
+
+        response = self.client.get(
+            reverse("weights:workout_perform", args=[self.workout.pk])
+        )
+
+        self.assertContains(response, "Every issue is attached")
+        self.assertNotContains(response, self.add_url())
+
+    def test_an_issue_on_another_workout_cannot_be_removed(self):
+        other = WeightsWorkout.objects.create(
+            created_by=self.user, title="Upper body", is_actual=True
+        )
+        other.issues.add(self.knees)
+
+        response = self.client.post(self.remove_url(self.knees))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(other.issues.filter(pk=self.knees.pk).exists())
+
+    def test_a_planned_weights_workout_rejects_issues(self):
+        plan = WeightsWorkout.objects.create(created_by=self.user, title="Plan")
+
+        response = self.client.post(
+            reverse("weights:workout_issue_add", args=[plan.pk]),
+            {"issue": self.knees.pk},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(plan.issues.exists())
+
+    def test_an_unshared_workout_cannot_be_given_issues(self):
+        stranger = get_user_model().objects.create_user(
+            username="stranger", password="pw"
+        )
+        UserProfile.objects.create(user=stranger)
+        other = WeightsWorkout.objects.create(
+            created_by=stranger, title="Theirs", is_actual=True
+        )
+
+        response = self.client.post(
+            reverse("weights:workout_issue_add", args=[other.pk]),
+            {"issue": self.knees.pk},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(other.issues.exists())
 
 
 class WorkoutCompletionTests(TestCase):

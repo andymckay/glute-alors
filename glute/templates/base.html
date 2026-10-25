@@ -70,8 +70,11 @@
                             </ul>
 
                 {% else %}
-
-                <a class="link-underline link-underline-opacity-0" href="{% url 'alors:login' %}">Login</a>
+                            <ul class="nav nav-underline">
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'alors:login' %}">Login</a>
+                                </li>
+                            </ul>
                 {% endif %}
                         </div>
                     </div>

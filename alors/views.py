@@ -541,9 +541,10 @@ def add_workout_comment(request, pk):
 @login_required
 def workout_edit(request, pk):
     workout = get_object_or_404(Workout, pk=pk)
+    planned = workout.get_planned
 
     if request.method == "POST":
-        form = WorkoutEditForm(request.POST, instance=workout)
+        form = WorkoutEditForm(request.POST, instance=workout, planned=planned)
         if form.is_valid():
             workout._notification_actor = request.user
             if workout.created_by is None:
@@ -556,7 +557,7 @@ def workout_edit(request, pk):
             )
             return redirect("alors:workout_detail", pk=workout.pk)
     else:
-        form = WorkoutEditForm(instance=workout)
+        form = WorkoutEditForm(instance=workout, planned=planned)
 
     return render(
         request,
@@ -564,6 +565,7 @@ def workout_edit(request, pk):
         {
             "form": form,
             "workout": workout,
+            "planned": planned,
             "page_title": "Edit workout",
             "page_intro": (
                 f"Update the log for your "

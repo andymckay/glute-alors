@@ -8,6 +8,7 @@ from .models import (
     Label,
     PlannedWorkout,
     SavedWorkout,
+    Status,
     UserProfile,
     Workout,
 )
@@ -236,7 +237,11 @@ class SavedWorkoutForm(forms.ModelForm):
 
 
 class WorkoutEditForm(forms.ModelForm):
-    """Edit the log fields and linked issues of a completed workout."""
+    """Edit the log fields and linked issues of a completed workout.
+
+    When the workout has a matching planned run, the form also carries that
+    plan's status so both can be changed on the same page.
+    """
 
     effort_choices = [
         ["1", "1: Very light"],
@@ -275,6 +280,16 @@ class WorkoutEditForm(forms.ModelForm):
         choices=[("", "—")] + feeling_choices,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
+    planned_status = forms.ChoiceField(
+        label="Planned workout status",
+        required=False,
+        choices=[("", "—")] + list(Status.choices),
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text=(
+            "Whether the matching planned workout was done, missed, over or "
+            "under."
+        ),
+    )
 
     class Meta:
         model = Workout
@@ -284,10 +299,40 @@ class WorkoutEditForm(forms.ModelForm):
             "issues": forms.CheckboxSelectMultiple(),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, planned=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.planned = planned
         self.fields["notes"].help_text = "Markdown is supported."
         self.fields["issues"].help_text = "Attach one or more issues to this workout."
+        if planned is None:
+            # The status of a planned workout can only be edited when there is
+            # one to edit.
+            del self.fields["planned_status"]
+            return
+        self.fields["planned_status"].initial = planned.status
+        names = list(self.fields)
+        names.remove("planned_status")
+        names.insert(names.index("feeling") + 1, "planned_status")
+        self.order_fields(names)
+
+    def save(self, commit=True):
+        workout = super().save(commit=commit)
+        if commit and self.planned is not None:
+            status = self.cleaned_data.get("planned_status", "")
+            # Saving the workout recomputes the plan's status from the
+            # distance, so compare against what was just stored and let the
+            # value shown on the form win.
+            try:
+                self.planned.refresh_from_db(fields=["status"])
+            except PlannedWorkout.DoesNotExist:
+                return workout
+            if self.planned.status != status:
+                self.planned.status = status
+                self.planned._notification_actor = getattr(
+                    self.instance, "_notification_actor", None
+                )
+                self.planned.save(update_fields=["status"])
+        return workout
 
 
 class IssueForm(forms.ModelForm):

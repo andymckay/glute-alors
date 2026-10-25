@@ -139,6 +139,34 @@
         </div>
     {% endif %}
 
+    <div class="perform-issues">
+        <h3 id="issues" class="border-bottom mt-4">Issues</h3>
+        <div class="d-flex flex-wrap gap-2 mb-2">
+            {% for issue in issues %}
+                <form method="post" action="{% url 'weights:workout_issue_remove' workout.pk issue.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="badge text-bg-{{ issue.colour }} border-0"
+                            title="Remove {{ issue }} from this workout">{{ issue }} ✕</button>
+                </form>
+            {% empty %}
+                <p class="text-muted mb-0">No issues recorded.</p>
+            {% endfor %}
+        </div>
+        {% if issue_form.issue.field.queryset %}
+            <form method="post" action="{% url 'weights:workout_issue_add' workout.pk %}"
+                  class="d-flex flex-wrap gap-2 align-items-center">
+                {% csrf_token %}
+                {{ issue_form.issue }}
+                <button type="submit" class="btn btn-sm btn-primary">Add issue</button>
+            </form>
+        {% else %}
+            <p class="text-muted small mb-0">
+                Every issue is attached to this workout.
+                <a href="{% url 'alors:issue_add' %}">Create another issue</a>.
+            </p>
+        {% endif %}
+    </div>
+
     <div class="perform-comments">
         <h3 id="comments" class="border-bottom mt-4">Comments</h3>
         {% include "comments.html" with comment_action="weights:workout_comment" %}

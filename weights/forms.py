@@ -4,6 +4,8 @@ from django import forms
 from django.forms.formsets import DELETION_FIELD_NAME
 from django.forms.models import BaseInlineFormSet, inlineformset_factory
 
+from alors.models import Issue
+
 from .models import (
     Exercise,
     WeightsWorkout,
@@ -76,6 +78,26 @@ class WeightsWorkoutForm(forms.ModelForm):
                 }
             ),
         }
+
+
+class WeightsWorkoutIssueForm(forms.Form):
+    """Pick one of the issues not yet attached to a weights workout."""
+
+    issue = forms.ModelChoiceField(
+        queryset=Issue.objects.none(),
+        label="Issue",
+        empty_label="Choose an issue…",
+        widget=forms.Select(attrs={"class": "form-select form-select-sm w-auto"}),
+    )
+
+    def __init__(self, *args, workout=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if workout is None:
+            self.fields["issue"].queryset = Issue.objects.all()
+        else:
+            self.fields["issue"].queryset = Issue.objects.exclude(
+                weights_workouts=workout
+            )
 
 
 class WeightsWorkoutExerciseForm(forms.ModelForm):

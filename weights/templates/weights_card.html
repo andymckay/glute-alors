@@ -6,13 +6,19 @@
             <div class="mb-2">
                 {{ workout.workout_type|emoji }}
                 <span class="text-muted">{{ workout.title|capfirst }}</span>
-                <div>
+                <div class="mb-2">
                     <b>{{ workout.completed_set_count }} of {{ workout.set_count }}</b><br>
                     <b>{{ workout.elapsed_seconds|hms }}</b>
                 </div>
                 {% if workout.comment_count %}
                     <div class="badge bg-primary">{{ workout.comment_count }} comment{{ workout.comment_count|pluralize }}</div>
                 {% endif %}
+                {% if workout.issues %}
+            {% if workout.workout_type == 'run' and workout.get_workout_data.negative_split %}<span class="badge text-bg-primary">Negative split 👍</span>{% endif %}
+            {% for issue in workout.issues.all %}
+                <span class="badge text-bg-{{ issue.colour }}">{{ issue }}</span>
+            {% endfor %}
+        {% endif %}
             </div>
         </div>
     </a>

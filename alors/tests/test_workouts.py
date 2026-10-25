@@ -214,6 +214,104 @@ class WorkoutEditViewTests(TestCase):
             [str(n) for n in range(1, 6)],
         )
 
+    def create_planned(self, **overrides):
+        values = {
+            "workout_type": "run",
+            "workout_date": date(2026, 9, 5),
+            "total_distance": Decimal("10.00"),
+        }
+        values.update(overrides)
+        return PlannedWorkout.objects.create(**values)
+
+    def test_planned_status_sits_after_feeling(self):
+        from ..forms import WorkoutEditForm
+
+        planned = self.create_planned()
+        form = WorkoutEditForm(instance=self.workout, planned=planned)
+        self.assertEqual(
+            list(form.fields),
+            ["notes", "effort", "feeling", "planned_status", "issues"],
+        )
+
+    def test_edit_page_offers_planned_status_when_a_run_is_planned(self):
+        self.create_planned()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Planned workout status")
+
+    def test_edit_page_hides_planned_status_without_a_planned_run(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Planned workout status")
+
+    def test_edit_updates_the_planned_status(self):
+        planned = self.create_planned()
+        response = self.client.post(
+            self.url,
+            {
+                "notes": "note",
+                "effort": "7",
+                "feeling": "4",
+                "planned_status": "missed",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        planned.refresh_from_db()
+        # Saving the log would recompute the status as "done" from the
+        # distances; an explicit choice on the form wins.
+        self.assertEqual(planned.status, "missed")
+
+    def test_edit_can_clear_the_planned_status(self):
+        planned = self.create_planned(status="done", total_distance=None)
+        response = self.client.post(
+            self.url,
+            {
+                "notes": "note",
+                "effort": "7",
+                "feeling": "4",
+                "planned_status": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        planned.refresh_from_db()
+        self.assertEqual(planned.status, "")
+
+    def test_edit_keeps_the_planned_status_shown_on_the_form(self):
+        # The log's distance would compute "done", but the form showed
+        # "missed" and that is what saving keeps.
+        planned = self.create_planned(status="missed")
+        response = self.client.post(
+            self.url,
+            {
+                "notes": "note",
+                "effort": "7",
+                "feeling": "4",
+                "planned_status": "missed",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        planned.refresh_from_db()
+        self.assertEqual(planned.status, "missed")
+
+    def test_edit_does_not_touch_a_planned_run_for_another_type(self):
+        # Only runs are matched with a planned workout, so a walk leaves the
+        # plan alone even though one exists on the same day.
+        self.workout.workout_type = "walk"
+        self.workout.save()
+        planned = self.create_planned()
+        response = self.client.post(
+            self.url,
+            {
+                "notes": "note",
+                "effort": "7",
+                "feeling": "4",
+                "planned_status": "missed",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        planned.refresh_from_db()
+        self.assertEqual(planned.status, "")
+
     def test_edit_updates_only_allowed_fields(self):
         response = self.client.post(
             self.url,

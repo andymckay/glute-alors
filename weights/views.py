@@ -5,18 +5,20 @@ from django.contrib.auth.decorators import login_required
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.http import require_POST
 
 from .forms import (
     DEFAULT_REST_SECONDS,
     DefaultWeightsWorkoutSetFormSet,
     WeightsWorkoutExerciseFormSet,
     WeightsWorkoutForm,
+    WeightsWorkoutIssueForm,
     WeightsWorkoutSetForm,
     WeightsWorkoutSetFormSet,
     parse_seconds,
 )
 from alors.forms import CommentForm
-from alors.models import Notification, UserProfile
+from alors.models import Issue, Notification, UserProfile
 from alors.utils import visible_users
 
 from .models import (
@@ -510,8 +512,44 @@ def workout_perform(request, pk):
             "weight_unit_abbr": unit,
             "comments": workout.comments.all(),
             "comment_form": CommentForm(),
+            "issues": workout.issues.all(),
+            "issue_form": WeightsWorkoutIssueForm(workout=workout),
         },
     )
+
+
+@login_required
+@require_POST
+def workout_issue_add(request, pk):
+    """Attach an existing issue to an actual weights workout."""
+    workout = get_object_or_404(
+        WeightsWorkout, pk=pk, created_by__in=visible_users(request.user)
+    )
+    if not workout.is_actual:
+        raise Http404("Issues are only available on actual weights workouts.")
+    form = WeightsWorkoutIssueForm(request.POST, workout=workout)
+    if form.is_valid():
+        issue = form.cleaned_data["issue"]
+        workout.issues.add(issue)
+        messages.add_message(request, messages.SUCCESS, f"🏷️ Added {issue}.")
+    else:
+        messages.add_message(request, messages.ERROR, "Pick an issue to add.")
+    return redirect(f"{reverse('weights:workout_perform', args=[workout.pk])}#issues")
+
+
+@login_required
+@require_POST
+def workout_issue_remove(request, pk, issue_pk):
+    """Detach an issue from an actual weights workout."""
+    workout = get_object_or_404(
+        WeightsWorkout, pk=pk, created_by__in=visible_users(request.user)
+    )
+    if not workout.is_actual:
+        raise Http404("Issues are only available on actual weights workouts.")
+    issue = get_object_or_404(workout.issues, pk=issue_pk)
+    workout.issues.remove(issue)
+    messages.add_message(request, messages.SUCCESS, f"🗑️ Removed {issue}.")
+    return redirect(f"{reverse('weights:workout_perform', args=[workout.pk])}#issues")
 
 
 @login_required

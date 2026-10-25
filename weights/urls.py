@@ -16,6 +16,12 @@ urlpatterns = [
     path("<int:pk>/do/", views.workout_do, name="workout_do"),
     path("<int:pk>/perform/", views.workout_perform, name="workout_perform"),
     path("<int:pk>/comment/", views.workout_comment, name="workout_comment"),
+    path("<int:pk>/issues/add/", views.workout_issue_add, name="workout_issue_add"),
+    path(
+        "<int:pk>/issues/<int:issue_pk>/remove/",
+        views.workout_issue_remove,
+        name="workout_issue_remove",
+    ),
     path("<int:pk>/complete/", views.workout_complete, name="workout_complete"),
     path("<int:pk>/duplicate/", views.workout_duplicate, name="workout_duplicate"),
     path("<int:pk>/delete/", views.workout_delete, name="workout_delete"),

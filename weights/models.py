@@ -372,6 +372,13 @@ class WeightsWorkout(CreatedByModel):
         default=0,
         help_text="Number of comments on this workout.",
     )
+    issues = models.ManyToManyField(
+        "alors.Issue",
+        verbose_name="issues",
+        related_name="weights_workouts",
+        blank=True,
+        help_text="Issues related to this workout.",
+    )
 
     class Meta:
         ordering = ["-created_at"]

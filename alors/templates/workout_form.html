@@ -5,6 +5,13 @@
         <div class="col-lg-7">
             <h2 class="mb-1">{{ page_title|default:"Edit workout" }}</h2>
             <p class="text-muted mb-4">{{ page_intro }}</p>
+            {% if planned %}
+                <p class="text-muted mb-4">
+                    This workout matches the planned
+                    <a href="{% url 'alors:edit_planned' planned.pk %}">{{ planned.title|default:planned.get_workout_type_display }}</a>,
+                    whose status you can change below.
+                </p>
+            {% endif %}
 
             <form method="post" novalidate>
                 {% csrf_token %}

@@ -41,8 +41,9 @@
             {% endif %}
             </a>
         </div>
-        <div class="card-footer text-muted ">
-            {% if not expand %}
+        {% if not expand %}
+            <div class="card-footer text-muted ">
+            
                 <div><a href="#" class="link-underline link-underline-opacity-0" data-bs-toggle="collapse" data-bs-target="#options-{{ workout.pk }}">➕</a></div>
                 <div class="collapse mt-2" id="options-{{ workout.pk }}">
                     <form method="post" action="{% url 'alors:duplicate_planned' workout.pk %}" class="d-inline js-busy-form">
@@ -57,6 +58,6 @@
                     </form>&nbsp;
                     <a class="js-drag-handle badge bg-warning border-0 link-underline link-underline-opacity-0" draggable="true">Drag</a>
                 </div>
-            {% endif %}
-        </div>
+            </div>
+        {% endif %}
 </div>
