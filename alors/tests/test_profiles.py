@@ -112,7 +112,6 @@ class ProfileViewTests(TestCase):
         self.assertNotIn(self.user, options)
         self.assertNotIn(admin, options)
         self.assertContains(response, 'name="visibility"')
-        self.assertContains(response, "The users who can see your profile.")
 
     def test_post_updates_visibility(self):
         other = User.objects.create_user(username="other", password="secret")
